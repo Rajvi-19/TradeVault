@@ -4,7 +4,20 @@ Offline Windows software for shipment records, USD receivables and party reports
 
 ## Project status
 
+<<<<<<< Updated upstream
 Desktop interface prototype implemented in `Src/TradeVault.Desktop/` with synthetic in-memory services and dependency-free UI checks. Database, real authentication, accounting services and file handling are not implemented in this prototype. `Docs/` contains three reference workbooks.
+=======
+Backend foundation implemented and verified: Domain/Application/Infrastructure projects, SQLite migration, party/invoice services, receipt allocations, bank-contract balance queries, consistent backup and nine passing automated tests. There is no desktop executable or production-ready application yet. Authentication, full accounting reports, Excel exports and owner report import remain future work. Use synthetic data until encryption and security are implemented.
+
+## Backend quick start
+
+- Open `TradeVault.sln` with a .NET 10 SDK available.
+- Run `powershell -NoProfile -ExecutionPolicy Bypass -File ./build-backend.ps1` from the project root. Execution-policy bypass applies only to that build process; no machine policy is changed.
+- Initial dependency restore needs developer internet access. Subsequent local builds can use `-NoRestore`; deployed software will not need NuGet or internet.
+- Read [Developer A integration guide](Docs/Backend-Integration.md) for service composition, field definitions, examples and implementation boundaries.
+- SQLite schema source: `Src/TradeVault.Infrastructure/Migrations/001_Initial.sql`. Only this milestone's tables are implemented; the larger entity list below remains the proposed future design.
+- Service contracts: `Src/TradeVault.Application/Contracts.cs`. The desktop project should consume these instead of writing its own persistence or financial calculations.
+>>>>>>> Stashed changes
 
 ## Documentation rule
 
@@ -75,6 +88,7 @@ First end-to-end milestone: create one invoice on the Operator USB, allocate a p
 
 ## Work log
 
+<<<<<<< Updated upstream
 ### 2026-10-26 — Pulled desktop prototype verification and launch guide
 
 - Inspected Developer A's Desktop project, startup/self-test entry point, mock service composition and integration proposal. `MainWindow` currently constructs `MockPrototypeService`; no backend adapter is connected.
@@ -84,6 +98,21 @@ First end-to-end milestone: create one invoice on the Operator USB, allocate a p
 - Limitations: saves are memory-only; closing loses mock edits. No real login, database save, receipt posting, Excel export or report-file import is connected. No actual UI session or physical USB test was performed in this verification.
 - Repository observation: the current checkout has no root `TradeVault.sln`, common backend build settings, build script or backend integration guide from the earlier foundation. Git reports backend project directories and development caches as untracked. No files were deleted or backend integration attempted during this inspection. Reconcile/track Developer B's foundation before connecting it to Desktop.
 - Files changed in this session: `Readme.md` only; build outputs were generated under Desktop bin/obj. Next: manually review the prototype, restore/reconcile backend source control, then implement a Desktop adapter against the shared Application contracts.
+=======
+### 2026-10-26 — Developer B backend foundation
+
+- Added `TradeVault.sln`, common build settings, local NuGet configuration, ignored build/data patterns and `build-backend.ps1`.
+- Added Domain models for USD, parties, invoices, due dates, receipts, allocations and bank-contract balances. Sub-cent amounts and invalid terms are rejected. Stored shipping defaults to USD 3,800 but is not deducted from balances yet.
+- Added UI-facing create/list/update contracts in Application. Invoice updates use version checks to reject stale edits.
+- Added Infrastructure with relative-to-application paths, a data-folder instance lock, SQLite foreign keys, DELETE journals, FULL synchronous writes, in-memory SQL temporary storage and transactional schema migration. Native SQLite dependencies are restored through Microsoft.Data.Sqlite 10.0.14.
+- Implemented create/list parties; create/update/list invoices; transactional receipt creation with allocations; list receipts; bank-contract balance queries by as-of date; consistent integrity-checked backup.
+- Allocation safeguards reject duplicate invoice rows, cross-party allocation, receipt over-allocation, invoice over-allocation and allocations dated before invoices. Unallocated funds remain visible. Invoice amount cannot be reduced below allocated receipts.
+- Added `Docs/Backend-Integration.md` with Developer A handoff instructions, actual schema boundaries, field dictionary and synthetic acceptance examples.
+- Verification: `rtk proxy powershell -NoProfile -ExecutionPolicy Bypass -File ./build-backend.ps1 -NoRestore` built all four projects and passed all 9 tests (0 failed, 0 skipped). Tests exercised persistence/reopen, defaults/edits, partial and split receipts, historical cutoffs, atomic rejection, cross-party/duplicate validation, overdue calculation, stale edits, duplicate invoices, data-folder locking, backup reopen, precision and date boundaries.
+- Environment notes: SDK is installed. Initial restore encountered host NuGet configuration access and sandbox network restrictions; redirected development caches/config into `.build/` and successfully restored packages with network-enabled execution. The build script disables automatic ASP.NET certificate generation; the initial SDK first-run output reported certificate setup before that setting was added. No company data was used in builds/tests.
+- Limitations: not tested on physical removable media or a clean deployment PC. No login/role enforcement, encryption, full audit before/after values, receipt correction/reallocation, difference/shipping postings, report generation/import, or production restore UI. Historical queries use current invoice values, not temporal invoice versions. Explicit development roots are allowed; production USB enforcement remains to be added. All those items are documented, not claimed complete.
+- Next: Developer A connects its grid to the contracts; confirm amount/shipping/receipt-component policies before expanding the accounting model. Then add authentication/security, remaining accounting entities and both report outputs.
+>>>>>>> Stashed changes
 
 ### 2026-10-26 — Requirements and planning baseline
 

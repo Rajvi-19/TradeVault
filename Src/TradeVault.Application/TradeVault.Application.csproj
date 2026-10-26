@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../TradeVault.Domain/TradeVault.Domain.csproj" />
+  </ItemGroup>
+</Project>
