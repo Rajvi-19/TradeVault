@@ -12,19 +12,37 @@ public sealed class ExcelGrid : UserControl
     public DataGrid Table { get; } = new();
     private readonly ObservableCollection<GridRow> rows;
     private readonly IReadOnlyList<Field> fields;
-    private readonly TextBlock feedback = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0,8,0,8) };
+    private readonly TextBlock feedback = new() { TextWrapping = TextWrapping.Wrap, Margin = new(20,8,20,8), FontSize=11, Foreground=Brushes.DimGray };
     private readonly CollectionViewSource source;
     public event Action? Edited;
     public ExcelGrid(IReadOnlyList<Field> fields, ObservableCollection<GridRow> rows, bool readOnly = false)
     {
         this.fields = fields; this.rows = rows;
         var root = new DockPanel();
-        var search = new TextBox { Margin = new(0,0,0,8), Padding = new(8), ToolTip = "Filter visible rows across all columns" };
+        var search = new TextBox { Width=240, Padding = new(8,5,8,5), ToolTip = "Filter visible rows across all columns" };
         System.Windows.Automation.AutomationProperties.SetName(search, "Filter rows");
-        var filterLabel = new TextBlock { Text = "Filter rows · all columns", Margin = new(0,0,0,4) };
-        DockPanel.SetDock(filterLabel,Dock.Top); root.Children.Add(filterLabel);
-        DockPanel.SetDock(search,Dock.Top); root.Children.Add(search);
-        feedback.Text = readOnly ? "Read-only service snapshot. Sorting changes display order only." : "Select a starting cell and paste tab-separated rows. Blue columns are locked. Dates: yyyy-MM-dd.";
+        var tools=new DockPanel {Margin=new(20,0,20,14)};
+        var legend=new TextBlock {Text=readOnly?"Read-only worksheet":"USD  ·  Terms: 90 days  ·  Shipping: 3,800.00  ·  Shaded cells are calculated",FontSize=11,Foreground=Brushes.DimGray,VerticalAlignment=VerticalAlignment.Center};
+        DockPanel.SetDock(legend,Dock.Right);tools.Children.Add(legend);
+        var filter=new StackPanel {Orientation=Orientation.Horizontal};
+        filter.Children.Add(new TextBlock {Text="Find in worksheet",VerticalAlignment=VerticalAlignment.Center,Margin=new(0,0,10,0),FontSize=12});filter.Children.Add(search);tools.Children.Add(filter);
+        DockPanel.SetDock(tools,Dock.Top);root.Children.Add(tools);
+        var formula=new DockPanel {Height=34,Margin=new(0,0,0,1)};
+        var address=new TextBlock {Text="A1",Width=76,TextAlignment=TextAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
+        DockPanel.SetDock(address,Dock.Left);formula.Children.Add(address);
+        var fx=new TextBlock {Text="│   fx",Foreground=Brushes.Gray,Width=50,VerticalAlignment=VerticalAlignment.Center,FontStyle=FontStyles.Italic};
+        DockPanel.SetDock(fx,Dock.Left);formula.Children.Add(fx);
+        var value=new TextBox {IsReadOnly=true,BorderThickness=new(0),ToolTip="Selected cell value. Edit inputs directly in the worksheet."};
+        System.Windows.Automation.AutomationProperties.SetName(value,"Selected cell value");formula.Children.Add(value);
+        DockPanel.SetDock(formula,Dock.Top);root.Children.Add(formula);
+        Table.CurrentCellChanged+=(_,_)=> {
+            if(Table.CurrentItem is GridRow row && Table.CurrentColumn is DataGridColumn column) {
+                int index=column.DisplayIndex;string letters="";for(int n=index+1;n>0;n=(n-1)/26)letters=(char)('A'+(n-1)%26)+letters;
+                address.Text=$"{letters}{Table.Items.IndexOf(row)+1}";
+                value.SetBinding(TextBox.TextProperty,new Binding($"[{fields[Table.Columns.IndexOf(column)].Key}]"){Source=row,Mode=BindingMode.OneWay});
+            }
+        };
+        feedback.Text = readOnly ? "Read-only · Sorting changes the view, not the account order." : "Enter / Tab to navigate · Ctrl+C to copy · Ctrl+V to paste · Dates: yyyy-MM-dd";
         DockPanel.SetDock(feedback,Dock.Bottom); root.Children.Add(feedback);
         source = new CollectionViewSource { Source = rows };
         source.Filter += (_,e) => e.Accepted = e.Item is GridRow r && fields.Any(f => r[f.Key].Contains(search.Text,StringComparison.OrdinalIgnoreCase));
@@ -37,8 +55,8 @@ public sealed class ExcelGrid : UserControl
         Table.LoadingRow += (_,e) => e.Row.Header = (e.Row.GetIndex()+1).ToString();
         foreach (var field in fields)
         {
-            var style = new Style(typeof(TextBlock)); style.Setters.Add(new Setter(TextBlock.PaddingProperty,new Thickness(9,7,9,7)));
-            if (field.Calculated) style.Setters.Add(new Setter(TextBlock.BackgroundProperty,new SolidColorBrush(Color.FromRgb(224,239,247))));
+            var style = new Style(typeof(TextBlock)); style.Setters.Add(new Setter(TextBlock.PaddingProperty,new Thickness(8,5,8,5)));
+            if (field.Calculated) style.Setters.Add(new Setter(TextBlock.BackgroundProperty,new SolidColorBrush(Color.FromRgb(241,246,242))));
             Table.Columns.Add(new DataGridTextColumn {
                 Header = field.Label, Width = field.Width, IsReadOnly = field.Calculated,
                 SortMemberPath = $"[{field.Key}]", ElementStyle = style,
@@ -53,12 +71,24 @@ public sealed class ExcelGrid : UserControl
             {
                 e.Handled = true;
                 try {
-                    if (Clipboard.ContainsText()) Paste(Clipboard.GetText());
+                    PasteClipboard();
                 } catch (System.Runtime.InteropServices.ExternalException) { feedback.Text = "Clipboard is busy. Retry paste."; }
             }
         };
         Table.CellEditEnding += (_,_) => Dispatcher.BeginInvoke(new Action(() => Edited?.Invoke()));
         root.Children.Add(Table); Content = root;
+    }
+    public void CopySelection()
+    {
+        Table.Focus();
+        try { if(ApplicationCommands.Copy.CanExecute(null,Table)) ApplicationCommands.Copy.Execute(null,Table); }
+        catch(System.Runtime.InteropServices.ExternalException) {feedback.Text="Clipboard is busy. Retry copy.";}
+    }
+    public void PasteClipboard()
+    {
+        if(Table.IsReadOnly)return;
+        try {if(Clipboard.ContainsText())Paste(Clipboard.GetText());else feedback.Text="Copy a range of cells before pasting.";}
+        catch(System.Runtime.InteropServices.ExternalException) {feedback.Text="Clipboard is busy. Retry paste.";}
     }
     public void Paste(string text)
     {
@@ -72,7 +102,7 @@ public sealed class ExcelGrid : UserControl
         try {
             var changes = PastePlan.Create(text,row,col,visible.Count,ordered);
             foreach (var change in changes) visible[change.Row][change.Key] = change.Value;
-            feedback.Text = $"Pasted {changes.Count} input cells. Values remain in memory; validate before mock save.";
+            feedback.Text = $"Pasted {changes.Count} input cells · Sample workspace: changes are not saved.";
             Edited?.Invoke();
         } catch (ArgumentException ex) { feedback.Text = ex.Message; }
     }

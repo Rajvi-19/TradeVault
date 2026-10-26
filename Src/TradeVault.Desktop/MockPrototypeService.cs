@@ -27,19 +27,19 @@ public sealed class MockPrototypeService : IPrototypeService
         Invoices.Add(Row(("Party","Demo Indigo Ltd"),("Invoice","DEMO-001"),("InvoiceDate","2026-10-01"),
             ("Country","Malaysia"),("Original","24000.00"),("IndiaCustoms","18000.00"),("PakCustoms","18000.00"),
             ("Bank","18000.00"),("Shipping","3800.00"),("Terms","90"),("BlDate","2026-10-07"),
-            ("Due","2027-01-05 [fixture]"),("Outstanding","12,000.00 [fixture]")));
+            ("Due","2027-01-05"),("Outstanding","12,000.00")));
         Invoices.Add(Row(("Party","Demo Violet Trading"),("Invoice","DEMO-002"),("InvoiceDate","2026-10-10"),
             ("Country","Malaysia"),("Original","32000.00"),("Bank","22000.00"),("Shipping","3800.00"),
-            ("Terms","90"),("Due","Pending service"),("Outstanding","Pending service")));
+            ("Terms","90"),("Due","Pending"),("Outstanding","Pending")));
         Allocations.Add(Row(("Invoice","DEMO-001"),("Component","Bank contract"),("Amount","8000.00")));
         Allocations.Add(Row(("Invoice","DEMO-001"),("Component","Difference"),("Amount","2000.00")));
     }
-    public GridRow NewInvoice() => Row(("Shipping","3800.00"),("Terms","90"),("Due","Pending service"),("Outstanding","Pending service"));
+    public GridRow NewInvoice() => Row(("Shipping","3800.00"),("Terms","90"),("Due","Pending"),("Outstanding","Pending"));
     public ServiceResult Validate(GridRow row)
     {
         List<CellIssue> issues = [];
         foreach (var key in new[] { "Party", "Invoice" })
-            if (string.IsNullOrWhiteSpace(row[key])) issues.Add(new(key, $"{key} is required (mock validation)."));
+            if (string.IsNullOrWhiteSpace(row[key])) issues.Add(new(key, $"{key} is required."));
         foreach (var key in new[] { "Original", "IndiaCustoms", "PakCustoms", "Bank", "Shipping" })
             if (row[key].Length > 0 && (!decimal.TryParse(row[key], NumberStyles.Number, CultureInfo.InvariantCulture, out var n) || n < 0))
                 issues.Add(new(key, $"{key}: enter a non-negative USD amount, e.g. 3800.00."));
@@ -62,7 +62,7 @@ public sealed class MockPrototypeService : IPrototypeService
             new() {Row(("Invoice","DEMO-001"),("Original","24000.00"),("Bank","18000.00"),("Pending","10000.00"),("Difference","2000.00"),("Due","2027-01-05"))});
     public (IReadOnlyList<Field>, ObservableCollection<GridRow>) Submissions() => (
         new Field[] {new("Submission","Submission",Width:210),new("Revision","Revision"),new("Through","Data through"),new("Status","Review status",Width:200)},
-        new() {Row(("Submission","DEMO-SUBMISSION-001"),("Revision","1"),("Through","2026-10-26"),("Status","Awaiting review [fixture]"))});
+        new() {Row(("Submission","DEMO-SUBMISSION-001"),("Revision","1"),("Through","2026-10-26"),("Status","Awaiting review"))});
     private static GridRow Row(params (string Key,string Value)[] cells)
     {
         var row = new GridRow(); foreach (var (key,value) in cells) row[key] = value; return row;
