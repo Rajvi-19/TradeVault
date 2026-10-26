@@ -1,0 +1,34 @@
+using TradeVault.Infrastructure;
+using TradeVault.Domain;
+namespace TradeVault.Desktop;
+internal static class LiveChecks
+{
+    private static void Require(bool condition,string name){if(!condition)throw new InvalidOperationException(name);}
+    public static void Run()
+    {
+        var root=System.IO.Path.Combine(AppContext.BaseDirectory,"TestData",Guid.NewGuid().ToString("N"));
+        try
+        {
+            using(var db=new PortableDatabase(new(root)))
+            {
+                var store=new WorkbookStore(db);
+                try{store.Login("owner","wrong");throw new Exception("Bad password accepted");}catch(BusinessRuleException){}
+                var owner=store.Login("owner","Owner@123");var op=store.Login("operator","Operator@123");
+                try{store.Load(op,"operator-reports");throw new Exception("Operator access accepted");}catch(BusinessRuleException){}
+                var sheet=new WorksheetController(store,owner);sheet.Load("details");Require(sheet.Rows.Count==0,"No dummy rows");
+                var row=sheet.Add();row["B"]="TEST ONLY";row["C"]="15000";row["D"]="10000";row["E"]="3000";row["J"]="1200";row["L"]="2026-06-17";sheet.Save();
+                Require(row["F"]=="7000.00"&&row["K"]=="0.00"&&row["N"]=="2026-09-15","Details calculations");
+                var stale=new WorksheetController(store,owner);stale.Load("details");row["E"]="4000";sheet.Save();
+                try{stale.Save();throw new Exception("Stale save accepted");}catch(BusinessRuleException){}
+                sheet.Load("ledger");row=sheet.Add();row["B"]="TEST ONLY";row["C"]="100";row["D"]="25";row["I"]="2026-06-17";sheet.Opening=10;sheet.Save();Require(row["E"]=="85.00","Ledger calculation");
+                sheet.Load("form");row=sheet.Add();row["F1"]="TEST ONLY";row["F9"]="TEST-1";row["F17"]="2026-06-17";sheet.Save();Require(row["F19"]=="2026-09-15"&&row["F20"]=="2026-08-16","Due and reminder");
+                Require(ExcelFields.For("form").Count==26&&ExcelFields.For("details").Count==14&&ExcelFields.For("ledger").Count==9,"Exact field counts");
+                var grid=new ExcelGrid(sheet.Fields,sheet.Rows);Require(grid.Table.Columns[18].IsReadOnly,"Calculated field lock");
+                var window=new MainWindow(store,owner,db.Paths.Database);window.Measure(new System.Windows.Size(1440,880));window.Arrange(new System.Windows.Rect(0,0,1440,880));window.UpdateLayout();window.Close();
+                store.Logout(owner);try{store.Load(owner,"form");throw new Exception("Expired session accepted");}catch(BusinessRuleException){}
+            }
+            using var reopened=new PortableDatabase(new(root));var s=new WorkbookStore(reopened);var session=s.Login("owner","Owner@123");Require(s.Load(session,"details").Rows.Count==2,"Persistence after reopen");
+        }
+        finally{System.IO.Directory.Delete(root,true);}
+    }
+}

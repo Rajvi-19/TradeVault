@@ -58,7 +58,7 @@ public sealed class PortableDatabase : IDisposable
             SELECT COALESCE(MAX(version), 0) FROM schema_migrations;
             """;
         var version = Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
-        if (version > 1) throw new InvalidOperationException("This database requires a newer TradeVault application.");
+        if (version > 2) throw new InvalidOperationException("This database requires a newer TradeVault application.");
         if (version == 0)
         {
             using var stream = typeof(PortableDatabase).Assembly.GetManifestResourceStream(
@@ -70,6 +70,16 @@ public sealed class PortableDatabase : IDisposable
             command.CommandText = "INSERT INTO schema_migrations VALUES (1, $now); INSERT INTO app_instance VALUES ($id, $now);";
             command.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O"));
             command.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
+            command.ExecuteNonQuery();
+        }
+        if (version < 2)
+        {
+            command.Parameters.Clear();
+            command.CommandText = """
+                CREATE TABLE credentials(username TEXT PRIMARY KEY, role TEXT NOT NULL, salt BLOB NOT NULL, hash BLOB NOT NULL) STRICT;
+                CREATE TABLE worksheets(name TEXT PRIMARY KEY, revision INTEGER NOT NULL, data TEXT NOT NULL) STRICT;
+                INSERT INTO schema_migrations VALUES(2, strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+                """;
             command.ExecuteNonQuery();
         }
         transaction.Commit();

@@ -1,0 +1,63 @@
+namespace TradeVault.Desktop;
+public static class ExcelFields
+{
+ public static IReadOnlyList<Field> For(string name) => name switch
+ {
+ "form" => [
+new("F1","PARTY NAME",false,240),
+new("F2","COUNTRY NAME",false,240),
+new("F3","PROFORMA INVOICE NO",false,240),
+new("F4","PROFORMA INVOICE DATE",false,240),
+new("F5","ORIGINAL AMOUNT $",false,240),
+new("F6","OUR CUSTOMS INV AMOUNT $",false,240),
+new("F7","PAK CUSTOMS INV AMOUNT $",false,240),
+new("F8","DIFFERENCE AMOUNT $",false,240),
+new("F9","INVOICE NO. (INDIA TO MALAYSIA)",false,240),
+new("F10","INVOICE DATE (INDIA TO MALAYSIA)",false,240),
+new("F11","CONTAINER NO. INDIA TO MALAYSIA",false,240),
+new("F12","INDIA BL NO.",false,240),
+new("F13","INDIA BL  DATE",false,240),
+new("F14","MALASIYA ARRIVAL DATE",false,240),
+new("F15","CONTAINER NO. MALAYSIA TO PAK",false,240),
+new("F16","MALAYSIA BL NO.",false,240),
+new("F17","MALAYSIA BL DATE",false,240),
+new("F18","SHIPPING CHARGES USD 3800",false,240),
+new("F19","PAYMENT DUE DATE",true,240),
+new("F20","BEFORE DUE DATE REMINDER 30 DAYS",true,240),
+new("F21","OVER DUE DAYS",true,240),
+new("F22","REC. MLY TO PAK CUSTOMS INVOICE AMOUNT $",false,240),
+new("F23","RECEIVED  DIFF. PAYMENT PRK AMOUNT  IN LOCAL BANK",false,240),
+new("F24","PAYMENT DATE",false,240),
+new("F25","RECEIVED PAYMENT AMOUNT $ IN  NEMICHEM ACCOUNT",false,240),
+new("F26","PAYMENT REC. DATE",false,240),
+],
+ "details" => [
+new("A","SR. NO.",true,240),
+new("B","OUR CUSTOMS INVOICE NO & DATE",false,240),
+new("C","ORIGINAL AMOUNT $",false,240),
+new("D","BANK CONTRACT AMOUNT $",false,240),
+new("E","REC. INVOICE  PAYMENT IN MALAYSIA A/C",false,240),
+new("F","PENDING INVOICE PAYMENT IN MALAYSIA A/C",true,240),
+new("G","DIFFRENCE AMAOUNT $",true,240),
+new("H","SHIPMENT PAYMENT $",false,240),
+new("I","PER BILL DIFF. AFTER SHIPMENT PAYMENT  USD",true,240),
+new("J","REC. DIFF. AMOUNT",false,240),
+new("K","TOTAL DIFF. AMOUNT PENDING $",true,240),
+new("L","BL DATE. MLY TO PAK",false,240),
+new("M","TERMS",false,240),
+new("N","DUE DATE",true,240),
+],
+ "ledger" => [
+new("B","PARTICULARS",false,240),
+new("C","DEBIT",false,240),
+new("D","CREDIT",false,240),
+new("E","BALANCE (USD)",true,240),
+new("G","DUE",false,240),
+new("H","BANK PAYMENT",false,240),
+new("I","BL DATE",false,240),
+new("J","TERMS",false,240),
+new("K","DUE",true,240),
+],
+ _ => []
+ };
+}

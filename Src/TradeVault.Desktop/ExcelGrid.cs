@@ -102,7 +102,7 @@ public sealed class ExcelGrid : UserControl
         try {
             var changes = PastePlan.Create(text,row,col,visible.Count,ordered);
             foreach (var change in changes) visible[change.Row][change.Key] = change.Value;
-            feedback.Text = $"Pasted {changes.Count} input cells · Sample workspace: changes are not saved.";
+            feedback.Text = $"Pasted {changes.Count} input cells — click Save to persist changes.";
             Edited?.Invoke();
         } catch (ArgumentException ex) { feedback.Text = ex.Message; }
     }

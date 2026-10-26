@@ -4,6 +4,20 @@ Offline Windows software for shipment records, USD receivables and party reports
 
 ## Project status
 
+As of 2026-10-27: the Desktop application starts at a real login page and uses SQLite for three empty, editable Excel-shaped worksheets. The previous mock implementation has been removed. Live worksheet persistence is separate from the earlier normalized invoice/receipt service; automatic cross-report population and receipt allocation UI integration remain outstanding. Read the newest work log below for current scope; older entries describe historical milestones.
+
+## Run the connected application
+
+- Build/run: `dotnet run --project Src/TradeVault.Desktop/TradeVault.Desktop.csproj`. Close any running copy before rebuilding.
+- Built executable: `Src/TradeVault.Desktop/bin/Debug/net10.0-windows/TradeVault.Desktop.exe`.
+- Predefined usernames: `owner` and `operator`. Initial credentials are provisioned in `WorkbookStore`; password hashes are stored using salted PBKDF2-SHA256 (600,000 iterations). No role dropdown bypass exists. Do not record passwords in this log.
+- Select a worksheet, click New row, enter values, then Save. Reload or close/reopen to verify persistence. New company databases contain no sample records.
+- Labels/order come from `Docs/formet.xlsx` (26 fields), Account Details row 2 (14 fields) and Debit/Credit row 2 (9 populated fields). Source spelling is preserved; surrounding whitespace is trimmed. The two identically named DUE columns remain separate. Dates use `yyyy-MM-dd`; money is USD with up to two decimals.
+- Calculated columns are locked. Account Details uses F=D-E, G=C-D, I=C-D-H, K=previous K+I-J (including the corrected first row), N=L+M. Ledger E=previous E+C-D and K=I+J. Opening balance is editable above the reports. Input form due/reminder/overdue derive from Malaysia BL date and editable default terms; its difference amount remains an input because that source has no formula defining it.
+- Worksheet rows are saved atomically with revision checks in `worksheets`; authentication checks are enforced by WorkbookStore. Each worksheet is independent and has its own opening balance/terms metadata. They are not automatically reconciled or populated from each other. Receipt amounts in these worksheets are cumulative manual inputs, not the existing normalized receipt allocation workflow.
+- Database location is shown in the window footer: `Data/tradevault.db` beside the executable. Keep the whole application folder on the USB for portable operation. The current development executable still requires the installed .NET 10 Desktop Runtime. The SQLite file is not encrypted; authentication alone does not prevent direct file access. Physical USB/no-host-artefact acceptance remains outstanding.
+- Owner report import is explicitly marked unavailable; no dummy submissions, receipt totals or reports are displayed.
+
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 Desktop interface prototype implemented in `Src/TradeVault.Desktop/` with synthetic in-memory services and dependency-free UI checks. Database, real authentication, accounting services and file handling are not implemented in this prototype. `Docs/` contains three reference workbooks.
@@ -91,6 +105,32 @@ First end-to-end milestone: create one invoice on the Operator USB, allocate a p
 - Joint: agree service contracts and expected calculations first; review each other's changes; integrate a working end-to-end flow regularly. Never maintain separate incompatible schema definitions.
 
 ## Work log
+
+### 2026-10-27 — Connected worksheets and authentication
+
+- Re-read all three source workbook field lists. Generated `ExcelFields.cs` using their exact nonblank labels/order without importing sample company entries; source workbooks unchanged.
+- Added schema migration 2 for salted password hashes and versioned worksheet storage. Existing version-1 business tables are preserved. Added authenticated sessions, owner-only access checks, invalid-login throttling, transactional worksheet saves and save audit events in `WorkbookStore.cs`.
+- Connected Desktop to Infrastructure. Added `LoginWindow`, real startup composition/disposal, and `LiveMainWindow` with new/save/reload/delete actions, unsaved-change prompts, editable defaults and persisted opening balances. Removed old `MainWindow.cs`, mock service and obsolete prototype checks; production has no dummy data source.
+- Added `WorksheetController` validation and actual formula calculations; calculated cells are cleared when input validation fails. Kept the Excel grid's keyboard/copy/paste/filter features and green application header. Date/amount validation failures block saves; failed and stale saves retain input.
+- Tests: Desktop build passed with 0 warnings/errors. `--self-test` passed real authentication, wrong-password rejection, owner access, logout invalidation, empty initial worksheets, exact field counts, formula results, date/reminder rules, stale revision rejection, persistence across reopen, locked columns and main-window construction/layout. All 9 existing backend tests also passed. Synthetic test rows existed only in disposable test databases and were removed.
+- Created the application's actual `Data/tradevault.db` using `--initialize-db`. Independent SQLite inspection returned integrity `ok`, zero worksheet datasets and zero parties/invoices/receipts; only the two predefined account identities were seeded. No production company records were added or deleted.
+- Build environment: cached dependencies were used; online vulnerability metadata was unreachable, so NuGetAudit was disabled for that local restore command only. Final build used `--no-restore`; no project-wide audit suppression added.
+- Limitations: worksheet datasets are independent, not linked automatically to normalized invoice/receipt tables. This delivers exact Excel-shaped manual entry/storage, not automatic cross-report generation or allocation posting. Owner file import/export, database encryption, password recovery/change UI and physical USB validation remain outstanding. Existing normalized backend tests/services remain intact.
+- Next: agree mappings among customs/bank amounts and shipment charge policy, then connect receipt allocations and generate both reports from one authoritative dataset. Add owner package import/export afterwards.
+
+### 2026-10-26 — Investigated executable lock during launch
+
+- Read the user's pasted terminal output. MSB3026 retries and MSB3027/MSB3021 failures identify `TradeVault.Desktop` PID 9380 as holding the executable open while `dotnet run` attempted to rebuild it.
+- Cause: an existing application instance prevents Windows from replacing its executable; the supplied output does not indicate a C# compilation failure.
+- Resolution: save any needed edits, close all TradeVault windows, then rerun `dotnet run --project Src/TradeVault.Desktop/TradeVault.Desktop.csproj`. Use Task Manager only if a process remains after closing. For reopening an already built version without rebuilding, use the executable or `dotnet run --no-build --project Src/TradeVault.Desktop/TradeVault.Desktop.csproj`; this does not incorporate newly pulled changes.
+- No application process was forcibly terminated and no application source was changed. Validation was inspection of the supplied error log and a current process query; no rebuild claimed in this session.
+
+### 2026-10-26 — Rebuild after pulling revised UI
+
+- Confirmed the pulled `MainWindow.cs` contains the revised green title bar, horizontal navigation and ribbon interface. No running TradeVault process was found during inspection.
+- Rebuilt the Desktop project with `dotnet build Src/TradeVault.Desktop/TradeVault.Desktop.csproj --no-incremental --nologo`: succeeded with zero warnings and zero errors. The updated executable is `Src/TradeVault.Desktop/bin/Debug/net10.0-windows/TradeVault.Desktop.exe`.
+- Git pull updates source files; it does not rebuild ignored executable outputs or update copies on another folder/USB. Launch the rebuilt output, or use `dotnet run --project Src/TradeVault.Desktop/TradeVault.Desktop.csproj` after pulling.
+- Changes: this README and generated build outputs only; no UI or backend source changes. Interactive visual acceptance remains pending.
 
 <<<<<<< Updated upstream
 ### 2026-10-26 — Pulled desktop prototype verification and launch guide
