@@ -4,6 +4,8 @@ Offline Windows software for shipment records, USD receivables and party reports
 
 ## Project status
 
+Latest phase (2026-10-27): party-scoped workspaces are implemented. Use Create party / Select party to keep each party's three worksheets, opening balances and settings separate. Existing pre-party data migrates to Unassigned records after an automatic pre-upgrade backup. See [Party workspaces](Docs/Party-Workspaces.md) for safe assignment instructions. Earlier status/audit entries below describe prior milestones.
+
 As of 2026-10-27: the Desktop application starts at a real login page and uses SQLite for three empty, editable Excel-shaped worksheets. The previous mock implementation has been removed. Live worksheet persistence is separate from the earlier normalized invoice/receipt service; automatic cross-report population and receipt allocation UI integration remain outstanding. Read the newest work log below for current scope; older entries describe historical milestones.
 
 ## Run the connected application
@@ -105,6 +107,55 @@ First end-to-end milestone: create one invoice on the Operator USB, allocate a p
 - Joint: agree service contracts and expected calculations first; review each other's changes; integrate a working end-to-end flow regularly. Never maintain separate incompatible schema definitions.
 
 ## Work log
+
+### 2026-10-27 — User-requested realistic test records
+
+- User explicitly requested dummy data and confirmed the application was closed. Added an opt-in `--seed-test-data` command; normal startup never seeds records. Duplicate test-party names abort insertion to avoid repeat seeding.
+- Created a consistent pre-insertion backup: `Src/TradeVault.Desktop/bin/Debug/net10.0-windows/Backups/tradevault-20261027-075543-8948a704a2f64aca80d9400a11d7bdb7.db`.
+- Added three clearly labelled fictitious parties: `[TEST] Meridian Textile Trading`, `[TEST] Bengal Colour Mills`, `[TEST] Gulf Fabric Industries`. Each contains 4 input invoices, 4 detail-report rows and 13 ledger rows: 12 invoices, 12 details and 39 ledger rows total.
+- Scenarios: fully settled invoice, partial bank/difference receipts (two bank receipt lines), unpaid invoice, missing final BL/due date, editable USD 4,200 shipping versus the USD 3,800 default. All references/containers/BL identifiers are prefixed TEST. Baseline as-of date is 27-Oct-2026; sample amount-field equality is a fixture choice, not an inferred business rule.
+- Seeded through actual authenticated party/worksheet services and calculation controller. Existing Sinuvera Technologies and Unassigned records remained unchanged and empty. Samples are party-scoped; both roles can inspect them on this USB database.
+- Validation: normal Desktop build passed with 0 warnings/errors; independent SQLite integrity check returned `ok`; verified per-party counts and reconciled every sample ledger closing balance to pending contract plus pending difference. Closing USD totals: Meridian 191,202.50; Bengal 224,952.88; Gulf 258,703.25.
+- Scope: these are manual worksheet fixtures, not integration with normalized receipt-allocation tables. The input worksheet's overdue field remains calendar-based even for settled sample invoices, as documented in the audit. For testing, switch the Party selector to a `[TEST]` party after reopening.
+
+### 2026-10-27 — Party-wise separation phase
+
+- Added schema migration 3: `worksheet_parties` and composite-key `party_worksheets`. Version-1/2 databases receive a consistent integrity-checked backup before migration. Legacy JSON/revisions are copied exactly to Unassigned records; the original table is preserved.
+- Added authenticated party create/list APIs, normalized unique names, party-existence validation, party-scoped save conflicts and safe whole-worksheet assignment. Assignment refuses destination overwrite and mixed invoice ownership, copies metadata, empties the unassigned source and increments its revision to block stale resurrection.
+- Added Party selector, Create party dialog and Assign worksheet flow outside the Excel columns. Switching retains the active sheet and prompts on unsaved edits. Selected parties get independent records/openings/terms/as-of dates; invoice PARTY NAME defaults to the chosen party and mismatches block Save.
+- Preserved existing Excel field labels, date typing, formulas and role login. No automatic cross-report generation or normalized receipt allocation integration is claimed. Mixed legacy datasets are not silently split or assigned.
+- Added `PartyWorkbookTests.cs`: 5 new tests covering party isolation across all sheets/reopen, validation/authentication, assignment safeguards, mixed ownership and exact migration/pre-upgrade backup. Existing 9 backend tests pass: 14 total, 0 failed/skipped. Desktop live tests cover UI switching/save/reload and party defaults/settings. Existing acceptance checks pass 39/39.
+- Built the normal Desktop output successfully with 0 warnings/errors; build label `UI 2026.10.27.6`. Reviewed rendered normal/minimum layouts with the new selector. Tests use isolated synthetic databases; no company records were created or assigned by this session. Real schema migration runs on next application launch.
+- Added `Docs/Party-Workspaces.md` with usage, schema and migration limitations. Next phase: party-specific report export and Owner import.
+
+### 2026-10-27 — Automatic date typing and header window controls
+
+- Replaced calendar cells with a keyboard-first date TextBox. Day-first formatting inserts separators and pads single-digit months: `277` becomes `27-07-`, and `2772026` becomes `27-07-2026`. Completed dates persist as ISO; partial/invalid dates remain editable and are rejected on Save. Backspace/Delete are not forcibly reformatted. Replaced the As-of calendar as well.
+- Date display uses DD-MM-YYYY, including read-only calculated dates. Regression coverage includes character-by-character entry so a two-digit partial year is not prematurely expanded.
+- Added minimize/maximize/close directly beside Sign out in the actual visible workspace header, removing the duplicate upper strip for that window. Resize/drag chrome and login caption controls remain. Header account controls are explicitly hit-testable. Build label: `UI 2026.10.27.5`.
+- Verification: isolated Desktop build passed with 0 warnings/errors; live regression checks passed; acceptance harness passed 39/39. Render review confirmed date fields have no calendar icons and header window controls are visible. No company data modified.
+- Original output was initially locked by the open app. After the user confirmed it was closed, the standard executable was rebuilt successfully with 0 warnings/errors and live checks passed again. Existing Data location was preserved. No process was forcibly stopped.
+
+### 2026-10-27 — Caption controls, validation and calendar regression fixes
+
+- Added explicit minimize, maximize/restore and close caption buttons to both top-level windows, with resize chrome, hit testing and accessible names. Build label is `UI 2026.10.27.4`.
+- Changed draft validation: missing required fields are checked on Save instead of every cell change. Invalid entered values are still validated. Fixed row-wide error propagation by scoping error messages/highlighting to the affected field; disabled inappropriate automatic validation on the read-only formula bar.
+- Added calendar-backed cells for editable date fields, including proforma date, arrival date, BL dates and receipt dates. Selected dates persist as ISO dates; manual day-first input remains supported. Calculated due dates stay locked.
+- Fixed numeric sorting that previously compared amounts lexically. Fixed invalid rows clearing unrelated row calculations. Unknown amount prerequisites no longer create invented difference totals; running balances remain unavailable downstream of incomplete rows. Added BL/terms overflow validation.
+- Added targeted regression checks for draft/save validation, field error scoping, calendar round trips/clearing, numeric sorting, unrelated row calculation preservation and caption controls. Updated existing acceptance layout/chrome checks for explicit 36-pixel captions.
+- Verification: isolated Desktop build passed with 0 warnings/errors; live regression checks passed; comprehensive acceptance harness passed 39/39 checks; backend tests passed 9/9. Generated isolated UI renders in `.build/fix-review`. All synthetic records remained in isolated test databases; company data was not edited.
+- The original Desktop executable was initially locked by an already running application. Verified binaries were first built under `.build/verified-app`; after the lock cleared, the normal Desktop output was rebuilt successfully with 0 warnings/errors. Open the normal executable to keep using its existing Data folder. No user process was forcibly terminated.
+- Render review found clipped calendar text in compact rows; added a dedicated compact date-cell template and verified readable dates/calendar icons in the regenerated worksheet render. Final live regression checks passed after that correction.
+- Remaining scope: automated checks and renders do not certify every OS-level mouse action, multi-monitor/high-DPI setup, physical USB failure scenario or unfinished report-import workflow. Existing functional gaps from `Docs/Application-Audit.md` are not claimed complete.
+
+### 2026-10-27 — Full application status audit
+
+- Inspected the current application after the latest UI/date/blank-row improvements. Recorded implementation status and evidence in `Docs/Application-Audit.md`.
+- Verified Desktop build (0 warnings/errors), Desktop live checks (PASS), and backend tests (9 passed, 0 failed/skipped). Used disposable synthetic test data only; no company records changed.
+- Key findings: three independently saved worksheet snapshots; normalized receipt backend not wired into Desktop; account reports lack party scoping; owner import/export unavailable; As-of only changes overdue-day arithmetic; backup exists only as a backend API. Desktop is not included in the shared solution.
+- Recorded user instruction to retain independent amount fields and defer shipping unit policy. No shipping posting trigger was inferred from the ambiguous 'yes' response.
+- Recommended next: party-scoped report datasets and migration safeguards, then actual export/Owner import, receipt integration, report correctness and USB release hardening.
+- Changes this session: audit document and README only. No application logic or reference workbooks modified.
 
 ### 2026-10-27 — Corporate desktop redesign
 

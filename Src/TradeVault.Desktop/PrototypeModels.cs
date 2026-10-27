@@ -6,6 +6,7 @@ namespace TradeVault.Desktop;
 
 public record Field(string Key, string Label, bool Calculated = false, int Width = 155)
 {
+    public bool IsNumeric=>!IsDate&&new[]{"AMOUNT","PAYMENT","CHARGES","TERMS","DAYS","BALANCE","DEBIT","CREDIT","SR. NO."}.Any(word=>Label.Contains(word,StringComparison.OrdinalIgnoreCase));
     public bool IsDate => Label.Contains("DATE",StringComparison.OrdinalIgnoreCase)
         && !Label.Contains("NO & DATE",StringComparison.OrdinalIgnoreCase)
         || Label.Equals("DUE",StringComparison.OrdinalIgnoreCase);
@@ -47,11 +48,13 @@ public sealed class GridRow : INotifyPropertyChanged, INotifyDataErrorInfo
     public event PropertyChangedEventHandler? PropertyChanged;
     public event EventHandler<DataErrorsChangedEventArgs>? ErrorsChanged;
     public bool HasErrors => issues.Count > 0;
-    public IEnumerable GetErrors(string? propertyName) => issues.Select(x => x.Message);
+    public IReadOnlyDictionary<string,string> Errors => issues.GroupBy(x=>x.Field).ToDictionary(g=>g.Key,g=>string.Join("\n",g.Select(x=>x.Message)));
+    public IEnumerable GetErrors(string? propertyName) => string.IsNullOrEmpty(propertyName) ? issues.Select(x=>x.Message) : issues.Where(x=>propertyName==x.Field||propertyName==$"[{x.Field}]").Select(x=>x.Message);
     public void SetIssues(IReadOnlyList<CellIssue> next)
     {
         issues = next;
         ErrorsChanged?.Invoke(this, new("Item[]"));
         PropertyChanged?.Invoke(this, new(nameof(HasErrors)));
+        PropertyChanged?.Invoke(this, new(nameof(Errors)));
     }
 }

@@ -48,7 +48,7 @@ public sealed class ExcelGrid : UserControl
             if(Table.CurrentItem is GridRow row && Table.CurrentColumn is DataGridColumn column) {
                 int index=column.DisplayIndex;string letters="";for(int n=index+1;n>0;n=(n-1)/26)letters=(char)('A'+(n-1)%26)+letters;
                 address.Text=$"{letters}{Table.Items.IndexOf(row)+1}";
-                value.SetBinding(TextBox.TextProperty,new Binding($"[{fields[Table.Columns.IndexOf(column)].Key}]"){Source=row,Mode=BindingMode.OneWay});
+                value.SetBinding(TextBox.TextProperty,new Binding($"[{fields[Table.Columns.IndexOf(column)].Key}]"){Source=row,Mode=BindingMode.OneWay,ValidatesOnNotifyDataErrors=false});
             }
         };
         feedback.Text = readOnly ? "Read-only · Sorting changes the view, not the account order." : "Type in any blank row · Ctrl+C / Ctrl+V · Dates: 26/10/2026, 26-Oct-2026 or yyyy-MM-dd";
@@ -64,14 +64,27 @@ public sealed class ExcelGrid : UserControl
         Table.LoadingRow += (_,e) => e.Row.Header = (e.Row.GetIndex()+1).ToString();
         foreach (var field in fields)
         {
+            var cellStyle=new Style(typeof(DataGridCell),(Style)FindResource(typeof(DataGridCell)));
+            var fieldError=new Binding(nameof(GridRow.Errors)){Converter=new FieldErrorConverter(),ConverterParameter=field.Key};
+            cellStyle.Setters.Add(new Setter(ToolTipProperty,fieldError));
+            var invalid=new DataTrigger{Binding=new Binding(nameof(GridRow.Errors)){Converter=new FieldErrorConverter(),ConverterParameter=field.Key+"?"},Value=true};
+            invalid.Setters.Add(new Setter(Border.BorderBrushProperty,Ui.Color("#C2413C")));cellStyle.Triggers.Add(invalid);
+            if(field.IsDate&&!field.Calculated&&!readOnly)
+            {
+                var factory=new FrameworkElementFactory(typeof(DateCellEditor));
+                factory.SetBinding(DateCellEditor.ValueProperty,new Binding($"[{field.Key}]"){Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged,ValidatesOnNotifyDataErrors=false});
+                var template=new DataTemplate{VisualTree=factory};
+                Table.Columns.Add(new DataGridTemplateColumn{Header=field.Label,Width=CompactWidth(field),CellTemplate=template,CellEditingTemplate=template,SortMemberPath=$"[{field.Key}]",CellStyle=cellStyle});
+                continue;
+            }
             var style = new Style(typeof(TextBlock)); style.Setters.Add(new Setter(TextBlock.PaddingProperty,new Thickness(8,3,8,3)));
             if (field.Calculated) style.Setters.Add(new Setter(TextBlock.BackgroundProperty,Ui.Color("#F0F5FF")));
             Table.Columns.Add(new DataGridTextColumn {
                 Header = field.Label, Width = field.Width==240?CompactWidth(field):field.Width, IsReadOnly = field.Calculated,
-                SortMemberPath = $"[{field.Key}]", ElementStyle = style,
+                SortMemberPath = $"[{field.Key}]", ElementStyle = style, CellStyle=cellStyle,
                 Binding = new Binding($"[{field.Key}]") { Mode = field.Calculated || readOnly ? BindingMode.OneWay : BindingMode.TwoWay,
                     UpdateSourceTrigger = field.IsDate?UpdateSourceTrigger.LostFocus:UpdateSourceTrigger.PropertyChanged,
-                    Converter=field.IsDate?new DateCellConverter():null, ValidatesOnNotifyDataErrors = true },
+                    Converter=field.IsDate?new DateCellConverter():null, ValidatesOnNotifyDataErrors = false },
                 EditingElementStyle=EditingStyle()
             });
         }
@@ -81,7 +94,7 @@ public sealed class ExcelGrid : UserControl
             e.Handled=true;var direction=e.Column.SortDirection==System.ComponentModel.ListSortDirection.Ascending?System.ComponentModel.ListSortDirection.Descending:System.ComponentModel.ListSortDirection.Ascending;
             foreach(var column in Table.Columns)column.SortDirection=null;e.Column.SortDirection=direction;
             var key=fields[Table.Columns.IndexOf(e.Column)].Key;
-            ((ListCollectionView)source.View).CustomSort=new BlankLastComparer(blanks,key,direction==System.ComponentModel.ListSortDirection.Ascending);
+            ((ListCollectionView)source.View).CustomSort=new BlankLastComparer(blanks,fields.First(f=>f.Key==key),direction==System.ComponentModel.ListSortDirection.Ascending);
         };
         Table.PreviewKeyDown += (_,e) => {
             if (e.Key == Key.V && Keyboard.Modifiers == ModifierKeys.Control && !readOnly)
@@ -130,13 +143,17 @@ public sealed class ExcelGrid : UserControl
             };
         }
     }
-    private sealed class BlankLastComparer(HashSet<GridRow> blanks,string key,bool ascending):System.Collections.IComparer
+    internal sealed class BlankLastComparer(HashSet<GridRow> blanks,Field field,bool ascending):System.Collections.IComparer
     {
         public int Compare(object? x,object? y)
         {
             if(x is not GridRow left||y is not GridRow right)return 0;
             if(blanks.Contains(left)!=blanks.Contains(right))return blanks.Contains(left)?1:-1;
-            var result=string.Compare(left[key],right[key],StringComparison.OrdinalIgnoreCase);return ascending?result:-result;
+            var a=left[field.Key];var b=right[field.Key];
+            var result=string.Compare(a,b,StringComparison.OrdinalIgnoreCase);
+            if(field.IsDate&&DateOnly.TryParse(a,out var da)&&DateOnly.TryParse(b,out var db))result=da.CompareTo(db);
+            else if(field.IsNumeric&&decimal.TryParse(a,System.Globalization.NumberStyles.Number,System.Globalization.CultureInfo.InvariantCulture,out var na)&&decimal.TryParse(b,System.Globalization.NumberStyles.Number,System.Globalization.CultureInfo.InvariantCulture,out var nb))result=na.CompareTo(nb);
+            return ascending?result:-result;
         }
     }
     public void CopySelection()
@@ -170,6 +187,17 @@ public sealed class ExcelGrid : UserControl
             Edited?.Invoke();
         } catch (ArgumentException ex) { feedback.Text = ex.Message; }
     }
+}
+
+internal sealed class FieldErrorConverter:IValueConverter
+{
+    public object Convert(object value,Type targetType,object parameter,System.Globalization.CultureInfo culture)
+    {
+        var key=parameter.ToString()!;var boolean=key.EndsWith('?');if(boolean)key=key[..^1];
+        var error=value is IReadOnlyDictionary<string,string> errors?errors.GetValueOrDefault(key,""):"";
+        return boolean?(object)(error.Length>0):error;
+    }
+    public object ConvertBack(object value,Type targetType,object parameter,System.Globalization.CultureInfo culture)=>throw new NotSupportedException();
 }
 
 public record CellChange(int Row,string Key,string Value);

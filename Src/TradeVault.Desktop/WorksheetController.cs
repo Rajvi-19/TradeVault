@@ -9,20 +9,27 @@ public sealed class WorksheetController(WorkbookStore store, LoginSession sessio
 {
     public ObservableCollection<GridRow> Rows { get; } = [];
     public string Name { get; private set; } = "form";
+    public Guid PartyId {get;private set;}
+    public string PartyName {get;private set;}="Unassigned records";
     public int Revision { get; private set; }
     public decimal Opening { get; set; }
     public int Terms { get; set; } = 90;
     public DateOnly AsOf { get; set; } = DateOnly.FromDateTime(DateTime.Today);
     public IReadOnlyList<Field> Fields => ExcelFields.For(Name);
-    public void Load(string name)
+    public void Load(string name,Guid? partyId=null)
     {
-        var saved = store.Load(session, name); Name = name; Revision = saved.Revision; Rows.Clear(); Opening = 0; Terms = 90;
+        var selected=partyId??PartyId;
+        var saved = store.Load(session, name,selected);
+        var party=store.GetParties(session).Single(p=>p.Id==selected);
+        PartyId=selected;PartyName=party.Name;Name = name; Revision = saved.Revision; Rows.Clear(); Opening = 0; Terms = 90;AsOf=DateOnly.FromDateTime(DateTime.Today);
         foreach (var data in saved.Rows)
         {
             if (data.ContainsKey("_metadata"))
             {
                 Opening = decimal.Parse(data["opening"], CultureInfo.InvariantCulture);
-                Terms = int.Parse(data["terms"], CultureInfo.InvariantCulture); continue;
+                Terms = int.Parse(data["terms"], CultureInfo.InvariantCulture);
+                if(data.TryGetValue("asOf",out var asOf)&&DateOnly.TryParseExact(asOf,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var reportDate))AsOf=reportDate;
+                continue;
             }
             var row = new GridRow(); foreach (var cell in data) row[cell.Key] = cell.Value; Rows.Add(row);
         }
@@ -31,6 +38,7 @@ public sealed class WorksheetController(WorkbookStore store, LoginSession sessio
     public GridRow Add(GridRow? draft=null)
     {
         var row = draft??new GridRow();
+        if(Name=="form"&&PartyId!=Guid.Empty&&string.IsNullOrWhiteSpace(row["F1"]))row["F1"]=PartyName;
         if (Name == "form" && string.IsNullOrEmpty(row["F18"])) row["F18"] = "3800.00";
         if (Name == "details") { if(string.IsNullOrEmpty(row["H"]))row["H"] = "3800.00"; if(string.IsNullOrEmpty(row["M"]))row["M"] = "90"; }
         if (Name == "ledger" && string.IsNullOrEmpty(row["J"])) row["J"] = "90";
@@ -45,7 +53,7 @@ public sealed class WorksheetController(WorkbookStore store, LoginSession sessio
         var days = string.IsNullOrWhiteSpace(terms) ? fallback : (string.IsNullOrWhiteSpace(row[terms]) ? fallback : int.Parse(row[terms], CultureInfo.InvariantCulture));
         row[target] = DueDates.Calculate(date, days)?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
     }
-    public IReadOnlyList<string> Validate()
+    public IReadOnlyList<string> Validate(bool requiredFields=true,bool publish=true)
     {
         var errors = new List<string>();
         var money = Name switch { "form" => new[] { "F5","F6","F7","F8","F18","F22","F23","F25" }, "details" => ["C","D","E","H","J"], _ => ["C","D","H"] };
@@ -54,7 +62,8 @@ public sealed class WorksheetController(WorkbookStore store, LoginSession sessio
         {
             var row = Rows[i]; var issues = new List<CellIssue>();
             var required = Name == "form" ? new[] {"F1","F9"} : new[] {"B"};
-            foreach (var key in required) if (string.IsNullOrWhiteSpace(row[key])) issues.Add(new(key, $"{Fields.First(f=>f.Key==key).Label} is required."));
+            foreach (var key in required) if (requiredFields && string.IsNullOrWhiteSpace(row[key])) issues.Add(new(key, $"{Fields.First(f=>f.Key==key).Label} is required."));
+            if(requiredFields&&Name=="form"&&PartyId!=Guid.Empty&&!string.IsNullOrWhiteSpace(row["F1"])&&!string.Equals(row["F1"].Trim(),PartyName,StringComparison.OrdinalIgnoreCase))issues.Add(new("F1","Party name must match the selected party. Switch the party selector to enter other parties."));
             foreach (var key in money)
             {
                 if (string.IsNullOrWhiteSpace(row[key])) continue;
@@ -64,30 +73,42 @@ public sealed class WorksheetController(WorkbookStore store, LoginSession sessio
             foreach (var key in dates) if (!string.IsNullOrWhiteSpace(row[key]) && !DateOnly.TryParseExact(row[key], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _)) issues.Add(new(key, $"{Fields.First(f=>f.Key==key).Label}: use yyyy-MM-dd; leave unknown dates blank."));
             var term = Name == "details" ? "M" : Name == "ledger" ? "J" : "";
             if (term != "" && (!int.TryParse(row[term],out var days) || days < 0 || days > 3650)) issues.Add(new(term,"Terms must be 0–3650 calendar days."));
-            row.SetIssues(issues); errors.AddRange(issues.Select(e=>$"Row {i+1}: {e.Message}"));
+            var blKey=Name=="form"?"F17":Name=="details"?"L":"I";
+            if(DateOnly.TryParseExact(row[blKey],"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var bl))
+            {
+                var termDays=term==""?Terms:int.TryParse(row[term],out var entered)?entered:90;
+                try{DueDates.Calculate(bl,termDays);}catch(BusinessRuleException ex){issues.Add(new(blKey,ex.Message));}
+            }
+            if(publish)row.SetIssues(issues); errors.AddRange(issues.Select(e=>$"Row {i+1}: {e.Message}"));
         }
         if (Terms is < 0 or > 3650) errors.Add("Default terms must be 0–3650 days.");
         return errors;
     }
     public void Calculate()
     {
-        if (Validate().Count != 0)
-        {
-            foreach(var row in Rows) foreach(var field in Fields.Where(f=>f.Calculated)) row[field.Key]="";
-            return;
-        }
+        Validate(false);
         decimal running = Opening;
+        bool runningKnown=true;
         for (int i=0; i<Rows.Count; i++)
         {
             var row = Rows[i];
+            if(row.HasErrors)
+            {
+                foreach(var field in Fields.Where(f=>f.Calculated))row[field.Key]="";
+                runningKnown=false;continue;
+            }
             if (Name == "details")
             {
-                row["A"]=(i+1).ToString(); Set(row,"F",Number(row,"D")-Number(row,"E"));
-                Set(row,"G",Number(row,"C")-Number(row,"D"));
-                Set(row,"I",Number(row,"C")-Number(row,"D")-Number(row,"H"));
-                running += Number(row,"I")-Number(row,"J"); Set(row,"K",running); Due(row,"L","M","N");
+                row["A"]=(i+1).ToString();
+                var hasContract=!string.IsNullOrWhiteSpace(row["D"]);
+                var hasOriginal=!string.IsNullOrWhiteSpace(row["C"]);
+                if(hasContract)Set(row,"F",Number(row,"D")-Number(row,"E"));else row["F"]="";
+                if(hasOriginal&&hasContract)Set(row,"G",Number(row,"C")-Number(row,"D"));else row["G"]="";
+                if(hasOriginal&&hasContract&&!string.IsNullOrWhiteSpace(row["H"]))Set(row,"I",Number(row,"C")-Number(row,"D")-Number(row,"H"));else{row["I"]="";runningKnown=false;}
+                if(runningKnown){running += Number(row,"I")-Number(row,"J");Set(row,"K",running);}else row["K"]="";
+                Due(row,"L","M","N");
             }
-            else if (Name == "ledger") { running+=Number(row,"C")-Number(row,"D"); Set(row,"E",running); Due(row,"I","J","K"); }
+            else if (Name == "ledger") { if(runningKnown){running+=Number(row,"C")-Number(row,"D");Set(row,"E",running);}else row["E"]=""; Due(row,"I","J","K"); }
             else
             {
                 Due(row,"F17","","F19",Terms);
@@ -101,8 +122,8 @@ public sealed class WorksheetController(WorkbookStore store, LoginSession sessio
     {
         var errors = Validate(); if (errors.Count > 0) throw new BusinessRuleException(string.Join("\n",errors.Take(8)));
         Calculate();
-        var data = new List<Dictionary<string,string>> { new() { ["_metadata"]="1", ["opening"]=Opening.ToString(CultureInfo.InvariantCulture), ["terms"]=Terms.ToString(CultureInfo.InvariantCulture) } };
+        var data = new List<Dictionary<string,string>> { new() { ["_metadata"]="1", ["opening"]=Opening.ToString(CultureInfo.InvariantCulture), ["terms"]=Terms.ToString(CultureInfo.InvariantCulture),["asOf"]=AsOf.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture) } };
         data.AddRange(Rows.Select(row => Fields.ToDictionary(f=>f.Key,f=>row[f.Key])));
-        Revision = store.Save(session,Name,Revision,data);
+        Revision = store.Save(session,Name,Revision,data,PartyId);
     }
 }

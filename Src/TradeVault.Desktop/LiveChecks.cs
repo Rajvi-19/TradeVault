@@ -37,6 +37,7 @@ internal static class LiveChecks
                 var store=new WorkbookStore(db);
                 try{store.Login("owner","wrong");throw new Exception("Bad password accepted");}catch(BusinessRuleException){}
                 var owner=store.Login("owner","Owner@123");var op=store.Login("operator","Operator@123");
+                FixRegressionChecks.Run(store,owner);
                 try{store.Load(op,"operator-reports");throw new Exception("Operator access accepted");}catch(BusinessRuleException){}
                 var sheet=new WorksheetController(store,owner);sheet.Load("details");Require(sheet.Rows.Count==0,"No dummy rows");
                 var row=sheet.Add();row["B"]="TEST ONLY";row["C"]="15000";row["D"]="10000";row["E"]="3000";row["J"]="1200";row["L"]="2026-06-17";sheet.Save();
@@ -65,7 +66,7 @@ internal static class LiveChecks
                 draft["F17"]=DateCellConverter.Normalize("17/6/2026");sheet.Save();
                 Require(draft["F19"]=="2026-09-15","Derived due remains calculated");
                 Require(store.Load(owner,"form").Rows.Count==3,"Only two entered rows and metadata persisted");
-                var window=new MainWindow(store,owner,db.Paths.Database);window.Measure(new System.Windows.Size(1440,880));window.Arrange(new System.Windows.Rect(0,0,1440,880));window.UpdateLayout();window.CheckInteractions();window.Close();
+                var window=new MainWindow(store,owner,db.Paths.Database);window.Measure(new System.Windows.Size(1440,880));window.Arrange(new System.Windows.Rect(0,0,1440,880));window.UpdateLayout();window.CheckInteractions();window.CheckPartyInteractions();window.Close();
                 store.Logout(owner);try{store.Load(owner,"form");throw new Exception("Expired session accepted");}catch(BusinessRuleException){}
             }
             using var reopened=new PortableDatabase(new(root));var s=new WorkbookStore(reopened);var session=s.Login("owner","Owner@123");Require(s.Load(session,"details").Rows.Count==2,"Persistence after reopen");

@@ -19,6 +19,7 @@ public partial class App : System.Windows.Application
             if(e.Args.Contains("--self-test")){LiveChecks.Run();Console.WriteLine("PASS: live persistence/authentication/worksheet checks");Shutdown(0);return;}
             using var database=new PortableDatabase(PortablePaths.FromApplicationDirectory());
             var store=new WorkbookStore(database);
+            if(e.Args.Contains("--seed-test-data")){TestDataSeeder.Run(store,database);Shutdown(0);return;}
             if(e.Args.Contains("--initialize-db")){Console.WriteLine($"Initialized empty company worksheets: {database.Paths.Database}");Shutdown(0);return;}
             while(true)
             {
@@ -27,6 +28,6 @@ public partial class App : System.Windows.Application
             }
             Shutdown(0);
         }
-        catch(Exception ex){Console.Error.WriteLine(ex);if(!e.Args.Any(a=>a is "--self-test" or "--qa-report" or "--render-ui"))MessageBox.Show(ex.Message,"TradeVault startup failed");Shutdown(1);}
+        catch(Exception ex){Console.Error.WriteLine(ex);if(!e.Args.Any(a=>a is "--self-test" or "--qa-report" or "--render-ui" or "--seed-test-data"))MessageBox.Show(ex.Message,"TradeVault startup failed");Shutdown(1);}
     }
 }

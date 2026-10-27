@@ -12,6 +12,6 @@ internal sealed class DateCellConverter : IValueConverter
         return DateOnly.TryParseExact(input.Trim(),formats,CultureInfo.InvariantCulture,DateTimeStyles.AllowWhiteSpaces,out var date)
             ? date.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture):input;
     }
-    public object Convert(object value,Type targetType,object parameter,CultureInfo culture)=>value;
+    public object Convert(object value,Type targetType,object parameter,CultureInfo culture)=>DateOnly.TryParseExact(value?.ToString(),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var date)?date.ToString("dd-MM-yyyy",CultureInfo.InvariantCulture):value??"";
     public object ConvertBack(object value,Type targetType,object parameter,CultureInfo culture)=>Normalize(value?.ToString()??"");
 }

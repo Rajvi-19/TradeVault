@@ -43,6 +43,17 @@ public sealed class PortableDatabase : IDisposable
     private void Initialize()
     {
         using var connection = Open();
+        // Snapshot an existing pre-party database before any migration transaction changes it.
+        using (var inspect = connection.CreateCommand())
+        {
+            inspect.CommandText="SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='schema_migrations'";
+            if(Convert.ToInt32(inspect.ExecuteScalar())>0)
+            {
+                inspect.CommandText="SELECT COALESCE(MAX(version),0) FROM schema_migrations";
+                var previous=Convert.ToInt32(inspect.ExecuteScalar());
+                if(previous is >0 and <3)CreateBackup();
+            }
+        }
         using (var setup = connection.CreateCommand())
         {
             setup.CommandText = "PRAGMA journal_mode=DELETE;";
@@ -58,7 +69,7 @@ public sealed class PortableDatabase : IDisposable
             SELECT COALESCE(MAX(version), 0) FROM schema_migrations;
             """;
         var version = Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
-        if (version > 2) throw new InvalidOperationException("This database requires a newer TradeVault application.");
+        if (version > 3) throw new InvalidOperationException("This database requires a newer TradeVault application.");
         if (version == 0)
         {
             using var stream = typeof(PortableDatabase).Assembly.GetManifestResourceStream(
@@ -79,6 +90,29 @@ public sealed class PortableDatabase : IDisposable
                 CREATE TABLE credentials(username TEXT PRIMARY KEY, role TEXT NOT NULL, salt BLOB NOT NULL, hash BLOB NOT NULL) STRICT;
                 CREATE TABLE worksheets(name TEXT PRIMARY KEY, revision INTEGER NOT NULL, data TEXT NOT NULL) STRICT;
                 INSERT INTO schema_migrations VALUES(2, strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+                """;
+            command.ExecuteNonQuery();
+        }
+        if(version<3)
+        {
+            command.Parameters.Clear();
+            command.CommandText="""
+                CREATE TABLE worksheet_parties(
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    name_key TEXT NOT NULL UNIQUE,
+                    is_unassigned INTEGER NOT NULL CHECK(is_unassigned IN (0,1))
+                ) STRICT;
+                INSERT INTO worksheet_parties VALUES('00000000-0000-0000-0000-000000000000','Unassigned records','UNASSIGNED RECORDS',1);
+                CREATE TABLE party_worksheets(
+                    party_id TEXT NOT NULL REFERENCES worksheet_parties(id),
+                    name TEXT NOT NULL,
+                    revision INTEGER NOT NULL CHECK(revision>0),
+                    data TEXT NOT NULL,
+                    PRIMARY KEY(party_id,name)
+                ) STRICT;
+                INSERT INTO party_worksheets SELECT '00000000-0000-0000-0000-000000000000',name,revision,data FROM worksheets;
+                INSERT INTO schema_migrations VALUES(3,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
                 """;
             command.ExecuteNonQuery();
         }
