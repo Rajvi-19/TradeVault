@@ -3,6 +3,28 @@ using TradeVault.Domain;
 namespace TradeVault.Desktop;
 internal static class LiveChecks
 {
+    internal static void Render(string directory)
+    {
+        directory=System.IO.Path.GetFullPath(directory);System.IO.Directory.CreateDirectory(directory);
+        var root=System.IO.Path.Combine(AppContext.BaseDirectory,"TestData",Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var database=new PortableDatabase(new(root));var store=new WorkbookStore(database);
+            var login=new LoginWindow(store);Capture(login,System.IO.Path.Combine(directory,"login.png"),980,650);login.Close();
+            var session=store.Login("owner","Owner@123");var window=new MainWindow(store,session,database.Paths.Database);
+            foreach(var name in new[]{"form","details","ledger"}){window.PreviewSheet(name);Capture(window,System.IO.Path.Combine(directory,name+".png"),1480,920);}
+            Capture(window,System.IO.Path.Combine(directory,"compact-window.png"),1100,720);window.Close();
+        }
+        finally{System.IO.Directory.Delete(root,true);}
+    }
+    private static void Capture(System.Windows.Window window,string path,int width,int height)
+    {
+        var surface=(System.Windows.FrameworkElement)window.Content;
+        surface.Measure(new(width,height));surface.Arrange(new(0,0,width,height));surface.UpdateLayout();
+        window.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ContextIdle);surface.UpdateLayout();
+        var bitmap=new System.Windows.Media.Imaging.RenderTargetBitmap(width,height,96,96,System.Windows.Media.PixelFormats.Pbgra32);bitmap.Render(surface);
+        var encoder=new System.Windows.Media.Imaging.PngBitmapEncoder();encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));using var stream=System.IO.File.Create(path);encoder.Save(stream);
+    }
     private static void Require(bool condition,string name){if(!condition)throw new InvalidOperationException(name);}
     public static void Run()
     {
@@ -24,7 +46,7 @@ internal static class LiveChecks
                 sheet.Load("form");row=sheet.Add();row["F1"]="TEST ONLY";row["F9"]="TEST-1";row["F17"]="2026-06-17";sheet.Save();Require(row["F19"]=="2026-09-15"&&row["F20"]=="2026-08-16","Due and reminder");
                 Require(ExcelFields.For("form").Count==26&&ExcelFields.For("details").Count==14&&ExcelFields.For("ledger").Count==9,"Exact field counts");
                 var grid=new ExcelGrid(sheet.Fields,sheet.Rows);Require(grid.Table.Columns[18].IsReadOnly,"Calculated field lock");
-                var window=new MainWindow(store,owner,db.Paths.Database);window.Measure(new System.Windows.Size(1440,880));window.Arrange(new System.Windows.Rect(0,0,1440,880));window.UpdateLayout();window.Close();
+                var window=new MainWindow(store,owner,db.Paths.Database);window.Measure(new System.Windows.Size(1440,880));window.Arrange(new System.Windows.Rect(0,0,1440,880));window.UpdateLayout();window.CheckInteractions();window.Close();
                 store.Logout(owner);try{store.Load(owner,"form");throw new Exception("Expired session accepted");}catch(BusinessRuleException){}
             }
             using var reopened=new PortableDatabase(new(root));var s=new WorkbookStore(reopened);var session=s.Login("owner","Owner@123");Require(s.Load(session,"details").Rows.Count==2,"Persistence after reopen");

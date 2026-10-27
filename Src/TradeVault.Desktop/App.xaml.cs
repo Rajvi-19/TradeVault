@@ -11,6 +11,7 @@ public partial class App : System.Windows.Application
         ShutdownMode=ShutdownMode.OnExplicitShutdown;
         try
         {
+            if(e.Args.Length>=2 && e.Args[0]=="--render-ui"){LiveChecks.Render(e.Args[1]);Shutdown(0);return;}
             if(e.Args.Contains("--self-test")){LiveChecks.Run();Console.WriteLine("PASS: live persistence/authentication/worksheet checks");Shutdown(0);return;}
             using var database=new PortableDatabase(PortablePaths.FromApplicationDirectory());
             var store=new WorkbookStore(database);

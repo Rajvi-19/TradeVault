@@ -106,6 +106,17 @@ First end-to-end milestone: create one invoice on the Operator USB, allocate a p
 
 ## Work log
 
+### 2026-10-27 — Corporate desktop redesign
+
+- Applied the design-system skill to replace the basic green toolbar layout with a navy navigation rail, slate workspace, white worksheet cards, contextual headings and consistent blue primary actions.
+- Rebuilt login as a split brand/sign-in layout with proper labels, keyboard focus, empty-field feedback, authentication progress and inline errors. Real credentials/session handling remains connected.
+- Restyled shared WPF buttons, text inputs, tooltips, grid headers/cells and selection/focus/disabled/error states in `App.xaml`; added shared component helpers in `Ui.cs`. No third-party dependencies or network assets added.
+- Updated `LiveMainWindow.cs`: active navigation, live record count, first-record empty state, contextual terms/opening balance controls, Save enabled only for edits, inline error notification, saved/unsaved feedback, compact row toggle and Ctrl+S/Ctrl+N. Retained working new/save/reload/delete/recalculate and sign-out flows. Storage path is available as a tooltip rather than occupying the workspace.
+- Restyled `ExcelGrid.cs` while preserving workbook headers, calculated-cell locking, frozen identifiers, filtering and rectangular clipboard behaviour. Removed misleading hardcoded shipping/terms text from the grid legend. Owner import remains visibly disabled because its workflow is not yet implemented.
+- Added `Docs/UI-Design.md` with tokens, component behaviour, keyboard shortcuts and layout boundaries. Added disposable render mode and UI action checks to `LiveChecks.cs`; no sample records were added to the company database.
+- Verification: final Desktop build passed with 0 warnings and 0 errors; live persistence/authentication checks passed, including UI Add/Save/Reload and all worksheet layouts at minimum size. Rendered and visually reviewed login plus all three worksheet views at 1480×920 and the ledger at 1100×720. Corrected transparent canvas rendering and small-window empty-state overlap during review.
+- Limitations: render/action checks do not establish physical mouse/clipboard, high-DPI or screen-reader acceptance. Existing worksheet independence, unencrypted database and unavailable owner import/export are unchanged functional limitations.
+
 ### 2026-10-27 — Connected worksheets and authentication
 
 - Re-read all three source workbook field lists. Generated `ExcelFields.cs` using their exact nonblank labels/order without importing sample company entries; source workbooks unchanged.

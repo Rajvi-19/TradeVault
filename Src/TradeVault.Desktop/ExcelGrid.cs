@@ -21,13 +21,13 @@ public sealed class ExcelGrid : UserControl
         var root = new DockPanel();
         var search = new TextBox { Width=240, Padding = new(8,5,8,5), ToolTip = "Filter visible rows across all columns" };
         System.Windows.Automation.AutomationProperties.SetName(search, "Filter rows");
-        var tools=new DockPanel {Margin=new(20,0,20,14)};
-        var legend=new TextBlock {Text=readOnly?"Read-only worksheet":"USD  ·  Terms: 90 days  ·  Shipping: 3,800.00  ·  Shaded cells are calculated",FontSize=11,Foreground=Brushes.DimGray,VerticalAlignment=VerticalAlignment.Center};
+        var tools=new DockPanel {Margin=new(18,0,18,14)};
+        var legend=new TextBlock {Text=readOnly?"Read-only worksheet":"Shaded columns are calculated",FontSize=11,Foreground=Ui.Color("#64748B"),VerticalAlignment=VerticalAlignment.Center};
         DockPanel.SetDock(legend,Dock.Right);tools.Children.Add(legend);
         var filter=new StackPanel {Orientation=Orientation.Horizontal};
-        filter.Children.Add(new TextBlock {Text="Find in worksheet",VerticalAlignment=VerticalAlignment.Center,Margin=new(0,0,10,0),FontSize=12});filter.Children.Add(search);tools.Children.Add(filter);
+        filter.Children.Add(new TextBlock {Text="Search records",VerticalAlignment=VerticalAlignment.Center,Margin=new(0,0,10,0),FontSize=12,Foreground=Ui.Color("#64748B")});filter.Children.Add(search);tools.Children.Add(filter);
         DockPanel.SetDock(tools,Dock.Top);root.Children.Add(tools);
-        var formula=new DockPanel {Height=34,Margin=new(0,0,0,1)};
+        var formula=new DockPanel {Height=36,Margin=new(0,0,0,1),Background=Ui.Color("#FAFBFD")};
         var address=new TextBlock {Text="A1",Width=76,TextAlignment=TextAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
         DockPanel.SetDock(address,Dock.Left);formula.Children.Add(address);
         var fx=new TextBlock {Text="│   fx",Foreground=Brushes.Gray,Width=50,VerticalAlignment=VerticalAlignment.Center,FontStyle=FontStyles.Italic};
@@ -55,8 +55,8 @@ public sealed class ExcelGrid : UserControl
         Table.LoadingRow += (_,e) => e.Row.Header = (e.Row.GetIndex()+1).ToString();
         foreach (var field in fields)
         {
-            var style = new Style(typeof(TextBlock)); style.Setters.Add(new Setter(TextBlock.PaddingProperty,new Thickness(8,5,8,5)));
-            if (field.Calculated) style.Setters.Add(new Setter(TextBlock.BackgroundProperty,new SolidColorBrush(Color.FromRgb(241,246,242))));
+            var style = new Style(typeof(TextBlock)); style.Setters.Add(new Setter(TextBlock.PaddingProperty,new Thickness(12,5,12,5)));
+            if (field.Calculated) style.Setters.Add(new Setter(TextBlock.BackgroundProperty,Ui.Color("#F0F5FF")));
             Table.Columns.Add(new DataGridTextColumn {
                 Header = field.Label, Width = field.Width, IsReadOnly = field.Calculated,
                 SortMemberPath = $"[{field.Key}]", ElementStyle = style,
