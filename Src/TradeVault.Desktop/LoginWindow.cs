@@ -5,6 +5,8 @@ using TradeVault.Infrastructure;
 namespace TradeVault.Desktop;
 public sealed class LoginWindow : Window
 {
+    private TextBox usernameInput=null!;
+    internal void PreviewUsername(string text)=>usernameInput.Text=text;
     public LoginSession? Session{get;private set;}
     public LoginWindow(WorkbookStore store)
     {
@@ -25,6 +27,7 @@ public sealed class LoginWindow : Window
         form.Children.Add(Ui.Text("Welcome back",29,"#18243B",true));var note=Ui.Text("Sign in to continue to your workspace.",13,"#64748B");note.Margin=new(0,10,0,28);form.Children.Add(note);
         var userLabel=new Label{Content="Username",Padding=new(0,0,0,7),FontWeight=FontWeights.SemiBold};form.Children.Add(userLabel);
         var username=new TextBox{Height=44,Margin=new(0,0,0,18),ToolTip="Enter your assigned username"};userLabel.Target=username;form.Children.Add(username);
+        usernameInput=username;
         var passwordLabel=new Label{Content="Password",Padding=new(0,0,0,7),FontWeight=FontWeights.SemiBold};form.Children.Add(passwordLabel);
         var password=new PasswordBox{Height=44};passwordLabel.Target=password;form.Children.Add(password);
         System.Windows.Automation.AutomationProperties.SetName(username,"Username");System.Windows.Automation.AutomationProperties.SetName(password,"Password");
@@ -41,6 +44,7 @@ public sealed class LoginWindow : Window
             catch(Exception ex){errors.Text=ex.Message;errorBox.Visibility=Visibility.Visible;password.Clear();}
             finally{button.IsEnabled=true;username.IsEnabled=true;password.IsEnabled=true;progress.Visibility=Visibility.Collapsed;}
         };
+        Ui.WindowFrame(this,root,"TradeVault · Sign in");
         Loaded+=(_,_)=>username.Focus();
     }
 }

@@ -15,10 +15,11 @@ Segoe UI typography: 28–31 px page/sign-in headings, 20–23 px branding, 13 p
 - Sidebar selection follows the active worksheet. Owner-only Operator reports remains disabled until its real workflow is delivered.
 - Save is primary and disabled until an input changes; Ctrl+S saves and Ctrl+N adds a record.
 - Saved, unsaved and validation states use text as well as colour. Errors appear inline; deletion and discard require confirmation.
-- Empty worksheets show a useful first-record action, never sample financial records.
+- Worksheets show 100 spare editable rows, replenished as rows are used. Typing promotes a row into a record; untouched blank rows are never saved. There is no Add record or empty-state overlay. Ctrl+N remains an optional keyboard shortcut.
+- Date columns accept day-first numeric dates, ISO dates and named months, normalizing to yyyy-MM-dd on commit/paste. Invalid dates remain visible for validation; identifiers stay text. Calculated date columns remain locked.
 - Search, rectangular copy/paste, frozen identifiers and locked calculated columns remain available. Compact view toggles 30/40 px row height.
 - Login supports Enter, labelled username/password fields, keyboard focus, validation feedback and an in-progress state while authentication runs. No remembered password or role-switch bypass.
-- Main window minimum is 1100×720 device-independent units; larger spreadsheets scroll horizontally. Login minimum is 820×600. Native window chrome preserves resizing and platform controls.
+- Main window minimum is 1100×720 device-independent units; larger spreadsheets scroll horizontally. Login minimum is 820×600. A shared WPF WindowChrome title bar provides visible minimize/maximize/restore/close controls, drag, resize and system commands on both windows. The As of picker uses the same slate/blue border treatment and a calendar button.
 
 ## Verification
 

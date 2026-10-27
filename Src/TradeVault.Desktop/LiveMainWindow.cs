@@ -17,7 +17,7 @@ public sealed class MainWindow : Window
     private readonly TextBlock revision=Ui.Text("",11,"#64748B");
     private readonly TextBox opening=new(){Text="0.00",Width=112};
     private readonly TextBox terms=new(){Text="90",Width=64};
-    private readonly DatePicker asOf=new(){SelectedDate=DateTime.Today,Width=145};
+    private readonly DatePicker asOf=new(){SelectedDate=DateTime.Today,Width=160,MinHeight=38,SelectedDateFormat=DatePickerFormat.Short,Language=System.Windows.Markup.XmlLanguage.GetLanguage("en-IN")};
     private readonly StackPanel openingGroup=new(){Orientation=Orientation.Horizontal};
     private readonly StackPanel termsGroup=new(){Orientation=Orientation.Horizontal};
     private readonly Dictionary<string,Button> nav=new();
@@ -28,7 +28,6 @@ public sealed class MainWindow : Window
     private ExcelGrid? grid;
     private bool dirty,refreshing,compact;
     private readonly Grid sheetArea=new();
-    private readonly StackPanel emptyState=new(){HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,MaxWidth=400,Margin=new(0,80,0,0)};
 
     public MainWindow(WorkbookStore store,LoginSession session,string path)
     {
@@ -71,18 +70,16 @@ public sealed class MainWindow : Window
         var optionCard=Ui.Card(options,new(16,12,16,12));optionCard.Margin=new(0,0,0,18);DockPanel.SetDock(optionCard,Dock.Top);page.Children.Add(optionCard);
         notification=new Border{Background=Ui.Color("#FFF2F0"),BorderBrush=Ui.Color("#F3C8C3"),BorderThickness=new(1),CornerRadius=new(6),Padding=new(14,10,14,10),Margin=new(0,0,0,12),Child=message,Visibility=Visibility.Collapsed};DockPanel.SetDock(notification,Dock.Top);page.Children.Add(notification);
         var sheet=new DockPanel();var commands=new DockPanel{Margin=new(18,14,18,14)};
-        var actions=new StackPanel{Orientation=Orientation.Horizontal};actions.Children.Add(Ui.Button("Add record",()=>Run(Add),null,"\uE710"));
+        var actions=new StackPanel{Orientation=Orientation.Horizontal};
         var reload=Ui.Button("Reload",()=>Run(()=>{if(Discard())Open(controller.Name);}),"QuietButton","\uE72C");reload.Margin=new(8,0,0,0);actions.Children.Add(reload);
         deleteButton=Ui.Button("Delete",()=>Run(Delete),"QuietButton","\uE74D");deleteButton.Foreground=Ui.Color("#A63E3E");deleteButton.Margin=new(8,0,0,0);actions.Children.Add(deleteButton);
         var density=Ui.Button("Compact view",()=>{compact=!compact;if(grid!=null)grid.Table.RowHeight=compact?30:40;},"QuietButton");density.ToolTip="Toggle compact worksheet rows";density.Margin=new(8,0,0,0);actions.Children.Add(density);
         count.HorizontalAlignment=HorizontalAlignment.Right;DockPanel.SetDock(count,Dock.Right);commands.Children.Add(count);commands.Children.Add(actions);DockPanel.SetDock(commands,Dock.Top);sheet.Children.Add(commands);
         sheet.Children.Add(sheetArea);content.Content=sheet;page.Children.Add(Ui.Card(content));
-        emptyState.Children.Add(new Border{Background=Ui.Color("#EDF3FF"),CornerRadius=new(12),Padding=new(18),HorizontalAlignment=HorizontalAlignment.Center,Child=Ui.Icon("\uE8A5","#2458D3",28),Margin=new(0,0,0,18)});
-        emptyState.Children.Add(new TextBlock{Text="Your worksheet starts here",FontSize=20,FontWeight=FontWeights.SemiBold,TextAlignment=TextAlignment.Center});
-        emptyState.Children.Add(new TextBlock{Text="Add your first record to start tracking invoices and payments. Your changes stay in this workspace.",TextWrapping=TextWrapping.Wrap,TextAlignment=TextAlignment.Center,Foreground=Ui.Color("#64748B"),Margin=new(0,10,0,20)});
-        emptyState.Children.Add(Ui.Button("Add first record",()=>Run(Add),"PrimaryButton","\uE710"));
         opening.TextChanged+=(_,_)=>{if(!refreshing)MarkDirty();};terms.TextChanged+=(_,_)=>{if(!refreshing)MarkDirty();};asOf.SelectedDateChanged+=(_,_)=>Calculate();
         System.Windows.Automation.AutomationProperties.SetName(opening,"Opening balance in USD");System.Windows.Automation.AutomationProperties.SetName(terms,"Payment terms in calendar days");System.Windows.Automation.AutomationProperties.SetName(asOf,"Report as of date");
+        Ui.WindowFrame(this,root,"TradeVault · "+session.Role+" workspace");
+        asOf.DateValidationError+=(_,e)=>{e.ThrowException=false;Error("As of: enter a valid date such as 26/10/2026, or choose one from the calendar.");};
         ToolTipService.SetToolTip(revision,"Storage: "+path);Closing+=(_,e)=>{if(!Discard())e.Cancel=true;};
         InputBindings.Add(new KeyBinding(new ActionCommand(()=>Run(Save)),Key.S,ModifierKeys.Control));InputBindings.Add(new KeyBinding(new ActionCommand(()=>Run(Add)),Key.N,ModifierKeys.Control));
         Open("form");
@@ -100,15 +97,15 @@ public sealed class MainWindow : Window
         subtitle.Text=name switch{"form"=>"Manage export invoices, shipment references and payment dates.","details"=>"Review invoice amounts, receipts and the outstanding difference.",_=>"Maintain your party ledger with a running USD balance."};
         foreach(var item in nav){item.Value.Background=Ui.Color(item.Key==name?"#243B60":"#111E35");item.Value.Foreground=Ui.Color(item.Key==name?"#FFFFFF":"#CCD8EA");}
         openingGroup.Visibility=name=="form"?Visibility.Collapsed:Visibility.Visible;termsGroup.Visibility=name=="form"?Visibility.Visible:Visibility.Collapsed;
-        grid=new ExcelGrid(controller.Fields,controller.Rows);grid.Table.RowHeight=compact?30:40;grid.Edited+=Calculate;
-        grid.Table.SelectedCellsChanged+=(_,_)=>deleteButton.IsEnabled=grid.Table.CurrentItem is GridRow;
-        sheetArea.Children.Clear();sheetArea.Children.Add(grid);sheetArea.Children.Add(emptyState);UpdateRecords();notification.Visibility=Visibility.Collapsed;dirty=false;saveButton.IsEnabled=false;
+        grid=new ExcelGrid(controller.Fields,controller.Rows,promote:row=>{controller.Add(row);Watch(row);MarkDirty();UpdateRecords();});grid.Table.RowHeight=compact?30:40;grid.Edited+=Calculate;
+        grid.Table.SelectedCellsChanged+=(_,_)=>UpdateRecords();
+        sheetArea.Children.Clear();sheetArea.Children.Add(grid);UpdateRecords();notification.Visibility=Visibility.Collapsed;dirty=false;saveButton.IsEnabled=false;
         status.Text="All changes saved";status.Foreground=Ui.Color("#64748B");revision.Text=$"Revision {controller.Revision}  ·  Local storage";
     }
-    private void UpdateRecords(){count.Text=$"{controller.Rows.Count} record{(controller.Rows.Count==1?"":"s")}";emptyState.Visibility=controller.Rows.Count==0?Visibility.Visible:Visibility.Collapsed;if(grid!=null)grid.Table.Visibility=controller.Rows.Count==0?Visibility.Hidden:Visibility.Visible;deleteButton.IsEnabled=grid?.Table.CurrentItem is GridRow;}
+    private void UpdateRecords(){count.Text=$"{controller.Rows.Count} record{(controller.Rows.Count==1?"":"s")}";deleteButton.IsEnabled=grid?.Table.CurrentItem is GridRow row&&controller.Rows.Contains(row);}
     private void Add(){if(grid==null)return;var row=controller.Add();Watch(row);MarkDirty();UpdateRecords();grid.Table.ScrollIntoView(row);grid.Table.CurrentCell=new DataGridCellInfo(row,grid.Table.Columns.First(c=>!c.IsReadOnly));grid.Table.Focus();grid.Table.BeginEdit();}
-    private void Delete(){if(grid?.Table.CurrentItem is GridRow row&&MessageBox.Show(this,"Remove the selected record? Save changes to confirm the deletion.","Delete record",MessageBoxButton.YesNo,MessageBoxImage.Warning)==MessageBoxResult.Yes){controller.Rows.Remove(row);MarkDirty();UpdateRecords();Calculate();}}
-    private void Options(){if(!decimal.TryParse(opening.Text,NumberStyles.Number,CultureInfo.InvariantCulture,out var value)||decimal.Round(value,2)!=value)throw new ArgumentException("Opening balance: enter USD with at most two decimals.");if(!int.TryParse(terms.Text,out var days)||days<0||days>3650)throw new ArgumentException("Payment terms must be 0–3650 days.");controller.Opening=value;controller.Terms=days;controller.AsOf=DateOnly.FromDateTime(asOf.SelectedDate??DateTime.Today);}
+    private void Delete(){if(grid?.Table.CurrentItem is GridRow row&&controller.Rows.Contains(row)&&MessageBox.Show(this,"Remove the selected record? Save changes to confirm the deletion.","Delete record",MessageBoxButton.YesNo,MessageBoxImage.Warning)==MessageBoxResult.Yes){controller.Rows.Remove(row);MarkDirty();UpdateRecords();Calculate();}}
+    private void Options(){if(!decimal.TryParse(opening.Text,NumberStyles.Number,CultureInfo.InvariantCulture,out var value)||decimal.Round(value,2)!=value)throw new ArgumentException("Opening balance: enter USD with at most two decimals.");if(!int.TryParse(terms.Text,out var days)||days<0||days>3650)throw new ArgumentException("Payment terms must be 0–3650 days.");controller.Opening=value;controller.Terms=days;if(!DateOnly.TryParseExact(DateCellConverter.Normalize(asOf.Text),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var reportDate))throw new ArgumentException("As of: enter a valid date or choose one from the calendar.");controller.AsOf=reportDate;}
     private void Calculate(){if(grid==null)return;try{Options();refreshing=true;controller.Calculate();var errors=controller.Validate();if(errors.Count>0)Error(string.Join("\n",errors.Take(3)));else{notification.Visibility=Visibility.Collapsed;status.Text=dirty?"●  Unsaved changes":"All changes saved";}}catch(Exception ex){Error(ex.Message);}finally{refreshing=false;}}
     private void Save(){if(grid==null)return;if(!grid.Table.CommitEdit()||!grid.Table.CommitEdit(DataGridEditingUnit.Row,true))throw new ArgumentException("Correct invalid cells before saving.");Options();refreshing=true;try{controller.Save();dirty=false;saveButton.IsEnabled=false;notification.Visibility=Visibility.Collapsed;status.Foreground=Ui.Color("#247653");status.Text="✓  Changes saved successfully";revision.Text=$"Revision {controller.Revision}  ·  Local storage";}finally{refreshing=false;}}
     internal void PreviewSheet(string name)=>Open(name);

@@ -4,7 +4,12 @@ using System.ComponentModel;
 
 namespace TradeVault.Desktop;
 
-public record Field(string Key, string Label, bool Calculated = false, int Width = 155);
+public record Field(string Key, string Label, bool Calculated = false, int Width = 155)
+{
+    public bool IsDate => Label.Contains("DATE",StringComparison.OrdinalIgnoreCase)
+        && !Label.Contains("NO & DATE",StringComparison.OrdinalIgnoreCase)
+        || Label.Equals("DUE",StringComparison.OrdinalIgnoreCase);
+}
 public record CellIssue(string Field, string Message);
 public record ServiceResult(IReadOnlyList<CellIssue> Issues, string Message);
 public record ReceiptSummary(string Total, string Allocated, string Unallocated);

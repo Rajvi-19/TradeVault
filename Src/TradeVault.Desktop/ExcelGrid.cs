@@ -14,10 +14,19 @@ public sealed class ExcelGrid : UserControl
     private readonly IReadOnlyList<Field> fields;
     private readonly TextBlock feedback = new() { TextWrapping = TextWrapping.Wrap, Margin = new(20,8,20,8), FontSize=11, Foreground=Brushes.DimGray };
     private readonly CollectionViewSource source;
+    private readonly ObservableCollection<GridRow> displayRows;
+    private readonly HashSet<GridRow> blanks=[];
+    private readonly Action<GridRow>? promote;
     public event Action? Edited;
-    public ExcelGrid(IReadOnlyList<Field> fields, ObservableCollection<GridRow> rows, bool readOnly = false)
+    public ExcelGrid(IReadOnlyList<Field> fields, ObservableCollection<GridRow> rows, bool readOnly = false,Action<GridRow>? promote=null)
     {
-        this.fields = fields; this.rows = rows;
+        this.fields = fields; this.rows = rows;this.promote=promote;
+        displayRows=new(rows);
+        if(promote!=null&&!readOnly)
+        {
+            AddBlankRows();
+            System.Collections.Specialized.CollectionChangedEventManager.AddHandler(rows,OnRowsChanged);
+        }
         var root = new DockPanel();
         var search = new TextBox { Width=240, Padding = new(8,5,8,5), ToolTip = "Filter visible rows across all columns" };
         System.Windows.Automation.AutomationProperties.SetName(search, "Filter rows");
@@ -42,9 +51,9 @@ public sealed class ExcelGrid : UserControl
                 value.SetBinding(TextBox.TextProperty,new Binding($"[{fields[Table.Columns.IndexOf(column)].Key}]"){Source=row,Mode=BindingMode.OneWay});
             }
         };
-        feedback.Text = readOnly ? "Read-only · Sorting changes the view, not the account order." : "Enter / Tab to navigate · Ctrl+C to copy · Ctrl+V to paste · Dates: yyyy-MM-dd";
+        feedback.Text = readOnly ? "Read-only · Sorting changes the view, not the account order." : "Type in any blank row · Ctrl+C / Ctrl+V · Dates: 26/10/2026, 26-Oct-2026 or yyyy-MM-dd";
         DockPanel.SetDock(feedback,Dock.Bottom); root.Children.Add(feedback);
-        source = new CollectionViewSource { Source = rows };
+        source = new CollectionViewSource { Source = displayRows };
         source.Filter += (_,e) => e.Accepted = e.Item is GridRow r && fields.Any(f => r[f.Key].Contains(search.Text,StringComparison.OrdinalIgnoreCase));
         search.TextChanged += (_,_) => { Table.CommitEdit(); Table.CommitEdit(DataGridEditingUnit.Row,true); source.View.Refresh(); };
         Table.AutoGenerateColumns = false; Table.CanUserAddRows = false; Table.CanUserDeleteRows = false;
@@ -61,11 +70,19 @@ public sealed class ExcelGrid : UserControl
                 Header = field.Label, Width = field.Width, IsReadOnly = field.Calculated,
                 SortMemberPath = $"[{field.Key}]", ElementStyle = style,
                 Binding = new Binding($"[{field.Key}]") { Mode = field.Calculated || readOnly ? BindingMode.OneWay : BindingMode.TwoWay,
-                    UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged, ValidatesOnNotifyDataErrors = true }
+                    UpdateSourceTrigger = field.IsDate?UpdateSourceTrigger.LostFocus:UpdateSourceTrigger.PropertyChanged,
+                    Converter=field.IsDate?new DateCellConverter():null, ValidatesOnNotifyDataErrors = true },
+                EditingElementStyle=EditingStyle()
             });
         }
         Table.FrozenColumnCount = Math.Min(2,fields.Count);
         Table.ItemsSource = source.View;
+        if(promote!=null)Table.Sorting+=(_,e)=> {
+            e.Handled=true;var direction=e.Column.SortDirection==System.ComponentModel.ListSortDirection.Ascending?System.ComponentModel.ListSortDirection.Descending:System.ComponentModel.ListSortDirection.Ascending;
+            foreach(var column in Table.Columns)column.SortDirection=null;e.Column.SortDirection=direction;
+            var key=fields[Table.Columns.IndexOf(e.Column)].Key;
+            ((ListCollectionView)source.View).CustomSort=new BlankLastComparer(blanks,key,direction==System.ComponentModel.ListSortDirection.Ascending);
+        };
         Table.PreviewKeyDown += (_,e) => {
             if (e.Key == Key.V && Keyboard.Modifiers == ModifierKeys.Control && !readOnly)
             {
@@ -77,6 +94,39 @@ public sealed class ExcelGrid : UserControl
         };
         Table.CellEditEnding += (_,_) => Dispatcher.BeginInvoke(new Action(() => Edited?.Invoke()));
         root.Children.Add(Table); Content = root;
+    }
+    private void OnRowsChanged(object? sender,System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if(e.Action==System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
+        {foreach(var row in displayRows.Where(r=>!blanks.Contains(r)).ToArray())displayRows.Remove(row);}
+        if(e.OldItems!=null)foreach(GridRow row in e.OldItems)displayRows.Remove(row);
+        if(e.NewItems!=null)foreach(GridRow row in e.NewItems)if(!displayRows.Contains(row))displayRows.Insert(displayRows.Count-blanks.Count,row);
+    }
+    private static Style EditingStyle()
+    {
+        var style=new Style(typeof(TextBox));style.Setters.Add(new Setter(TextBox.MinHeightProperty,0d));
+        style.Setters.Add(new Setter(TextBox.PaddingProperty,new Thickness(8,2,8,2)));style.Setters.Add(new Setter(TextBox.VerticalContentAlignmentProperty,VerticalAlignment.Center));return style;
+    }
+    private void AddBlankRows()
+    {
+        if(promote==null)return;
+        while(blanks.Count<100)
+        {
+            var row=new GridRow();blanks.Add(row);displayRows.Add(row);
+            row.Changed+=changed=> {
+                if(!blanks.Contains(changed)||!fields.Any(f=>!f.Calculated&&!string.IsNullOrWhiteSpace(changed[f.Key])))return;
+                blanks.Remove(changed);promote(changed);AddBlankRows();
+            };
+        }
+    }
+    private sealed class BlankLastComparer(HashSet<GridRow> blanks,string key,bool ascending):System.Collections.IComparer
+    {
+        public int Compare(object? x,object? y)
+        {
+            if(x is not GridRow left||y is not GridRow right)return 0;
+            if(blanks.Contains(left)!=blanks.Contains(right))return blanks.Contains(left)?1:-1;
+            var result=string.Compare(left[key],right[key],StringComparison.OrdinalIgnoreCase);return ascending?result:-result;
+        }
     }
     public void CopySelection()
     {
@@ -101,7 +151,10 @@ public sealed class ExcelGrid : UserControl
         var ordered = Table.Columns.OrderBy(c => c.DisplayIndex).Select(c => fields[Table.Columns.IndexOf(c)]).ToArray();
         try {
             var changes = PastePlan.Create(text,row,col,visible.Count,ordered);
-            foreach (var change in changes) visible[change.Row][change.Key] = change.Value;
+            foreach (var change in changes) {
+                var field=ordered.First(f=>f.Key==change.Key);
+                visible[change.Row][change.Key] = field.IsDate?DateCellConverter.Normalize(change.Value):change.Value;
+            }
             feedback.Text = $"Pasted {changes.Count} input cells — click Save to persist changes.";
             Edited?.Invoke();
         } catch (ArgumentException ex) { feedback.Text = ex.Message; }

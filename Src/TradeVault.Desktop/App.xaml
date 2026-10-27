@@ -28,11 +28,23 @@
   <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Background" Value="{StaticResource AccentBrush}"/><Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/><Setter Property="Foreground" Value="White"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
   <Style x:Key="QuietButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="Transparent"/></Style>
   <Style TargetType="TextBox">
-   <Setter Property="Padding" Value="10,8"/><Setter Property="MinHeight" Value="36"/><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="{StaticResource LineBrush}"/><Setter Property="VerticalContentAlignment" Value="Center"/>
-   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TextBox"><Border x:Name="Border" CornerRadius="5" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"><ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"/></Border><ControlTemplate.Triggers><Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="Border" Property="BorderBrush" Value="#2458D3"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter TargetName="Border" Property="Opacity" Value="0.45"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+   <Setter Property="Padding" Value="10,6"/><Setter Property="MinHeight" Value="36"/><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="{StaticResource LineBrush}"/><Setter Property="VerticalContentAlignment" Value="Center"/>
+   <Style.Triggers><Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter Property="BorderBrush" Value="#2458D3"/></Trigger></Style.Triggers>
   </Style>
   <Style TargetType="PasswordBox"><Setter Property="Padding" Value="10,9"/><Setter Property="MinHeight" Value="40"/><Setter Property="BorderBrush" Value="{StaticResource LineBrush}"/><Setter Property="Background" Value="White"/></Style>
-  <Style TargetType="DatePicker"><Setter Property="Padding" Value="3"/><Setter Property="MinHeight" Value="36"/><Setter Property="BorderBrush" Value="{StaticResource LineBrush}"/><Setter Property="Background" Value="White"/></Style>
+  <Style TargetType="DatePicker">
+   <Setter Property="MinHeight" Value="36"/><Setter Property="BorderBrush" Value="{StaticResource LineBrush}"/><Setter Property="Background" Value="White"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="DatePicker">
+    <Border x:Name="DateBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="5">
+     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="34"/></Grid.ColumnDefinitions>
+      <DatePickerTextBox x:Name="PART_TextBox" Style="{x:Null}" BorderThickness="0" Background="Transparent" Padding="8,4" VerticalContentAlignment="Center" MinHeight="0"/>
+      <Button x:Name="PART_Button" Grid.Column="1" Padding="0" MinHeight="0" Background="Transparent" BorderBrush="Transparent" ToolTip="Choose date" AutomationProperties.Name="Choose date"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE787;" Foreground="#64748B"/></Button>
+      <Popup x:Name="PART_Popup" Placement="Bottom" StaysOpen="False" AllowsTransparency="True"/>
+     </Grid>
+    </Border>
+    <ControlTemplate.Triggers><Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="DateBorder" Property="BorderBrush" Value="#2458D3"/></Trigger></ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
   <Style TargetType="ToolTip"><Setter Property="Background" Value="#18243B"/><Setter Property="Foreground" Value="White"/><Setter Property="Padding" Value="10,7"/></Style>
   <Style TargetType="DataGrid">
    <Setter Property="Background" Value="White"/><Setter Property="RowBackground" Value="White"/><Setter Property="AlternatingRowBackground" Value="#FAFBFD"/>

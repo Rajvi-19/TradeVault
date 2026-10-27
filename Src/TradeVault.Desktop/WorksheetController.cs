@@ -28,12 +28,12 @@ public sealed class WorksheetController(WorkbookStore store, LoginSession sessio
         }
         Calculate();
     }
-    public GridRow Add()
+    public GridRow Add(GridRow? draft=null)
     {
-        var row = new GridRow();
-        if (Name == "form") row["F18"] = "3800.00";
-        if (Name == "details") { row["H"] = "3800.00"; row["M"] = "90"; }
-        if (Name == "ledger") row["J"] = "90";
+        var row = draft??new GridRow();
+        if (Name == "form" && string.IsNullOrEmpty(row["F18"])) row["F18"] = "3800.00";
+        if (Name == "details") { if(string.IsNullOrEmpty(row["H"]))row["H"] = "3800.00"; if(string.IsNullOrEmpty(row["M"]))row["M"] = "90"; }
+        if (Name == "ledger" && string.IsNullOrEmpty(row["J"])) row["J"] = "90";
         Rows.Add(row); return row;
     }
     private static decimal Number(GridRow row, string key) => string.IsNullOrWhiteSpace(row[key]) ? 0 : decimal.Parse(row[key], NumberStyles.Number, CultureInfo.InvariantCulture);
