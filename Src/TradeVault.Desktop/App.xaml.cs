@@ -11,6 +11,10 @@ public partial class App : System.Windows.Application
         ShutdownMode=ShutdownMode.OnExplicitShutdown;
         try
         {
+#if UI_ACCEPTANCE
+            if(e.Args.Length==0){AcceptanceChecks.LaunchWorkspace();return;}
+#endif
+            if(e.Args.Length>=2&&e.Args[0]=="--qa-report"){Shutdown(AcceptanceChecks.Run(e.Args[1])?0:1);return;}
             if(e.Args.Length>=2 && e.Args[0]=="--render-ui"){LiveChecks.Render(e.Args[1]);Shutdown(0);return;}
             if(e.Args.Contains("--self-test")){LiveChecks.Run();Console.WriteLine("PASS: live persistence/authentication/worksheet checks");Shutdown(0);return;}
             using var database=new PortableDatabase(PortablePaths.FromApplicationDirectory());
@@ -23,6 +27,6 @@ public partial class App : System.Windows.Application
             }
             Shutdown(0);
         }
-        catch(Exception ex){Console.Error.WriteLine(ex);if(!e.Args.Contains("--self-test"))MessageBox.Show(ex.Message,"TradeVault startup failed");Shutdown(1);}
+        catch(Exception ex){Console.Error.WriteLine(ex);if(!e.Args.Any(a=>a is "--self-test" or "--qa-report" or "--render-ui"))MessageBox.Show(ex.Message,"TradeVault startup failed");Shutdown(1);}
     }
 }

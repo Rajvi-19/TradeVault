@@ -9,15 +9,13 @@ namespace TradeVault.Desktop;
 public sealed class MainWindow : Window
 {
     private readonly WorksheetController controller;
-    private readonly ContentControl content=new();
-    private readonly TextBlock status=Ui.Text("All changes saved",12,"#64748B");
-    private readonly TextBlock title=Ui.Text("Invoice register",28,"#18243B",true);
-    private readonly TextBlock subtitle=Ui.Text("",13,"#64748B");
-    private readonly TextBlock count=Ui.Text("0 records",12,"#64748B");
+    private readonly TextBlock status=Ui.Text("All changes saved",11,"#64748B");
+    private readonly TextBlock title=Ui.Text("Invoice register",18,"#18243B",true);
+    private readonly TextBlock count=Ui.Text("0 records",11,"#64748B");
     private readonly TextBlock revision=Ui.Text("",11,"#64748B");
-    private readonly TextBox opening=new(){Text="0.00",Width=112};
-    private readonly TextBox terms=new(){Text="90",Width=64};
-    private readonly DatePicker asOf=new(){SelectedDate=DateTime.Today,Width=160,MinHeight=38,SelectedDateFormat=DatePickerFormat.Short,Language=System.Windows.Markup.XmlLanguage.GetLanguage("en-IN")};
+    private readonly TextBox opening=new(){Text="0.00",Width=100,MinHeight=30,Padding=new(8,4,8,4)};
+    private readonly TextBox terms=new(){Text="90",Width=54,MinHeight=30,Padding=new(8,4,8,4)};
+    private readonly DatePicker asOf=new(){SelectedDate=DateTime.Today,Width=145,MinHeight=30,SelectedDateFormat=DatePickerFormat.Short,Language=System.Windows.Markup.XmlLanguage.GetLanguage("en-IN")};
     private readonly StackPanel openingGroup=new(){Orientation=Orientation.Horizontal};
     private readonly StackPanel termsGroup=new(){Orientation=Orientation.Horizontal};
     private readonly Dictionary<string,Button> nav=new();
@@ -26,56 +24,50 @@ public sealed class MainWindow : Window
     private readonly Border notification;
     private readonly TextBlock message=Ui.Text("",12,"#B42318");
     private ExcelGrid? grid;
-    private bool dirty,refreshing,compact;
+    private bool dirty,refreshing,compact=true;
     private readonly Grid sheetArea=new();
 
     public MainWindow(WorkbookStore store,LoginSession session,string path)
     {
-        controller=new(store,session);Title="TradeVault | "+session.Role;Width=1480;Height=920;MinWidth=1100;MinHeight=720;WindowStartupLocation=WindowStartupLocation.CenterScreen;
-        var root=new Grid{Background=Ui.Color("#F4F6FA")};root.ColumnDefinitions.Add(new(){Width=new GridLength(224)});root.ColumnDefinitions.Add(new());Content=root;
-        var sidebar=new DockPanel{Background=Ui.Color("#111E35")};root.Children.Add(sidebar);
-        var brand=new StackPanel{Margin=new(24,30,20,30)};
-        var brandLine=new StackPanel{Orientation=Orientation.Horizontal};var mark=Ui.Badge("TV","#2F60D7","#FFFFFF");mark.Margin=new(0,0,10,0);brandLine.Children.Add(mark);brandLine.Children.Add(Ui.Text("TradeVault",21,"#FFFFFF",true));brand.Children.Add(brandLine);
-        var tagline=Ui.Text("EXPORT OPERATIONS",10,"#91A4C0",true);tagline.Margin=new(0,12,0,0);brand.Children.Add(tagline);DockPanel.SetDock(brand,Dock.Top);sidebar.Children.Add(brand);
-        var account=new StackPanel{Margin=new(16,16,16,22)};
-        account.Children.Add(new Border{Height=1,Background=Ui.Color("#2A3850"),Margin=new(4,0,4,18)});
-        account.Children.Add(Ui.Text(session.Username,14,"#FFFFFF",true));account.Children.Add(Ui.Text(session.Role+" workspace",12,"#A5B6CE"));
-        var logout=Ui.Button("Sign out",()=>Run(()=>{if(Discard()){dirty=false;Close();}}),"QuietButton","\uE8AC");logout.Foreground=Ui.Color("#CCD8EA");logout.HorizontalAlignment=HorizontalAlignment.Left;logout.Margin=new(-10,12,0,0);account.Children.Add(logout);DockPanel.SetDock(account,Dock.Bottom);sidebar.Children.Add(account);
-        var navigation=new StackPanel{Margin=new(12,0,12,0)};
-        navigation.Children.Add(new TextBlock{Text="WORKSPACE",FontSize=10,FontWeight=FontWeights.SemiBold,Foreground=Ui.Color("#91A4C0"),Margin=new(12,4,0,12)});
+        controller=new(store,session);Width=1440;Height=880;MinWidth=1000;MinHeight=600;WindowStartupLocation=WindowStartupLocation.CenterScreen;
+        var root=new DockPanel{Background=Ui.Color("#F4F6FA")};
+        var header=new DockPanel{Background=Ui.Color("#111E35"),Height=42};
+        var account=new StackPanel{Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center,Margin=new(0,0,8,0)};
+        account.Children.Add(Ui.Text(session.Username+" · "+session.Role,12,"#E2E8F0"));
+        var logout=Ui.Button("Sign out",()=>Run(()=>{if(Discard()){dirty=false;Close();}}),"QuietButton","\uE8AC");logout.Foreground=Ui.Color("#FFFFFF");logout.Margin=new(12,0,0,0);logout.MinHeight=28;logout.Padding=new(10,4,10,4);account.Children.Add(logout);
+        DockPanel.SetDock(account,Dock.Right);header.Children.Add(account);
+        var brand=new StackPanel{Orientation=Orientation.Horizontal,Margin=new(14,0,0,0)};
+        brand.Children.Add(Ui.Text("TradeVault",17,"#FFFFFF",true));var offline=Ui.Text("  /  Offline · USD",11,"#A5B6CE");brand.Children.Add(offline);header.Children.Add(brand);
+        DockPanel.SetDock(header,Dock.Top);root.Children.Add(header);
+
+        var tabs=new DockPanel{Background=Brushes.White,Height=40};
+        saveButton=Ui.Button("Save changes",()=>Run(Save),"PrimaryButton","\uE74E");saveButton.MinHeight=30;saveButton.Padding=new(12,4,12,4);saveButton.Margin=new(0,4,10,4);DockPanel.SetDock(saveButton,Dock.Right);tabs.Children.Add(saveButton);
+        var navigation=new StackPanel{Orientation=Orientation.Horizontal,Margin=new(6,0,0,0)};
         foreach(var (name,label,icon) in new[]{("form","Invoice register","\uE8A5"),("details","Account details","\uE8D4"),("ledger","Debit & credit","\uE8AB")})
         {
-            var b=Ui.Button(label,()=>Run(()=>{if(Discard())Open(name);}),"QuietButton",icon);b.HorizontalContentAlignment=HorizontalAlignment.Left;b.Foreground=Ui.Color("#CCD8EA");b.Padding=new(14,13,14,13);b.Margin=new(0,0,0,6);nav.Add(name,b);navigation.Children.Add(b);
+            var b=Ui.Button(label,()=>Run(()=>{if(Discard())Open(name);}),"QuietButton",icon);b.Padding=new(12,5,12,5);b.MinHeight=32;b.Margin=new(2,3,2,3);nav.Add(name,b);navigation.Children.Add(b);
         }
         if(session.Role=="Owner")
         {
-            navigation.Children.Add(new Border{Height=1,Background=Ui.Color("#2A3850"),Margin=new(12,18,12,20)});
-            var imports=Ui.Button("Operator reports",()=>{},"QuietButton","\uE8B5");imports.Foreground=Ui.Color("#A5B6CE");imports.IsEnabled=false;imports.ToolTip="Report import is not available yet.";imports.HorizontalContentAlignment=HorizontalAlignment.Left;navigation.Children.Add(imports);
+            var imports=Ui.Button("Operator reports",()=>{},"QuietButton","\uE8B5");imports.MinHeight=32;imports.Padding=new(10,5,10,5);imports.IsEnabled=false;imports.ToolTip="Operator report import is not implemented.";navigation.Children.Add(imports);
         }
-        sidebar.Children.Add(navigation);
-        var body=new DockPanel();Grid.SetColumn(body,1);root.Children.Add(body);
-        var top=new DockPanel{Background=Brushes.White,Height=62,LastChildFill=false};
-        var breadcrumb=Ui.Text("Workspace   /   Financial records",12,"#64748B");breadcrumb.Margin=new(30,0,0,0);top.Children.Add(breadcrumb);
-        var offline=Ui.Badge("●  Offline workspace","#EDF7F2","#247653");offline.Margin=new(0,0,26,0);DockPanel.SetDock(offline,Dock.Right);top.Children.Add(offline);DockPanel.SetDock(top,Dock.Top);body.Children.Add(top);
-        var footer=new DockPanel{Margin=new(30,10,30,12)};footer.Children.Add(status);revision.HorizontalAlignment=HorizontalAlignment.Right;DockPanel.SetDock(revision,Dock.Right);footer.Children.Add(revision);DockPanel.SetDock(footer,Dock.Bottom);body.Children.Add(footer);
-        var page=new DockPanel{Margin=new(30,26,30,0)};body.Children.Add(page);
-        var pageHeader=new DockPanel{Margin=new(0,0,0,22)};var headings=new StackPanel();headings.Children.Add(title);subtitle.Margin=new(0,7,0,0);headings.Children.Add(subtitle);
-        saveButton=Ui.Button("Save changes",()=>Run(Save),"PrimaryButton","\uE74E");saveButton.VerticalAlignment=VerticalAlignment.Center;DockPanel.SetDock(saveButton,Dock.Right);pageHeader.Children.Add(saveButton);pageHeader.Children.Add(headings);DockPanel.SetDock(pageHeader,Dock.Top);page.Children.Add(pageHeader);
+        tabs.Children.Add(navigation);DockPanel.SetDock(tabs,Dock.Top);root.Children.Add(tabs);
+
+        var footer=new DockPanel{Height=24,Margin=new(12,0,12,0)};var build=Ui.Text(Ui.BuildLabel,10,"#64748B");build.Margin=new(16,0,0,0);DockPanel.SetDock(build,Dock.Right);footer.Children.Add(build);DockPanel.SetDock(revision,Dock.Right);footer.Children.Add(revision);footer.Children.Add(status);DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
+        var heading=new DockPanel{Margin=new(12,8,12,6)};DockPanel.SetDock(count,Dock.Right);heading.Children.Add(count);heading.Children.Add(title);DockPanel.SetDock(heading,Dock.Top);root.Children.Add(heading);
+
         var options=new WrapPanel{VerticalAlignment=VerticalAlignment.Center};
-        options.Children.Add(Ui.Badge("USD","#EEF2F8","#52627A"));
-        termsGroup.Margin=new(22,0,0,0);var termLabel=Ui.Text("Payment terms",12,"#64748B");termLabel.Margin=new(0,0,10,0);termsGroup.Children.Add(termLabel);termsGroup.Children.Add(terms);termsGroup.Children.Add(Ui.Text("  days",12,"#64748B"));options.Children.Add(termsGroup);
-        openingGroup.Margin=new(22,0,0,0);var openLabel=Ui.Text("Opening balance",12,"#64748B");openLabel.Margin=new(0,0,10,0);openingGroup.Children.Add(openLabel);openingGroup.Children.Add(opening);options.Children.Add(openingGroup);
-        var dateLabel=Ui.Text("As of",12,"#64748B");dateLabel.Margin=new(22,0,10,0);options.Children.Add(dateLabel);options.Children.Add(asOf);
-        var calc=Ui.Button("Recalculate",Calculate,"QuietButton","\uE9D9");calc.Margin=new(16,0,0,0);options.Children.Add(calc);
-        var optionCard=Ui.Card(options,new(16,12,16,12));optionCard.Margin=new(0,0,0,18);DockPanel.SetDock(optionCard,Dock.Top);page.Children.Add(optionCard);
-        notification=new Border{Background=Ui.Color("#FFF2F0"),BorderBrush=Ui.Color("#F3C8C3"),BorderThickness=new(1),CornerRadius=new(6),Padding=new(14,10,14,10),Margin=new(0,0,0,12),Child=message,Visibility=Visibility.Collapsed};DockPanel.SetDock(notification,Dock.Top);page.Children.Add(notification);
-        var sheet=new DockPanel();var commands=new DockPanel{Margin=new(18,14,18,14)};
-        var actions=new StackPanel{Orientation=Orientation.Horizontal};
-        var reload=Ui.Button("Reload",()=>Run(()=>{if(Discard())Open(controller.Name);}),"QuietButton","\uE72C");reload.Margin=new(8,0,0,0);actions.Children.Add(reload);
-        deleteButton=Ui.Button("Delete",()=>Run(Delete),"QuietButton","\uE74D");deleteButton.Foreground=Ui.Color("#A63E3E");deleteButton.Margin=new(8,0,0,0);actions.Children.Add(deleteButton);
-        var density=Ui.Button("Compact view",()=>{compact=!compact;if(grid!=null)grid.Table.RowHeight=compact?30:40;},"QuietButton");density.ToolTip="Toggle compact worksheet rows";density.Margin=new(8,0,0,0);actions.Children.Add(density);
-        count.HorizontalAlignment=HorizontalAlignment.Right;DockPanel.SetDock(count,Dock.Right);commands.Children.Add(count);commands.Children.Add(actions);DockPanel.SetDock(commands,Dock.Top);sheet.Children.Add(commands);
-        sheet.Children.Add(sheetArea);content.Content=sheet;page.Children.Add(Ui.Card(content));
+        termsGroup.Margin=new(0,0,14,0);var termLabel=Ui.Text("Terms",12,"#52627A");termLabel.Margin=new(0,0,6,0);termsGroup.Children.Add(termLabel);termsGroup.Children.Add(terms);termsGroup.Children.Add(Ui.Text(" days",11,"#64748B"));options.Children.Add(termsGroup);
+        openingGroup.Margin=new(0,0,14,0);var openLabel=Ui.Text("Opening USD",12,"#52627A");openLabel.Margin=new(0,0,6,0);openingGroup.Children.Add(openLabel);openingGroup.Children.Add(opening);options.Children.Add(openingGroup);
+        var dateLabel=Ui.Text("As of",12,"#52627A");dateLabel.Margin=new(0,0,6,0);options.Children.Add(dateLabel);options.Children.Add(asOf);
+        var calc=CompactButton("Recalculate",Calculate,"\uE9D9");options.Children.Add(calc);
+        options.Children.Add(new Border{Width=1,Height=22,Background=Ui.Color("#D8E0EB"),Margin=new(10,0,2,0)});
+        options.Children.Add(CompactButton("Reload",()=>Run(()=>{if(Discard())Open(controller.Name);}),"\uE72C"));
+        deleteButton=CompactButton("Delete",()=>Run(Delete),"\uE74D");deleteButton.Foreground=Ui.Color("#A63E3E");options.Children.Add(deleteButton);
+        var density=CompactButton("Comfortable rows",()=>{compact=!compact;if(grid!=null)grid.Table.RowHeight=compact?28:36;},"\uE8A4");density.ToolTip="Switch between 28 and 36 pixel rows";options.Children.Add(density);
+        var optionBar=new Border{Background=Brushes.White,BorderBrush=Ui.Color("#DCE3ED"),BorderThickness=new(1),Padding=new(10,5,10,5),Margin=new(10,0,10,4),Child=options};DockPanel.SetDock(optionBar,Dock.Top);root.Children.Add(optionBar);
+        notification=new Border{Background=Ui.Color("#FFF2F0"),BorderBrush=Ui.Color("#F3C8C3"),BorderThickness=new(1),Padding=new(10,6,10,6),Margin=new(10,0,10,4),Child=message,Visibility=Visibility.Collapsed};DockPanel.SetDock(notification,Dock.Top);root.Children.Add(notification);
+        var sheet=new Border{Background=Brushes.White,BorderBrush=Ui.Color("#DCE3ED"),BorderThickness=new(1),Margin=new(10,0,10,4),Child=sheetArea};root.Children.Add(sheet);
         opening.TextChanged+=(_,_)=>{if(!refreshing)MarkDirty();};terms.TextChanged+=(_,_)=>{if(!refreshing)MarkDirty();};asOf.SelectedDateChanged+=(_,_)=>Calculate();
         System.Windows.Automation.AutomationProperties.SetName(opening,"Opening balance in USD");System.Windows.Automation.AutomationProperties.SetName(terms,"Payment terms in calendar days");System.Windows.Automation.AutomationProperties.SetName(asOf,"Report as of date");
         Ui.WindowFrame(this,root,"TradeVault · "+session.Role+" workspace");
@@ -84,9 +76,10 @@ public sealed class MainWindow : Window
         InputBindings.Add(new KeyBinding(new ActionCommand(()=>Run(Save)),Key.S,ModifierKeys.Control));InputBindings.Add(new KeyBinding(new ActionCommand(()=>Run(Add)),Key.N,ModifierKeys.Control));
         Open("form");
     }
+    private static Button CompactButton(string text,Action action,string glyph){var b=Ui.Button(text,action,"QuietButton",glyph);b.MinHeight=30;b.Padding=new(9,4,9,4);b.Margin=new(4,0,0,0);return b;}
     private void Run(Action action){try{action();}catch(Exception ex){Error(ex.Message);}}
     private void Error(string text){message.Text=text;notification.Visibility=Visibility.Visible;status.Text="Action needs attention";status.Foreground=Ui.Color("#B42318");}
-    private void MarkDirty(){dirty=true;saveButton.IsEnabled=true;status.Text="●  Unsaved changes";status.Foreground=Ui.Color("#9A6700");}
+    private void MarkDirty(){dirty=true;saveButton.IsEnabled=true;status.Text="● Unsaved changes";status.Foreground=Ui.Color("#9A6700");}
     private void Watch(GridRow row)=>row.Changed+=_=>{if(!refreshing)MarkDirty();};
     private bool Discard(){grid?.Table.CommitEdit();grid?.Table.CommitEdit(DataGridEditingUnit.Row,true);return !dirty||MessageBox.Show(this,"You have unsaved changes. Discard them and continue?","Unsaved changes",MessageBoxButton.YesNo,MessageBoxImage.Question)==MessageBoxResult.Yes;}
     private void Open(string name)
@@ -94,20 +87,19 @@ public sealed class MainWindow : Window
         controller.Load(name);refreshing=true;opening.Text=controller.Opening.ToString("0.00",CultureInfo.InvariantCulture);terms.Text=controller.Terms.ToString();refreshing=false;
         foreach(var row in controller.Rows)Watch(row);
         title.Text=name switch{"form"=>"Invoice register","details"=>"Account details",_=>"Debit & credit"};
-        subtitle.Text=name switch{"form"=>"Manage export invoices, shipment references and payment dates.","details"=>"Review invoice amounts, receipts and the outstanding difference.",_=>"Maintain your party ledger with a running USD balance."};
-        foreach(var item in nav){item.Value.Background=Ui.Color(item.Key==name?"#243B60":"#111E35");item.Value.Foreground=Ui.Color(item.Key==name?"#FFFFFF":"#CCD8EA");}
+        foreach(var item in nav){item.Value.Background=Ui.Color(item.Key==name?"#E8EFFD":"#FFFFFF");item.Value.Foreground=Ui.Color(item.Key==name?"#2458D3":"#52627A");}
         openingGroup.Visibility=name=="form"?Visibility.Collapsed:Visibility.Visible;termsGroup.Visibility=name=="form"?Visibility.Visible:Visibility.Collapsed;
-        grid=new ExcelGrid(controller.Fields,controller.Rows,promote:row=>{controller.Add(row);Watch(row);MarkDirty();UpdateRecords();});grid.Table.RowHeight=compact?30:40;grid.Edited+=Calculate;
+        grid=new ExcelGrid(controller.Fields,controller.Rows,promote:row=>{controller.Add(row);Watch(row);MarkDirty();UpdateRecords();});grid.Table.RowHeight=compact?28:36;grid.Edited+=Calculate;
         grid.Table.SelectedCellsChanged+=(_,_)=>UpdateRecords();
         sheetArea.Children.Clear();sheetArea.Children.Add(grid);UpdateRecords();notification.Visibility=Visibility.Collapsed;dirty=false;saveButton.IsEnabled=false;
-        status.Text="All changes saved";status.Foreground=Ui.Color("#64748B");revision.Text=$"Revision {controller.Revision}  ·  Local storage";
+        status.Text="All changes saved";status.Foreground=Ui.Color("#64748B");revision.Text=$"Revision {controller.Revision} · Local storage";
     }
     private void UpdateRecords(){count.Text=$"{controller.Rows.Count} record{(controller.Rows.Count==1?"":"s")}";deleteButton.IsEnabled=grid?.Table.CurrentItem is GridRow row&&controller.Rows.Contains(row);}
     private void Add(){if(grid==null)return;var row=controller.Add();Watch(row);MarkDirty();UpdateRecords();grid.Table.ScrollIntoView(row);grid.Table.CurrentCell=new DataGridCellInfo(row,grid.Table.Columns.First(c=>!c.IsReadOnly));grid.Table.Focus();grid.Table.BeginEdit();}
     private void Delete(){if(grid?.Table.CurrentItem is GridRow row&&controller.Rows.Contains(row)&&MessageBox.Show(this,"Remove the selected record? Save changes to confirm the deletion.","Delete record",MessageBoxButton.YesNo,MessageBoxImage.Warning)==MessageBoxResult.Yes){controller.Rows.Remove(row);MarkDirty();UpdateRecords();Calculate();}}
     private void Options(){if(!decimal.TryParse(opening.Text,NumberStyles.Number,CultureInfo.InvariantCulture,out var value)||decimal.Round(value,2)!=value)throw new ArgumentException("Opening balance: enter USD with at most two decimals.");if(!int.TryParse(terms.Text,out var days)||days<0||days>3650)throw new ArgumentException("Payment terms must be 0–3650 days.");controller.Opening=value;controller.Terms=days;if(!DateOnly.TryParseExact(DateCellConverter.Normalize(asOf.Text),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var reportDate))throw new ArgumentException("As of: enter a valid date or choose one from the calendar.");controller.AsOf=reportDate;}
-    private void Calculate(){if(grid==null)return;try{Options();refreshing=true;controller.Calculate();var errors=controller.Validate();if(errors.Count>0)Error(string.Join("\n",errors.Take(3)));else{notification.Visibility=Visibility.Collapsed;status.Text=dirty?"●  Unsaved changes":"All changes saved";}}catch(Exception ex){Error(ex.Message);}finally{refreshing=false;}}
-    private void Save(){if(grid==null)return;if(!grid.Table.CommitEdit()||!grid.Table.CommitEdit(DataGridEditingUnit.Row,true))throw new ArgumentException("Correct invalid cells before saving.");Options();refreshing=true;try{controller.Save();dirty=false;saveButton.IsEnabled=false;notification.Visibility=Visibility.Collapsed;status.Foreground=Ui.Color("#247653");status.Text="✓  Changes saved successfully";revision.Text=$"Revision {controller.Revision}  ·  Local storage";}finally{refreshing=false;}}
+    private void Calculate(){if(grid==null)return;try{Options();refreshing=true;controller.Calculate();var errors=controller.Validate();if(errors.Count>0)Error(string.Join("\n",errors.Take(3)));else{notification.Visibility=Visibility.Collapsed;status.Text=dirty?"● Unsaved changes":"All changes saved";status.Foreground=Ui.Color(dirty?"#9A6700":"#64748B");}}catch(Exception ex){Error(ex.Message);}finally{refreshing=false;}}
+    private void Save(){if(grid==null)return;if(!grid.Table.CommitEdit()||!grid.Table.CommitEdit(DataGridEditingUnit.Row,true))throw new ArgumentException("Correct invalid cells before saving.");Options();refreshing=true;try{controller.Save();dirty=false;saveButton.IsEnabled=false;notification.Visibility=Visibility.Collapsed;status.Foreground=Ui.Color("#247653");status.Text="Changes saved";revision.Text=$"Revision {controller.Revision} · Local storage";}finally{refreshing=false;}}
     internal void PreviewSheet(string name)=>Open(name);
     internal void CheckInteractions()
     {
@@ -116,7 +108,8 @@ public sealed class MainWindow : Window
         if(!saveButton.IsEnabled)throw new InvalidOperationException("Editing must enable Save.");
         Save();Open("form");
         if(controller.Rows.Count!=before+1||saveButton.IsEnabled)throw new InvalidOperationException("UI save/reload failed.");
-        foreach(var name in new[]{"details","ledger","form"}){Open(name);Measure(new Size(1100,720));Arrange(new Rect(0,0,1100,720));UpdateLayout();}
+        foreach(var name in new[]{"details","ledger","form"}){Open(name);Measure(new Size(1000,600));Arrange(new Rect(0,0,1000,600));UpdateLayout();}
     }
+    internal double SheetTop=>grid?.TranslatePoint(new Point(0,0),(UIElement)Content).Y??999;
     private sealed class ActionCommand(Action execute):ICommand{public event EventHandler? CanExecuteChanged{add{}remove{}}public bool CanExecute(object? parameter)=>true;public void Execute(object? parameter)=>execute();}
 }

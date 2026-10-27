@@ -12,7 +12,7 @@ public sealed class ExcelGrid : UserControl
     public DataGrid Table { get; } = new();
     private readonly ObservableCollection<GridRow> rows;
     private readonly IReadOnlyList<Field> fields;
-    private readonly TextBlock feedback = new() { TextWrapping = TextWrapping.Wrap, Margin = new(20,8,20,8), FontSize=11, Foreground=Brushes.DimGray };
+    private readonly TextBlock feedback = new() { TextWrapping = TextWrapping.Wrap, Margin = new(8,3,8,3), FontSize=10, Foreground=Brushes.DimGray };
     private readonly CollectionViewSource source;
     private readonly ObservableCollection<GridRow> displayRows;
     private readonly HashSet<GridRow> blanks=[];
@@ -28,20 +28,20 @@ public sealed class ExcelGrid : UserControl
             System.Collections.Specialized.CollectionChangedEventManager.AddHandler(rows,OnRowsChanged);
         }
         var root = new DockPanel();
-        var search = new TextBox { Width=240, Padding = new(8,5,8,5), ToolTip = "Filter visible rows across all columns" };
+        var search = new TextBox { Width=200,MinHeight=28, Padding = new(8,3,8,3), ToolTip = "Filter visible rows across all columns" };
         System.Windows.Automation.AutomationProperties.SetName(search, "Filter rows");
-        var tools=new DockPanel {Margin=new(18,0,18,14)};
+        var tools=new DockPanel {Margin=new(8,4,8,4)};
         var legend=new TextBlock {Text=readOnly?"Read-only worksheet":"Shaded columns are calculated",FontSize=11,Foreground=Ui.Color("#64748B"),VerticalAlignment=VerticalAlignment.Center};
         DockPanel.SetDock(legend,Dock.Right);tools.Children.Add(legend);
         var filter=new StackPanel {Orientation=Orientation.Horizontal};
         filter.Children.Add(new TextBlock {Text="Search records",VerticalAlignment=VerticalAlignment.Center,Margin=new(0,0,10,0),FontSize=12,Foreground=Ui.Color("#64748B")});filter.Children.Add(search);tools.Children.Add(filter);
         DockPanel.SetDock(tools,Dock.Top);root.Children.Add(tools);
-        var formula=new DockPanel {Height=36,Margin=new(0,0,0,1),Background=Ui.Color("#FAFBFD")};
+        var formula=new DockPanel {Height=28,Margin=new(0,0,0,1),Background=Ui.Color("#FAFBFD")};
         var address=new TextBlock {Text="A1",Width=76,TextAlignment=TextAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
         DockPanel.SetDock(address,Dock.Left);formula.Children.Add(address);
         var fx=new TextBlock {Text="│   fx",Foreground=Brushes.Gray,Width=50,VerticalAlignment=VerticalAlignment.Center,FontStyle=FontStyles.Italic};
         DockPanel.SetDock(fx,Dock.Left);formula.Children.Add(fx);
-        var value=new TextBox {IsReadOnly=true,BorderThickness=new(0),ToolTip="Selected cell value. Edit inputs directly in the worksheet."};
+        var value=new TextBox {IsReadOnly=true,MinHeight=0,Padding=new(6,2,6,2),BorderThickness=new(0),ToolTip="Selected cell value. Edit inputs directly in the worksheet."};
         System.Windows.Automation.AutomationProperties.SetName(value,"Selected cell value");formula.Children.Add(value);
         DockPanel.SetDock(formula,Dock.Top);root.Children.Add(formula);
         Table.CurrentCellChanged+=(_,_)=> {
@@ -64,10 +64,10 @@ public sealed class ExcelGrid : UserControl
         Table.LoadingRow += (_,e) => e.Row.Header = (e.Row.GetIndex()+1).ToString();
         foreach (var field in fields)
         {
-            var style = new Style(typeof(TextBlock)); style.Setters.Add(new Setter(TextBlock.PaddingProperty,new Thickness(12,5,12,5)));
+            var style = new Style(typeof(TextBlock)); style.Setters.Add(new Setter(TextBlock.PaddingProperty,new Thickness(8,3,8,3)));
             if (field.Calculated) style.Setters.Add(new Setter(TextBlock.BackgroundProperty,Ui.Color("#F0F5FF")));
             Table.Columns.Add(new DataGridTextColumn {
-                Header = field.Label, Width = field.Width, IsReadOnly = field.Calculated,
+                Header = field.Label, Width = field.Width==240?CompactWidth(field):field.Width, IsReadOnly = field.Calculated,
                 SortMemberPath = $"[{field.Key}]", ElementStyle = style,
                 Binding = new Binding($"[{field.Key}]") { Mode = field.Calculated || readOnly ? BindingMode.OneWay : BindingMode.TwoWay,
                     UpdateSourceTrigger = field.IsDate?UpdateSourceTrigger.LostFocus:UpdateSourceTrigger.PropertyChanged,
@@ -94,6 +94,17 @@ public sealed class ExcelGrid : UserControl
         };
         Table.CellEditEnding += (_,_) => Dispatcher.BeginInvoke(new Action(() => Edited?.Invoke()));
         root.Children.Add(Table); Content = root;
+    }
+    private static int CompactWidth(Field field)=>field.Label.Contains("COUNTRY")?125:field.Label.Contains("DATE")?175:field.Label.Length>36?220:field.Label.Length>24?195:165;
+    internal void FilterForCheck(string text)
+    {
+        if(FindTextBox(this,"Filter rows") is {} input)input.Text=text;
+    }
+    private static TextBox? FindTextBox(DependencyObject root,string name)
+    {
+        if(root is TextBox input&&System.Windows.Automation.AutomationProperties.GetName(input)==name)return input;
+        for(int i=0;i<VisualTreeHelper.GetChildrenCount(root);i++)if(FindTextBox(VisualTreeHelper.GetChild(root,i),name) is {} result)return result;
+        return null;
     }
     private void OnRowsChanged(object? sender,System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
     {

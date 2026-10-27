@@ -10,10 +10,11 @@ internal static class LiveChecks
         try
         {
             using var database=new PortableDatabase(new(root));var store=new WorkbookStore(database);
-            var login=new LoginWindow(store);login.PreviewUsername("operator");Capture(login,System.IO.Path.Combine(directory,"login.png"),980,650);Capture(login,System.IO.Path.Combine(directory,"login-minimum.png"),820,600);login.Close();
-            var session=store.Login("owner","Owner@123");var window=new MainWindow(store,session,database.Paths.Database);
+            var login=new LoginWindow(store);login.PreviewUsername("operator");Capture(login,System.IO.Path.Combine(directory,"login.png"),860,570);Capture(login,System.IO.Path.Combine(directory,"login-minimum.png"),760,540);login.Close();
+            var session=store.Login("owner","Owner@123");AcceptanceChecks.Seed(store,session);var window=new MainWindow(store,session,database.Paths.Database);
             foreach(var name in new[]{"form","details","ledger"}){window.PreviewSheet(name);Capture(window,System.IO.Path.Combine(directory,name+".png"),1480,920);if(name=="form")Capture(window,System.IO.Path.Combine(directory,"form-minimum.png"),1100,720);}
-            Capture(window,System.IO.Path.Combine(directory,"compact-window.png"),1100,720);window.Close();
+            Capture(window,System.IO.Path.Combine(directory,"compact-window.png"),1000,600);window.Close();
+            var op=store.Login("operator","Operator@123");var operatorWindow=new MainWindow(store,op,database.Paths.Database);Capture(operatorWindow,System.IO.Path.Combine(directory,"operator.png"),1440,880);operatorWindow.Close();
         }
         finally{System.IO.Directory.Delete(root,true);}
     }
