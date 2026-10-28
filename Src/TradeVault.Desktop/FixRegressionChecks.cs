@@ -9,6 +9,9 @@ internal static class FixRegressionChecks
     private static void Check(bool result,string name){if(!result)throw new InvalidOperationException(name);}
     internal static void Run(WorkbookStore store,LoginSession session)
     {
+        var fields=new[]{new Field("A","Input"),new Field("B","Calculated",true),new Field("C","Input")};
+        var pasted=PastePlan.Create("one\t999\tthree",0,0,1,fields);
+        Check(pasted.Count==2&&pasted[1].Key=="C"&&pasted[1].Value=="three","Full row paste skips formulas and preserves input positions.");
         var controller=new WorksheetController(store,session);controller.Load("form");controller.Rows.Clear();
         var first=controller.Add();first["F1"]="REGRESSION ONLY";controller.Calculate();
         Check(!first.HasErrors,"Draft row must not publish missing required fields.");

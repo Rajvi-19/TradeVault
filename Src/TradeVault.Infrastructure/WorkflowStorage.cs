@@ -53,12 +53,13 @@ public sealed partial class WorkbookStore
     public IReadOnlyList<string> Backups(LoginSession session){CheckSession(session);return Directory.GetFiles(database.Paths.Backups,"*.db").OrderDescending().ToArray();}
     public void ChangePassword(LoginSession session,string current,string replacement,bool resetOperator=false)
     {
-        CheckSession(session,resetOperator);if(replacement.Length<10||replacement.Length>128)throw new BusinessRuleException("Use 10–128 characters for the new password.");
+        CheckSession(session,resetOperator);if(replacement.Length<6||replacement.Length>128)throw new BusinessRuleException("Use 6–128 characters for the new password.");
         using var c=database.Open();using var t=c.BeginTransaction();using var cmd=c.CreateCommand();cmd.Transaction=t;
         cmd.CommandText="SELECT salt,hash FROM credentials WHERE username=$u";cmd.Parameters.AddWithValue("$u",session.Username);
         using(var r=cmd.ExecuteReader()) {if(!r.Read()||!CryptographicOperations.FixedTimeEquals(Rfc2898DeriveBytes.Pbkdf2(current,(byte[])r[0],600000,HashAlgorithmName.SHA256,32),(byte[])r[1]))throw new BusinessRuleException("Current password is incorrect.");}
         var salt=RandomNumberGenerator.GetBytes(16);var hash=Rfc2898DeriveBytes.Pbkdf2(replacement,salt,600000,HashAlgorithmName.SHA256,32);
         cmd.Parameters.Clear();cmd.CommandText="UPDATE credentials SET salt=$s,hash=$h WHERE username=$u";cmd.Parameters.AddWithValue("$s",salt);cmd.Parameters.AddWithValue("$h",hash);cmd.Parameters.AddWithValue("$u",resetOperator?"operator":session.Username);cmd.ExecuteNonQuery();
+        cmd.CommandText="UPDATE account_recovery SET salt=NULL,hash=NULL,failures=0,blocked_until=NULL WHERE username=$u";cmd.ExecuteNonQuery();
         Log(c,t,session.Username,resetOperator?"OperatorPasswordReset":"PasswordChanged");t.Commit();
         foreach(var token in sessions.Where(p=>p.Value.Username==(resetOperator?"operator":session.Username)).Select(p=>p.Key).ToArray())sessions.Remove(token);
     }
@@ -69,10 +70,11 @@ public sealed partial class WorkbookStore
         using(var source=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=full,Mode=SqliteOpenMode.ReadOnly,Pooling=false}.ToString()))
         {
             source.Open();using var cmd=source.CreateCommand();cmd.CommandText="PRAGMA integrity_check";if(!Equals(cmd.ExecuteScalar(),"ok"))throw new BusinessRuleException("Backup integrity check failed.");
-            cmd.CommandText="SELECT MAX(version) FROM schema_migrations";var version=Convert.ToInt32(cmd.ExecuteScalar());if(version is <2 or >4)throw new BusinessRuleException("Backup version is not supported by this application.");
+            cmd.CommandText="SELECT MAX(version) FROM schema_migrations";var version=Convert.ToInt32(cmd.ExecuteScalar());if(version is <2 or >5)throw new BusinessRuleException("Backup version is not supported by this application.");
             cmd.CommandText="SELECT name FROM sqlite_master WHERE type='table'";var tables=new HashSet<string>();using(var reader=cmd.ExecuteReader())while(reader.Read())tables.Add(reader.GetString(0));
             var required=new List<string>{"schema_migrations","app_instance","credentials","worksheets","audit_events","parties","invoices","receipts","receipt_allocations"};if(version>=3)required.AddRange(["worksheet_parties","party_worksheets"]);if(version>=4)required.AddRange(["workflow_documents","workflow_audit"]);
             if(required.Any(name=>!tables.Contains(name)))throw new BusinessRuleException("Backup schema is incomplete.");
+            if(version>=5&&!tables.Contains("account_recovery"))throw new BusinessRuleException("Backup recovery schema is incomplete.");
             cmd.CommandText="PRAGMA foreign_key_check";using(var reader=cmd.ExecuteReader())if(reader.Read())throw new BusinessRuleException("Backup contains broken relationships.");
             cmd.CommandText="SELECT COUNT(*) FROM credentials";if(Convert.ToInt32(cmd.ExecuteScalar())!=2)throw new BusinessRuleException("Backup credentials are incomplete.");
         }

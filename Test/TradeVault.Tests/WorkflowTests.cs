@@ -10,6 +10,31 @@ namespace TradeVault.Tests;
 
 public sealed class WorkflowTests
 {
+    [Fact]public void ExcelVisibleCellChangesAreRejected()
+    {
+        using var f=new Fixture();var path=f.Workflow.ExportExcel(f.Party,new(2026,10,27),true);
+        using(var zip=ZipFile.Open(path,ZipArchiveMode.Update))
+        {
+            var entry=zip.GetEntry("xl/worksheets/sheet1.xml")!;string xml;
+            using(var reader=new StreamReader(entry.Open()))xml=reader.ReadToEnd();entry.Delete();
+            using var writer=new StreamWriter(zip.CreateEntry("xl/worksheets/sheet1.xml").Open());
+            writer.Write(xml.Replace("INV-001","CHANGED-INVOICE"));
+        }
+        Assert.Throws<BusinessRuleException>(()=>new ReportWorkflow(f.Store,f.Owner).Import(path));
+    }
+    [Fact]public void ExcelExportContainsOnlyTwoWorkbooksWithoutTrailingNotes()
+    {
+        using var f=new Fixture();var file=f.Workflow.ExportExcel(f.Party,new(2026,10,27),true);
+        Assert.Contains("SYNTHETIC TEST PARTY - Account Reports - 2026-10-27 - Revision 1.xlsx",file);
+        Assert.Single(Directory.GetFiles(Path.GetDirectoryName(file)!));
+        using var zip=ZipFile.OpenRead(file);
+        foreach(var name in new[]{"xl/worksheets/sheet1.xml","xl/worksheets/sheet2.xml"})
+        {
+            using var reader=new StreamReader(zip.GetEntry(name)!.Open());var xml=reader.ReadToEnd();
+            Assert.Contains("TOTAL / CLOSING",xml);Assert.DoesNotContain("Historical results",xml);
+        }
+    }
+
     [Fact]public void RegisterDifferenceRequiresMappingAndTracksChosenContract()
     {
         using var f=new Fixture();var row=Fixture.Invoice("INV-DIFF","diff");
@@ -94,17 +119,17 @@ public sealed class WorkflowTests
     {
         using var f=new Fixture();var path=f.Workflow.Export(f.Party,new(2026,10,27),true);var owner=new ReportWorkflow(f.Store,f.Owner);
         var preview=owner.PreviewPackage(path);
-        using(var zip=ZipFile.Open(path,ZipArchiveMode.Update)){zip.GetEntry("report.json")!.Delete();using var writer=new StreamWriter(zip.CreateEntry("report.json").Open());writer.Write("{}");}
+        using(var zip=ZipFile.Open(path,ZipArchiveMode.Update)){zip.GetEntry("customXml/tradevault.xml")!.Delete();using var writer=new StreamWriter(zip.CreateEntry("customXml/tradevault.xml").Open());writer.Write("{}");}
         Assert.Throws<BusinessRuleException>(()=>owner.Import(path,preview.Hash));Assert.Empty(owner.Imports());
-        var malicious=Path.Combine(f.Root,"bad.tvreport");using(var zip=ZipFile.Open(malicious,ZipArchiveMode.Create)){using var writer=new StreamWriter(zip.CreateEntry("../escape").Open());writer.Write("bad");}
+        var malicious=Path.Combine(f.Root,"bad.xlsx");using(var zip=ZipFile.Open(malicious,ZipArchiveMode.Create)){using var writer=new StreamWriter(zip.CreateEntry("../escape").Open());writer.Write("bad");}
         Assert.Throws<BusinessRuleException>(()=>owner.Preview(malicious));Assert.False(File.Exists(Path.Combine(f.Root,"escape")));
     }
     [Fact]public void ExportedExcelIsOpenXmlWithMetadataNumbersAndNoFormulaInjection()
     {
         using var f=new Fixture();var package=f.Workflow.Export(f.Party,new(2026,10,27),true);var folder=Path.GetDirectoryName(package)!;
-        foreach(var name in new[]{"AccountDetails.xlsx","DebitCredit.xlsx"})
-        {using var zip=ZipFile.OpenRead(Path.Combine(folder,name));Assert.NotNull(zip.GetEntry("[Content_Types].xml"));using var reader=new StreamReader(zip.GetEntry("xl/worksheets/sheet1.xml")!.Open());var xml=reader.ReadToEnd();Assert.Contains("SYNTHETIC TEST PARTY",xml);Assert.Contains("TOTAL / CLOSING",xml);Assert.Contains("<v>",xml);Assert.DoesNotContain("<f>",xml);}
-        Assert.True(File.Exists(Path.Combine(folder,"Print.html")));
+        foreach(var name in new[]{"xl/worksheets/sheet1.xml","xl/worksheets/sheet2.xml"})
+        {using var zip=ZipFile.OpenRead(package);Assert.NotNull(zip.GetEntry("[Content_Types].xml"));using var reader=new StreamReader(zip.GetEntry(name)!.Open());var xml=reader.ReadToEnd();Assert.Contains("SYNTHETIC TEST PARTY",xml);Assert.Contains("TOTAL / CLOSING",xml);Assert.Contains("<v>",xml);Assert.DoesNotContain("<f>",xml);}
+        Assert.Single(Directory.GetFiles(folder));
     }
     [Fact]public void DuplicateReferencesRejectedAndPasswordChangeInvalidatesSessions()
     {
@@ -144,7 +169,7 @@ public sealed class WorkflowTests
     {
         using var f=new Fixture();var backup=f.Store.CreateBackup(f.Owner);
         using(var c=new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder{DataSource=backup,Pooling=false}.ToString()))
-        {c.Open();using var cmd=c.CreateCommand();cmd.CommandText="DROP TABLE workflow_documents;DROP TABLE workflow_audit;DELETE FROM schema_migrations WHERE version=4";cmd.ExecuteNonQuery();}
+        {c.Open();using var cmd=c.CreateCommand();cmd.CommandText="DROP TABLE account_recovery;DROP TABLE workflow_documents;DROP TABLE workflow_audit;DELETE FROM schema_migrations WHERE version>=4";cmd.ExecuteNonQuery();}
         f.Store.RestoreBackup(f.Owner,backup);var owner=f.Store.Login("owner","Owner@123");Assert.NotNull(f.Store.Load(owner,"form",f.Party));
         new ReportWorkflow(f.Store,owner).Configure(f.Party,new("F6","F22",true,new(2026,1,1)));
         Assert.Equal(22400,new ReportWorkflow(f.Store,owner).Build(f.Party,new(2026,10,27),true).Tables[1].Totals["E"]);

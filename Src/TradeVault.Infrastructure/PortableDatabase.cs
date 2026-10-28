@@ -51,7 +51,7 @@ public sealed class PortableDatabase : IDisposable
             {
                 inspect.CommandText="SELECT COALESCE(MAX(version),0) FROM schema_migrations";
                 var previous=Convert.ToInt32(inspect.ExecuteScalar());
-                if(previous is >0 and <4)CreateBackup();
+                if(previous is >0 and <5)CreateBackup();
             }
         }
         using (var setup = connection.CreateCommand())
@@ -69,7 +69,7 @@ public sealed class PortableDatabase : IDisposable
             SELECT COALESCE(MAX(version), 0) FROM schema_migrations;
             """;
         var version = Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
-        if (version > 4) throw new InvalidOperationException("This database requires a newer TradeVault application.");
+        if (version > 5) throw new InvalidOperationException("This database requires a newer TradeVault application.");
         if (version == 0)
         {
             using var stream = typeof(PortableDatabase).Assembly.GetManifestResourceStream(
@@ -125,6 +125,13 @@ public sealed class PortableDatabase : IDisposable
                 INSERT INTO schema_migrations VALUES(4,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
                 """;
             command.ExecuteNonQuery();
+        }
+        if(version<5)
+        {
+            command.Parameters.Clear();command.CommandText="""
+                CREATE TABLE account_recovery(username TEXT PRIMARY KEY REFERENCES credentials(username),salt BLOB,hash BLOB,failures INTEGER NOT NULL DEFAULT 0,blocked_until TEXT);
+                INSERT INTO schema_migrations VALUES(5,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+                """;command.ExecuteNonQuery();
         }
         transaction.Commit();
     }

@@ -5,8 +5,11 @@
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>Assets/TradeVault.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <Resource Include="Assets/TradeVault.png" />
+    <Resource Include="Assets/TradeVault.ico" />
     <ProjectReference Include="../TradeVault.Infrastructure/TradeVault.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

@@ -5,7 +5,7 @@ using System.Windows.Shell;
 namespace TradeVault.Desktop;
 internal static class Ui
 {
-    public const string BuildLabel="UI 2026.10.27.10";
+    public const string BuildLabel="UI 2026.10.28.4";
     internal static Size WorkspaceSize(Rect workArea)=>new(Math.Min(1440,workArea.Width),Math.Min(880,workArea.Height));
     public static void WindowFrame(Window window,UIElement body,string title,bool embeddedControls=false)
     {
@@ -14,6 +14,7 @@ internal static class Ui
         WindowChrome.SetWindowChrome(window,new WindowChrome{CaptionHeight=embeddedControls?42:36,ResizeBorderThickness=new Thickness(6),GlassFrameThickness=new Thickness(0),CornerRadius=new CornerRadius(0),UseAeroCaptionButtons=false});
         window.ResizeMode=ResizeMode.CanResize;
         window.Title=title+" | "+BuildLabel;
+        window.Icon=System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/Assets/TradeVault.ico"));
         window.ShowInTaskbar=true;
         if(embeddedControls){window.Content=body;return;}
         var frame=new DockPanel{Background=Color("#111E35")};
@@ -26,9 +27,10 @@ internal static class Ui
         }
         DockPanel.SetDock(controls,Dock.Right);caption.Children.Add(controls);
         caption.Children.Add(new TextBlock{Text=title+"   |   "+BuildLabel,Foreground=Color("#D9E4F4"),FontSize=11,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(14,0,0,0)});
-        DockPanel.SetDock(caption,Dock.Top);frame.Children.Add(caption);frame.Children.Add(body);window.Content=frame;
+        DockPanel.SetDock(caption,Dock.Top);frame.Children.Add(caption);frame.Children.Add(new Border{Background=Color("#F4F6FA"),Child=body});window.Content=frame;
     }
     public static Brush Color(string hex)=>new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+    public static Image BrandIcon(double size=32)=>new(){Source=new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/TradeVault.png")),Width=size,Height=size,VerticalAlignment=VerticalAlignment.Center};
     public static StackPanel WindowControls(Window window)
     {
         var panel=new StackPanel{Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center};

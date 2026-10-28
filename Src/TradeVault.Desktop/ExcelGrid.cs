@@ -214,6 +214,7 @@ public static class PastePlan
         List<CellChange> result = [];
         for (int r=0;r<cells.Length;r++) for (int c=0;c<cells[r].Length;c++) {
             var field = fields[startColumn+c];
+            if (field.Calculated && startColumn==0 && cells[r].Length==fields.Count) continue;
             if (field.Calculated) throw new ArgumentException("Paste touches a locked calculated column. Select input columns only; no cells were changed.");
             result.Add(new(startRow+r,field.Key,cells[r][c]));
         }

@@ -1,13 +1,13 @@
 # TradeVault — report handover, receipts and portable workflow
 
-Build: UI 2026.10.27.9. All amounts are USD.
+Build: UI 2026.10.28.1. All amounts are USD.
 
 ## Start safely
 
 - Development: close any old running copy, then run dotnet run --no-restore --project Src/TradeVault.Desktop/TradeVault.Desktop.csproj.
 - Portable: copy the ENTIRE Src/TradeVault.Desktop/bin/Portable/win-x64 folder onto each USB. Open TradeVault.Desktop.exe. Do not copy only the executable.
 - Keep separate Owner and Operator application folders/drives. Data, Reports and Backups live beside each application's executable; no online synchronization is introduced.
-- For an existing installation, close it and keep a separate verified backup before replacing application binaries. Preserve its Data/ and Backups/ folders. First startup upgrades schema 2/3 to schema 4 after an automatic pre-upgrade backup.
+- For an existing installation, close it and keep a separate verified backup before replacing application binaries. Preserve its Data/ and Backups/ folders. First startup upgrades older supported databases to schema 5 after an automatic pre-upgrade backup.
 - A published application contains its Windows .NET runtime and native dependencies. Physical clean-PC and USB-ejection acceptance is still required.
 - No company database was created or upgraded as part of this implementation's tests.
 
@@ -103,7 +103,7 @@ Unallocated advances reduce the party-ledger balance but do not automatically se
 
 ## Passwords and audit
 
-Password management allows users to change their own passwords by supplying the current password and confirmation. Owner can reset Operator using the Owner password. Changing a user's password invalidates that user's existing sessions. There is no hidden master-password or Owner-password bypass.
+Workspace Password buttons have been removed. Use Forgot password on the sign-in page with the single-use recovery code explicitly created after authenticating. A setup link is available for users who still know their current password. Both usernames and passwords are case-sensitive. Recovery invalidates affected sessions and consumes the code; generate a new one after signing in. See [Offline account recovery](Offline-Account-Recovery.md) for setup, backup and lost-code limits. There is no hidden master-password or Owner-password bypass.
 
 Worksheet saves and workflow operations have actor/time/before/after audit records. Import review audit entries retain metadata/hash references rather than duplicating the entire original package.
 

@@ -13,7 +13,6 @@ public sealed class MainWindow : Window
     private readonly WorkbookStore store;
     private readonly LoginSession session;
     private readonly ReportWorkflow workflow;
-    private readonly CheckBox legacyReports=new(){Content="Legacy manual reports",VerticalAlignment=VerticalAlignment.Center};
     private bool generatedView;
     private bool busy;
     private readonly ComboBox partySelector=new(){Width=230,MinHeight=30,DisplayMemberPath="Name"};
@@ -47,10 +46,10 @@ public sealed class MainWindow : Window
         System.Windows.Shell.WindowChrome.SetIsHitTestVisibleInChrome(account,true);
         account.Children.Add(Ui.Text(session.Username+" · "+session.Role,12,"#E2E8F0"));
         var backup=CompactButton("Backups",()=>Run(()=>{RequireSaved();WorkflowWindows.Backups(this,store,session);}),"\uE74E");backup.Foreground=Brushes.White;account.Children.Add(backup);
-        var password=CompactButton("Password",()=>Run(()=>{RequireSaved();WorkflowWindows.Password(this,store,session);}),"\uE72E");password.Foreground=Brushes.White;account.Children.Add(password);
         var logout=Ui.Button("Sign out",()=>Run(()=>{if(Discard()){dirty=false;Close();}}),"QuietButton","\uE8AC");logout.Foreground=Ui.Color("#FFFFFF");logout.Margin=new(12,0,0,0);logout.MinHeight=28;logout.Padding=new(10,4,10,4);account.Children.Add(logout);
         DockPanel.SetDock(account,Dock.Right);header.Children.Add(account);
         var brand=new StackPanel{Orientation=Orientation.Horizontal,Margin=new(14,0,0,0)};
+        var logo=Ui.BrandIcon(26);logo.Margin=new(0,0,9,0);brand.Children.Add(logo);
         brand.Children.Add(Ui.Text("TradeVault",17,"#FFFFFF",true));var offline=Ui.Text("  /  Offline · USD",11,"#A5B6CE");brand.Children.Add(offline);header.Children.Add(brand);
         DockPanel.SetDock(header,Dock.Top);root.Children.Add(header);
 
@@ -78,7 +77,7 @@ public sealed class MainWindow : Window
         var options=new WrapPanel{VerticalAlignment=VerticalAlignment.Center};
         termsGroup.Margin=new(0,0,14,0);var termLabel=Ui.Text("New terms",12,"#52627A");termLabel.Margin=new(0,0,6,0);termsGroup.Children.Add(termLabel);termsGroup.Children.Add(terms);termsGroup.Children.Add(Ui.Text(" days",11,"#64748B"));options.Children.Add(termsGroup);
         openingGroup.Margin=new(0,0,14,0);var openLabel=Ui.Text("Opening USD",12,"#52627A");openLabel.Margin=new(0,0,6,0);openingGroup.Children.Add(openLabel);openingGroup.Children.Add(opening);options.Children.Add(openingGroup);
-        var dateLabel=Ui.Text("As of",12,"#52627A");dateLabel.Margin=new(0,0,6,0);options.Children.Add(dateLabel);options.Children.Add(asOf);
+        var dateLabel=Ui.Text("As of",12,"#52627A");dateLabel.Margin=new(0,0,6,0);options.Children.Add(dateLabel);asOf.ToolTip="Reporting cutoff: includes dated transactions through this day and measures overdue days against it. Click Recalculate to refresh.";options.Children.Add(asOf);
         var calc=CompactButton("Recalculate",Calculate,"\uE9D9");options.Children.Add(calc);
         options.Children.Add(new Border{Width=1,Height=22,Background=Ui.Color("#D8E0EB"),Margin=new(10,0,2,0)});
         options.Children.Add(CompactButton("Reload",()=>Run(()=>{if(Discard())Open(controller.Name);}),"\uE72C"));
@@ -87,12 +86,11 @@ public sealed class MainWindow : Window
         var optionBar=new Border{Background=Brushes.White,BorderBrush=Ui.Color("#DCE3ED"),BorderThickness=new(1),Padding=new(10,5,10,5),Margin=new(10,0,10,4),Child=options};DockPanel.SetDock(optionBar,Dock.Top);root.Children.Add(optionBar);
         var workflows=new WrapPanel{Margin=new(10,0,10,4)};
         workflows.Children.Add(CompactButton("Report setup",()=>Run(()=>{RequireSaved();RequireParty();if(WorkflowWindows.Configure(this,workflow,controller.PartyId))Open(controller.Name);}),"\uE713"));
-        workflows.Children.Add(CompactButton("Export reports",ExportReports,"\uE896"));
-        workflows.Children.Add(CompactButton("Preview / Print",()=>Run(()=>{RequireSaved();RequireParty();Options();WorkflowWindows.ReportView(this,workflow.Build(controller.PartyId,controller.AsOf,workflow.Mapping(controller.PartyId)!=null&&legacyReports.IsChecked!=true)).ShowDialog();}),"\uE749"));
+        workflows.Children.Add(CompactButton("Export Excel",()=>ExportReports(),"\uE896"));
+        workflows.Children.Add(CompactButton("Preview / Print",()=>Run(()=>{RequireSaved();RequireParty();Options();WorkflowWindows.ReportView(this,workflow.Build(controller.PartyId,controller.AsOf,workflow.Mapping(controller.PartyId)!=null)).ShowDialog();}),"\uE749"));
         workflows.Children.Add(CompactButton("Receipts",()=>Run(()=>{RequireSaved();RequireParty();WorkflowWindows.Receipts(this,workflow,controller.PartyId);Open(controller.Name);}),"\uE8D4"));
         workflows.Children.Add(CompactButton("Reminders",()=>Run(()=>{RequireSaved();RequireParty();Options();WorkflowWindows.Reminders(this,workflow,controller.PartyId,controller.AsOf);}),"\uE787"));
-        workflows.Children.Add(CompactButton("Selected terms",()=>Run(ChangeSelectedTerms),"\uE70F"));legacyReports.Margin=new(12,0,0,0);workflows.Children.Add(legacyReports);
-        legacyReports.Click+=(_,_)=>Run(()=>{RequireSaved();Open(controller.Name);});DockPanel.SetDock(workflows,Dock.Top);root.Children.Add(workflows);
+        DockPanel.SetDock(workflows,Dock.Top);root.Children.Add(workflows);
         notification=new Border{Background=Ui.Color("#FFF2F0"),BorderBrush=Ui.Color("#F3C8C3"),BorderThickness=new(1),Padding=new(10,6,10,6),Margin=new(10,0,10,4),Child=message,Visibility=Visibility.Collapsed};DockPanel.SetDock(notification,Dock.Top);root.Children.Add(notification);
         var sheet=new Border{Background=Brushes.White,BorderBrush=Ui.Color("#DCE3ED"),BorderThickness=new(1),Margin=new(10,0,10,4),Child=sheetArea};root.Children.Add(sheet);
         opening.TextChanged+=(_,_)=>{if(!refreshing&&!generatedView)MarkDirty();};terms.TextChanged+=(_,_)=>{if(!refreshing&&!generatedView)MarkDirty();};asOf.TextChanged+=(_,_)=>{if(!refreshing&&grid!=null&&!generatedView)MarkDirty();};asOf.LostKeyboardFocus+=(_,_)=>Calculate();
@@ -129,8 +127,8 @@ public sealed class MainWindow : Window
     }
     private async void ExportReports()
     {
-        try{RequireSaved();RequireParty();Options();var party=controller.PartyId;var date=controller.AsOf;var generated=workflow.Mapping(party)!=null&&legacyReports.IsChecked!=true;busy=true;((UIElement)Content).IsEnabled=false;status.Text="Exporting reports…";
-            var package=await Task.Run(()=>workflow.Export(party,date,generated));status.Text="Reports exported";MessageBox.Show(this,"Created two Excel files, printable HTML and submission package:\n"+package,"Export complete");
+        try{RequireSaved();RequireParty();Options();var party=controller.PartyId;var date=controller.AsOf;var generated=workflow.Mapping(party)!=null;busy=true;((UIElement)Content).IsEnabled=false;status.Text="Exporting reports…";
+            var package=await Task.Run(()=>workflow.ExportExcel(party,date,generated));status.Text="Reports exported";try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(package){UseShellExecute=true});}catch(Exception){MessageBox.Show(this,"Excel report saved successfully. No spreadsheet application could open it automatically. Open this file manually:\n"+package,"Report saved");}
         }catch(Exception ex){Error(ex.Message);}finally{busy=false;((UIElement)Content).IsEnabled=true;}
     }
     private void RequireParty(){if(controller.PartyId==Guid.Empty)throw new ArgumentException("Select a named party first.");}
@@ -149,7 +147,7 @@ public sealed class MainWindow : Window
     private void Open(string name,Guid? partyId=null)
     {
         var selected=partyId??controller.PartyId;var next=new WorksheetController(store,session);next.Load(name,selected);
-        var nextGenerated=name!="form"&&legacyReports.IsChecked!=true&&workflow.Mapping(selected)!=null;
+        var nextGenerated=name!="form"&&workflow.Mapping(selected)!=null;
         var nextReport=nextGenerated?workflow.Build(selected,next.AsOf,true):null;
         controller=next;refreshing=true;opening.Text=controller.Opening.ToString("0.00",CultureInfo.InvariantCulture);terms.Text=controller.Terms.ToString();asOf.Value=controller.AsOf.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture);refreshing=false;
         foreach(var row in controller.Rows)Watch(row);
@@ -169,7 +167,7 @@ public sealed class MainWindow : Window
     private void UpdateRecords(){count.Text=generatedView?"Generated · read-only":$"{controller.Rows.Count} record{(controller.Rows.Count==1?"":"s")}";deleteButton.IsEnabled=!generatedView&&grid?.Table.CurrentItem is GridRow row&&controller.Rows.Contains(row);assignButton.IsEnabled=controller.PartyId==Guid.Empty&&controller.Rows.Count>0&&!dirty;}
     private void Add(){if(grid==null||generatedView)return;var row=controller.Add();Watch(row);MarkDirty();UpdateRecords();grid.Table.ScrollIntoView(row);grid.Table.CurrentCell=new DataGridCellInfo(row,grid.Table.Columns.First(c=>!c.IsReadOnly));grid.Table.Focus();grid.Table.BeginEdit();}
     private void Delete(){if(grid?.Table.CurrentItem is GridRow row&&controller.Rows.Contains(row)&&MessageBox.Show(this,"Remove the selected record? Save changes to confirm the deletion.","Delete record",MessageBoxButton.YesNo,MessageBoxImage.Warning)==MessageBoxResult.Yes){controller.Rows.Remove(row);MarkDirty();UpdateRecords();Calculate();}}
-    private void Options(){if(!decimal.TryParse(opening.Text,NumberStyles.Number,CultureInfo.InvariantCulture,out var value)||decimal.Round(value,2)!=value)throw new ArgumentException("Opening balance: enter USD with at most two decimals.");if(!int.TryParse(terms.Text,out var days)||days<0||days>3650)throw new ArgumentException("Payment terms must be 0–3650 days.");controller.Opening=value;controller.Terms=days;if(!DateOnly.TryParseExact(DateCellConverter.Normalize(asOf.Text),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var reportDate))throw new ArgumentException("As of: enter a valid date or choose one from the calendar.");controller.AsOf=reportDate;}
+    private void Options(){if(!decimal.TryParse(opening.Text,NumberStyles.Number,CultureInfo.InvariantCulture,out var value)||decimal.Round(value,2)!=value)throw new ArgumentException("Opening balance: enter USD with at most two decimals.");if(!int.TryParse(terms.Text,out var days)||days<0||days>3650)throw new ArgumentException("Payment terms must be 0–3650 days.");controller.Opening=value;controller.Terms=days;if(!DateOnly.TryParseExact(DateCellConverter.Normalize(asOf.Text),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var reportDate))throw new ArgumentException("As of: enter a valid date (dd-MM-yyyy).");controller.AsOf=reportDate;}
     private void Calculate(){if(grid==null)return;try{Options();if(generatedView){var report=workflow.Build(controller.PartyId,controller.AsOf,true);grid=WorkflowWindows.ReportGrid(report.Tables[controller.Name=="details"?0:1]);sheetArea.Children.Clear();sheetArea.Children.Add(grid);status.Text="Generated report refreshed · "+controller.AsOf.ToString("dd-MM-yyyy");return;}refreshing=true;controller.Calculate();controller.Validate(false);notification.Visibility=Visibility.Collapsed;status.Text=dirty?"● Unsaved changes":"All changes saved";status.Foreground=Ui.Color(dirty?"#9A6700":"#64748B");}catch(Exception ex){Error(ex.Message);}finally{refreshing=false;}}
     private void Save(){if(grid==null||generatedView)return;if(!grid.Table.CommitEdit()||!grid.Table.CommitEdit(DataGridEditingUnit.Row,true))throw new ArgumentException("Correct invalid cells before saving.");Options();refreshing=true;try{controller.Save();dirty=false;saveButton.IsEnabled=false;notification.Visibility=Visibility.Collapsed;status.Foreground=Ui.Color("#247653");status.Text="Changes saved";revision.Text=$"Revision {controller.Revision} · Local storage";UpdateRecords();}finally{refreshing=false;}}
     internal void PreviewSheet(string name)=>Open(name);

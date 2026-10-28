@@ -4,6 +4,8 @@ Offline Windows software for shipment records, USD receivables and party reports
 
 ## Project status
 
+Latest UI/account update: **UI 2026.10.28.1**. Compact sign-in, Show/Hide password, case-sensitive usernames, offline single-use recovery codes, application icon and a redesigned Operator Reports inbox. Workspace Password buttons are removed. See [Offline account recovery](Docs/Offline-Account-Recovery.md) before relying on Forgot password. Schema 5 preserves existing credentials/records and adds recovery storage.
+
 Current implementation: **UI 2026.10.27.10**, 2026-10-27. Party workspaces, generated reports, receipt allocation/correction, Excel/package export, Owner import/review, reminders, backup/restore and password management are implemented. Legacy independent worksheets are preserved. Generated reports require explicit field mapping; see the [workflow guide](Docs/Workflow-Guide.md).
 
 Verification: 28 backend tests and 39 desktop acceptance checks passed, along with the published executable's isolated self-test. See the [implementation report](Docs/Testing/2026-10-27/Implementation/Report.md) for evidence and limitations. Physical USB/clean-PC, hands-on UI/printer acceptance and confidentiality decisions remain outstanding.
@@ -98,6 +100,30 @@ First end-to-end milestone: create one invoice on the Operator USB, allocate a p
 - Joint: agree service contracts and expected calculations first; review each other's changes; integrate a working end-to-end flow regularly. Never maintain separate incompatible schema definitions.
 
 ## Work log
+
+### 2026-10-28 — Six-character passwords and visibility icons
+
+- Changed password change/reset validation and reset-screen guidance to 6–128 characters, as requested. Existing passwords are unchanged.
+- Replaced Show/Hide words with vector eye/crossed-eye icons across sign-in/recovery inputs. Accessible Show password / Hide password names, tooltips, keyboard access and secret-clearing behaviour remain.
+- Added a regression test accepting exactly 6 characters and rejecting 5 for both password change and recovery. Updated the recovery guide; build label is `UI 2026.10.28.2`.
+- Verification: 34 backend tests passed; normal Desktop build passed with 0 warnings/errors; live UI/persistence checks passed. No company records or passwords were changed by verification.
+
+### 2026-10-28 — Authentication, recovery, branding and Operator Reports redesign
+
+- Rebuilt login as a compact single-form layout with visible username case guidance, Show/Hide password, progress/errors and Forgot password. Removed the large decorative side panel and workspace Password actions. Added reusable password-visibility control and tested show/hide value preservation and clearing.
+- Fixed case sensitivity at the storage boundary: removed automatic lowercasing and used binary username matching. Existing lowercase account identities/password hashes are preserved.
+- Implemented schema 5 account recovery: explicit authenticated code generation, one-time display, 160-bit random codes stored only as salted PBKDF2 hashes, rotation, single-use consumption, session invalidation and persistent failure cooldown. Existing-database migration takes a backup. No OTP, security questions, master password or automatic reset bypass added. Password changes invalidate older recovery codes. Recovery flow and limitations are documented in `Docs/Offline-Account-Recovery.md`.
+- Added a new original TradeVault vault/monogram logo, reproducible asset builder `Tools/create_app_icon.py`, multi-size ICO and PNG resources. Embedded ApplicationIcon in the Windows executable and placed the mark in login, main header, Operator Reports and window icons. Extracted the built executable icon successfully for verification.
+- Replaced the old Operator Reports toolbar with a dedicated inbox window: search, status filter, submission/review counts, clear empty state, disabled actions until selection, source/revision details and a compact review-note editor. Existing preview/checksum/revision/import services remain connected.
+- Added backend tests for case-sensitive login, recovery replay/rotation, restart persistence, cooldown, session invalidation, other-account isolation and invalidation after password changes. Updated legacy migration fixtures for schema 5. All 33 backend tests passed. Desktop build passed with 0 warnings/errors; live UI/persistence checks and 42 acceptance checks passed on the isolated build. Normal Desktop output was rebuilt successfully. Company database was not opened or modified by tests; migration happens on next application launch.
+- Rendered and reviewed compact login and Operator Reports; fixed dark inherited dialog backgrounds found during review. No company report records or sample submissions added. Existing import/privacy and physical-device acceptance limits remain.
+
+### 2026-10-28 — Inspected newly added report/workflow features
+
+- Inspected clean commit `22f6b8a`, application startup, schema 4, workflow contracts/storage/calculations/packages, Desktop dialogs/orchestration, tests and publish/verification scripts. Recorded the updated architecture and implementation in `Docs/Change-Inspection-2026-10-28.md`.
+- Confirmed report setup, generated/legacy views, per-invoice IDs/terms, dated receipts/corrections/advances, Excel/HTML/package export, Owner import/review, reminders, backup restoration, password management and portable publication scripts are now implemented. Earlier chat statements calling these missing are superseded.
+- Fresh isolated source verification: Desktop build 0 warnings/errors; 29 backend tests passed; live self-test passed; 42 acceptance checks passed. Output was isolated under `.build/inspection-20261028`; no company database was opened/changed and no portable ZIP was republished.
+- Noted documentation/package-version drift (source UI .9 versus README portable ZIP .7) and retained documented historical/confidentiality/device-acceptance boundaries. This was an inspection, not application logic modification.
 
 ### 2026-10-27 — User-requested realistic test records
 
@@ -338,3 +364,22 @@ Files changed: Desktop/TestDataSeeder.cs, App.xaml.cs, Ui.cs; actual bin/Debug/n
 Verification: normal Desktop build zero warnings/errors; sample generation checked four report rows and four distinct reminder states per party; main database preserved/integrity checks passed; idempotency verified. The isolated desktop self-test was also run (see conversation for result). Sample receipts/mappings follow existing verified backend workflow. Main sample bank-contract source F6 is a declared TEST assumption; no existing company mapping was changed. Physical USB, printer, multi-monitor/cursor-artifact acceptance remain unverified.
 
 How to use: reopen the normal main app, select [TEST] Indigo Textile Imports — Workflow (not Unassigned records), keep Legacy manual reports unchecked, then inspect Invoice register, Account details, Debit & credit, Receipts and Reminders. For Indigo, invoice 001 settled; 002 outstanding USD 13,700 and 28 days overdue; 003 outstanding USD 25,800 and due 2026-10-30; 004 outstanding USD 12,000 and BL pending. Party ledger closes at USD 51,400 after USD 100 unallocated advance. Other TEST parties use scaled fictional invoice amounts. Next: exercise edits, receipt correction/reversal, export, and Owner import between independent copies. Purpose/workflow explanation supplied to the user in the conversation.
+# Work log — 2026-10-28: reports, receipts guidance and branding
+
+- Added separate Excel-only export: two workbooks in a party-named folder on the application drive; removed explanatory rows below totals. Owner submission packages remain a separate action to preserve offline import.
+- Added party name beside invoice number in reminders. Removed Legacy manual reports and Selected terms controls; stored historical data and per-invoice terms remain intact.
+- Full-width row paste now copies input cells at their original positions and skips protected formula cells. Partial ranges retain atomic validation.
+- Replaced print layout with landscape paginated tables, repeated identity/column headers, numeric formatting, totals and page numbers. Windows Microsoft Print to PDF is the PDF destination; physical printer/PDF dialog acceptance remains manual.
+- Replaced app icon with a navy/teal geometric TV ribbon mark across executable and headers. Build label UI 2026.10.28.3.
+- Added [reports and receipts guide](Docs/Reports-and-Receipts.md) explaining cutoff dates, allocations, setup and recalculation. No company records changed.
+- Initial verification: Desktop build passed without warnings, 34 backend tests and live checks passed. Added focused export and full-row paste regressions for final verification.
+- Final verification: Desktop build passed with zero warnings/errors; all 35 backend tests and live UI/persistence checks passed, including the new export/paste regressions. Windows print-to-PDF output remains a manual acceptance check.
+
+# Work log — 2026-10-28: Excel-only handover (UI 2026.10.28.4)
+
+- Replaced .tvreport export/import with one standard .xlsx workbook containing Account Details and Debit Credit tabs. Removed Create Owner submission button. Export names include party, report date and revision; saved in a party-named folder without random folder IDs. Export opens the saved file through Windows; a missing spreadsheet application shows the path without losing the export.
+- Owner import validates the original workbook's embedded snapshot and both visible tables, preserves source/revision review history and working-database isolation, and checks preview-to-import file identity. Existing stored imports remain readable. Edited/resaved or arbitrary Excel files are not supported for snapshot import; original TradeVault exports are required.
+- Report setup automation remains pending the user's required default choice for contract/receipt sources; no accounting fields were silently reinterpreted. Existing per-party configurations remain intact. Manual setup remains available until this choice is supplied.
+- Verification: normal Desktop rebuild succeeded (zero warnings/errors) after user closed the locked app; 36 backend tests and live UI/persistence checks passed. Tests cover Excel handover/reopen/revisions, duplicate import, metadata and visible-cell tampering, preview swapping, meaningful naming and both worksheets. Independent openpyxl reader loaded both report tabs. Opening in installed Excel via the Windows association still needs interactive acceptance.
+- No company data or credentials modified. Updated report guide. Earlier .tvreport documentation describes the superseded workflow; this entry and Reports-and-Receipts.md describe current behavior.
+

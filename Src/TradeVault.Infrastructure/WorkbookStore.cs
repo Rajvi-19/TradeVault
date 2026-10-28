@@ -39,8 +39,8 @@ public sealed partial class WorkbookStore
     {
         if (DateTimeOffset.UtcNow < blockedUntil) throw new BusinessRuleException("Too many attempts. Try again in 30 seconds.");
         using var c = database.Open(); using var cmd = c.CreateCommand();
-        cmd.CommandText = "SELECT username,role,salt,hash FROM credentials WHERE username=$name";
-        cmd.Parameters.AddWithValue("$name", username.Trim().ToLowerInvariant());
+        cmd.CommandText = "SELECT username,role,salt,hash FROM credentials WHERE username=$name COLLATE BINARY";
+        cmd.Parameters.AddWithValue("$name", username.Trim());
         using var reader = cmd.ExecuteReader();
         var found = reader.Read();
         var salt = found ? (byte[])reader[2] : new byte[16];

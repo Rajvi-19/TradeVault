@@ -15,49 +15,34 @@ public sealed partial class ReportWorkflow
     private const int MaximumPackage=32*1024*1024;
     private static byte[] ReadFile(string path)
     {using var file=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read);if(file.Length>MaximumPackage)throw new BusinessRuleException("Package exceeds 32 MB.");var bytes=new byte[(int)file.Length];file.ReadExactly(bytes);return bytes;}
-    public string Export(Guid party,DateOnly asOf,bool generated)
+    public string Export(Guid party,DateOnly asOf,bool generated)=>ExportExcel(party,asOf,generated);
+    public string ExportExcel(Guid party,DateOnly asOf,bool generated)
     {
-        var snapshot=Build(party,asOf,generated);var report=store.Mutate<ReportBundle>(session,"export",snapshot.SubmissionId.ToString(),old=>snapshot with{Revision=(old?.Revision??0)+1});
-        var folder=Path.Combine(Root,"Reports",$"{asOf:yyyyMMdd}-{report.SubmissionId:N}-r{report.Revision}");Directory.CreateDirectory(folder);
-        var files=new Dictionary<string,byte[]>{["report.json"]=JsonSerializer.SerializeToUtf8Bytes(report),["AccountDetails.xlsx"]=Workbook(report,report.Tables[0]),["DebitCredit.xlsx"]=Workbook(report,report.Tables[1]),["Print.html"]=Encoding.UTF8.GetBytes(PrintHtml(report))};
-        var hashes=files.ToDictionary(p=>p.Key,p=>Convert.ToHexString(SHA256.HashData(p.Value)));
-        files["manifest.json"]=JsonSerializer.SerializeToUtf8Bytes(new Manifest(1,hashes));
-        using var memory=new MemoryStream();using(var zip=new ZipArchive(memory,ZipArchiveMode.Create,true))foreach(var (name,bytes) in files){using var stream=zip.CreateEntry(name).Open();stream.Write(bytes);}
-        if(memory.Length>MaximumPackage)throw new BusinessRuleException("Report package exceeds 32 MB. Export a smaller report.");
-        var package=Path.Combine(folder,"Submission.tvreport");WriteNew(package,memory.ToArray());
-        foreach(var (name,bytes) in files.Where(p=>p.Key.EndsWith(".xlsx")||p.Key.EndsWith(".html")))WriteNew(Path.Combine(folder,name),bytes);
-        return package;
+        var snapshot=Build(party,asOf,generated);
+        var report=store.Mutate<ReportBundle>(session,"export",snapshot.SubmissionId.ToString(),old=>snapshot with{Revision=(old?.Revision??0)+1});
+        var safe=new string(report.PartyName.Select(c=>Path.GetInvalidFileNameChars().Contains(c)?'_':c).ToArray()).Trim().TrimEnd('.');
+        if(string.IsNullOrWhiteSpace(safe))safe="Party";
+        safe=safe[..Math.Min(60,safe.Length)];
+        if(new[]{"CON","PRN","AUX","NUL","COM1","COM2","COM3","COM4","LPT1","LPT2","LPT3"}.Contains(safe.ToUpperInvariant()))safe="Party-"+safe;
+        var folder=Path.Combine(Root,"Reports",safe);Directory.CreateDirectory(folder);
+        var filename=$"{safe} - Account Reports - {asOf:yyyy-MM-dd} - Revision {report.Revision}.xlsx";
+        var path=Path.Combine(folder,filename);int copy=2;
+        while(File.Exists(path))path=Path.Combine(folder,Path.GetFileNameWithoutExtension(filename)+$" - Copy {copy++}.xlsx");
+        WriteNew(path,TransferWorkbook(report));return path;
     }
+
     private static void WriteNew(string path,byte[] bytes)
     {var pending=path+".partial";using(var stream=new FileStream(pending,FileMode.CreateNew,FileAccess.Write,FileShare.None)){stream.Write(bytes);stream.Flush(true);}File.Move(pending,path);}
     public ReportBundle Preview(string path)
         =>PreviewPackage(path).Report;
     public PackagePreview PreviewPackage(string path)
     {
-        store.CheckSession(session,true);var bytes=ReadFile(path);return new(ReadPackage(bytes),Convert.ToHexString(SHA256.HashData(bytes)));
-    }
-    private static ReportBundle ReadPackage(byte[] bytes)
-    {
-        if(bytes.Length>MaximumPackage)throw new BusinessRuleException("Package exceeds size limit.");
-        try
-        {
-            using var memory=new MemoryStream(bytes,false);using var zip=new ZipArchive(memory,ZipArchiveMode.Read);
-            var expected=new[]{"manifest.json","report.json","AccountDetails.xlsx","DebitCredit.xlsx","Print.html"};
-            if(zip.Entries.Count!=5||zip.Entries.Select(e=>e.FullName).Distinct(StringComparer.Ordinal).Count()!=5||zip.Entries.Any(e=>!expected.Contains(e.FullName)||e.Length>MaximumPackage/2)||zip.Entries.Sum(e=>e.Length)>MaximumPackage)throw new BusinessRuleException("Unexpected or oversized package contents.");
-            var contents=new Dictionary<string,byte[]>();foreach(var entry in zip.Entries){using var input=entry.Open();using var output=new MemoryStream();var buffer=new byte[8192];int n;while((n=input.Read(buffer))>0){if(output.Length+n>MaximumPackage/2)throw new BusinessRuleException("Expanded entry exceeds limit.");output.Write(buffer,0,n);}contents[entry.FullName]=output.ToArray();}
-            var manifest=JsonSerializer.Deserialize<Manifest>(contents["manifest.json"])??throw new BusinessRuleException("Manifest missing.");
-            if(manifest.Version!=1||manifest.Hashes.Count!=4)throw new BusinessRuleException("Unsupported package version.");
-            foreach(var name in expected.Where(n=>n!="manifest.json"))if(!manifest.Hashes.TryGetValue(name,out var hash)||hash!=Convert.ToHexString(SHA256.HashData(contents[name])))throw new BusinessRuleException("Package checksum validation failed.");
-            var report=JsonSerializer.Deserialize<ReportBundle>(contents["report.json"])??throw new BusinessRuleException("Report is missing.");
-            if(report.FormatVersion!=1||report.Revision<1||report.SubmissionId==Guid.Empty||report.SourceId==Guid.Empty||report.PartyName.Length is <1 or >200||report.Tables.Count!=2||report.Tables[0].Name!="Account Details"||report.Tables[1].Name!="Debit Credit"||report.Tables.Any(t=>t.Rows.Count>100000||!t.Columns.SequenceEqual(Columns(t.Name))))throw new BusinessRuleException("Unsupported report schema.");
-            return report;
-        }
-        catch(Exception ex)when(ex is InvalidDataException or JsonException or ArgumentException or NullReferenceException or KeyNotFoundException){throw new BusinessRuleException("Invalid report package: "+ex.Message);}
+        store.CheckSession(session,true);var bytes=ReadFile(path);return new(ReadExcel(bytes),Convert.ToHexString(SHA256.HashData(bytes)));
     }
     public ImportedSubmission Import(string path,string? expectedHash=null)
     {
-        store.CheckSession(session,true);var bytes=ReadFile(path);var report=ReadPackage(bytes);var hash=Convert.ToHexString(SHA256.HashData(bytes));
-        if(expectedHash!=null&&hash!=expectedHash)throw new BusinessRuleException("Package changed after preview. Preview it again before importing.");
+        store.CheckSession(session,true);var bytes=ReadFile(path);var report=ReadExcel(bytes);var hash=Convert.ToHexString(SHA256.HashData(bytes));
+        if(expectedHash!=null&&hash!=expectedHash)throw new BusinessRuleException("Excel report changed after preview. Preview it again before importing.");
         var id=$"{report.SourceId:N}:{report.SubmissionId:N}:{report.Revision:D8}";
         return store.Mutate<ImportedSubmission>(session,"import",id,existing=>{
             if(existing!=null)throw new BusinessRuleException(existing.PackageHash==hash?"This submission revision was already imported.":"Conflicting content for an existing submission revision.");
@@ -93,9 +78,9 @@ public sealed partial class ReportWorkflow
             Row([(report.PartyName+" · "+table.Name,"text")]);Row([($"USD · As of {report.AsOf:dd-MM-yyyy} · {report.Mode}","text")]);Row([($"Submission {report.SubmissionId} · revision {report.Revision} · {report.CalculationVersion}","text")]);Row([("Generated "+report.CreatedAt.ToString("O"),"text")]);Row(table.Columns.Select(c=>(c.Label,"text")),true);
             foreach(var row in table.Rows)Row(table.Columns.Select(c=>(row.GetValueOrDefault(c.Key,""),c.Type)));
             Row(table.Columns.Select((c,i)=>(i==0?"TOTAL / CLOSING":table.Totals.TryGetValue(c.Key,out var total)?total.ToString("0.00",CultureInfo.InvariantCulture):"",i==0?"text":"number")));
-            foreach(var note in report.Notes)Row([(note,"text")]);
+
             var sheet=new XElement(ns+"worksheet",new XElement(ns+"sheetViews",new XElement(ns+"sheetView",new XAttribute("workbookViewId",0),new XElement(ns+"pane",new XAttribute("ySplit",5),new XAttribute("topLeftCell","A6"),new XAttribute("state","frozen")))),new XElement(ns+"cols",new XElement(ns+"col",new XAttribute("min",1),new XAttribute("max",table.Columns.Count),new XAttribute("width",18),new XAttribute("customWidth",1))),data,new XElement(ns+"autoFilter",new XAttribute("ref",$"A5:{(char)('A'+table.Columns.Count-1)}{table.Rows.Count+5}")),new XElement(ns+"pageMargins",new XAttribute("left",0.25),new XAttribute("right",0.25),new XAttribute("top",0.4),new XAttribute("bottom",0.4),new XAttribute("header",0.2),new XAttribute("footer",0.2)),new XElement(ns+"pageSetup",new XAttribute("paperSize",8),new XAttribute("orientation","landscape"),new XAttribute("fitToWidth",1),new XAttribute("fitToHeight",0)));
-            var last=(char)('A'+table.Columns.Count-1);var merged=new XElement(ns+"mergeCells");foreach(var r in Enumerable.Range(1,4).Concat(Enumerable.Range(table.Rows.Count+7,report.Notes.Count)))merged.Add(new XElement(ns+"mergeCell",new XAttribute("ref",$"A{r}:{last}{r}")));sheet.Element(ns+"autoFilter")!.AddAfterSelf(merged);Put("xl/worksheets/sheet1.xml",sheet.ToString());
+            var last=(char)('A'+table.Columns.Count-1);var merged=new XElement(ns+"mergeCells");foreach(var r in Enumerable.Range(1,4))merged.Add(new XElement(ns+"mergeCell",new XAttribute("ref",$"A{r}:{last}{r}")));sheet.Element(ns+"autoFilter")!.AddAfterSelf(merged);Put("xl/worksheets/sheet1.xml",sheet.ToString());
         }return memory.ToArray();
     }
     private static string PrintHtml(ReportBundle report)

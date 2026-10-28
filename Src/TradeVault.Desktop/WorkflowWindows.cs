@@ -49,7 +49,7 @@ internal static class WorkflowWindows
         var root=new DockPanel();var meta=new StackPanel{Margin=new(12)};
         meta.Children.Add(Ui.Text(report.PartyName+" · "+report.AsOf.ToString("dd-MM-yyyy"),20,"#18243B",true));
         meta.Children.Add(Ui.Text(report.Mode+" · revision "+report.Revision+" · source "+report.SourceId,11,"#64748B"));
-        meta.Children.Add(Ui.Button("Print both reports",()=>Safe(window,()=>Print(report))));
+        meta.Children.Add(Ui.Button("Print / Save PDF",()=>Safe(window,()=>Print(report))));
         foreach(var note in report.Notes)meta.Children.Add(Ui.Text(note,11,"#64748B"));
         DockPanel.SetDock(meta,Dock.Top);root.Children.Add(meta);
         var tabs=new TabControl();foreach(var table in report.Tables){var panel=new DockPanel();var totals=Ui.Text(string.Join("   |   ",table.Totals.Select(t=>(table.Columns.FirstOrDefault(c=>c.Key==t.Key)?.Label??t.Key)+": USD "+t.Value.ToString("N2",CultureInfo.InvariantCulture))),12,"#2458D3",true);totals.Margin=new(10);DockPanel.SetDock(totals,Dock.Bottom);panel.Children.Add(totals);panel.Children.Add(ReportGrid(table));tabs.Items.Add(new TabItem{Header=table.Name,Content=panel});}root.Children.Add(tabs);
@@ -58,40 +58,12 @@ internal static class WorkflowWindows
     private static void Print(ReportBundle report)
     {
         var printer=new PrintDialog();if(printer.ShowDialog()!=true)return;
-        var document=new System.Windows.Documents.FlowDocument{FontFamily=new System.Windows.Media.FontFamily("Segoe UI"),FontSize=8,PagePadding=new Thickness(20),ColumnWidth=double.PositiveInfinity};
-        foreach(var data in report.Tables)
-        {
-            document.Blocks.Add(new System.Windows.Documents.Paragraph(new System.Windows.Documents.Bold(new System.Windows.Documents.Run(report.PartyName+" · "+data.Name))){FontSize=16,BreakPageBefore=document.Blocks.Count>0});
-            document.Blocks.Add(new System.Windows.Documents.Paragraph(new System.Windows.Documents.Run($"USD · As of {report.AsOf:dd-MM-yyyy} · revision {report.Revision} · {report.Mode}")));
-            var table=new System.Windows.Documents.Table{CellSpacing=0};for(int i=0;i<data.Columns.Count;i++)table.Columns.Add(new System.Windows.Documents.TableColumn());
-            var group=new System.Windows.Documents.TableRowGroup();table.RowGroups.Add(group);
-            void Row(IEnumerable<string> values,bool bold=false){var row=new System.Windows.Documents.TableRow();foreach(var value in values){var paragraph=new System.Windows.Documents.Paragraph(new System.Windows.Documents.Run(value)){Margin=new Thickness(0)};row.Cells.Add(new System.Windows.Documents.TableCell(paragraph){Padding=new Thickness(3),BorderBrush=Ui.Color("#CCCCCC"),BorderThickness=new Thickness(0.5),FontWeight=bold?FontWeights.Bold:FontWeights.Normal});}group.Rows.Add(row);}
-            Row(data.Columns.Select(c=>c.Label),true);foreach(var row in data.Rows)Row(data.Columns.Select(c=>row.GetValueOrDefault(c.Key,"")));Row(data.Columns.Select((c,i)=>i==0?"TOTAL / CLOSING":data.Totals.TryGetValue(c.Key,out var total)?total.ToString("N2",CultureInfo.InvariantCulture):""),true);
-            document.Blocks.Add(table);foreach(var note in report.Notes)document.Blocks.Add(new System.Windows.Documents.Paragraph(new System.Windows.Documents.Run(note)));
-        }
-        var paginator=((System.Windows.Documents.IDocumentPaginatorSource)document).DocumentPaginator;paginator.PageSize=new Size(printer.PrintableAreaWidth,printer.PrintableAreaHeight);printer.PrintDocument(paginator,"TradeVault reports");
+        printer.PrintTicket.PageOrientation=System.Printing.PageOrientation.Landscape;
+        var width=printer.PrintableAreaWidth;var height=printer.PrintableAreaHeight;
+        if(width<height)(width,height)=(height,width);
+        printer.PrintDocument(new ReportPaginator(report,new Size(width,height)),"TradeVault reports");
     }
-    internal static void Inbox(Window owner,ReportWorkflow service)
-    {
-        var window=new Window{Owner=owner,Width=1050,Height=680,MinWidth=760,MinHeight=480,WindowStartupLocation=WindowStartupLocation.CenterOwner};
-        var root=new DockPanel();var actions=new WrapPanel{Margin=new(12)};var list=new DataGrid{AutoGenerateColumns=false,IsReadOnly=true,CanUserDeleteRows=false,SelectionMode=DataGridSelectionMode.Single,SelectionUnit=DataGridSelectionUnit.FullRow,CanUserAddRows=false};
-        foreach(var (label,path) in new[]{("Party","Report.PartyName"),("As of","Report.AsOf"),("Revision","Report.Revision"),("Mode","Report.Mode"),("Status","Status"),("Received","ImportedAt")})list.Columns.Add(new DataGridTextColumn{Header=label,Binding=new System.Windows.Data.Binding(path),Width=label=="Party"?230:150});
-        void Refresh()=>list.ItemsSource=service.Imports();
-        actions.Children.Add(Ui.Button("Import report",()=>Safe(window,()=>{
-            var picker=new OpenFileDialog{Filter="TradeVault submission (*.tvreport)|*.tvreport",InitialDirectory=service.Root};if(picker.ShowDialog(window)!=true)return;
-            var preview=service.PreviewPackage(picker.FileName);var reportWindow=ReportView(window,preview.Report,"Import preview — checksums only; source identity is not authenticated");reportWindow.ShowDialog();
-            if(MessageBox.Show(window,"Import this read-only revision? Checksums verify content integrity, not who sent it. Confirm the sender through your normal handover process.","Import report",MessageBoxButton.YesNo,MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
-            service.Import(picker.FileName,preview.Hash);Refresh();
-        }),"PrimaryButton"));
-        actions.Children.Add(Ui.Button("Open selected",()=>Safe(window,()=>{if(list.SelectedItem is ImportedSubmission item)ReportView(window,item.Report,"Submitted report · read-only").ShowDialog();})));
-        actions.Children.Add(Ui.Button("Review status / note",()=>Safe(window,()=>{
-            if(list.SelectedItem is not ImportedSubmission item)throw new ArgumentException("Select a submission.");
-            var (dialog,form)=Form(window,"Review submission",600,420);var state=Field(form,"Review status",new ComboBox{ItemsSource=new[]{"New","Reviewed","Needs correction"},SelectedItem=item.Status});
-            var note=Field(form,"Owner review note (separate from submitted report)",new TextBox{Text=item.ReviewNote,AcceptsReturn=true,Height=140,TextWrapping=TextWrapping.Wrap});
-            form.Children.Add(Ui.Button("Save review",()=>Safe(dialog,()=>{service.Review(item,(string)state.SelectedItem,note.Text);dialog.DialogResult=true;}),"PrimaryButton"));dialog.ShowDialog();Refresh();
-        })));
-        actions.Children.Add(Ui.Text("  All revisions are preserved. Imported records never replace working invoices.",11,"#64748B"));DockPanel.SetDock(actions,Dock.Top);root.Children.Add(actions);root.Children.Add(list);Refresh();Ui.WindowFrame(window,root,"Operator reports");window.ShowDialog();
-    }
+    internal static void Inbox(Window owner,ReportWorkflow service) { new ImportedReportsWindow(owner,service).ShowDialog(); }
     internal static void Receipts(Window owner,ReportWorkflow service,Guid party)
     {
         var (window,form)=Form(owner,"Receipts and allocations",900,740);
@@ -125,15 +97,6 @@ internal static class WorkflowWindows
     private sealed record ReceiptHistory(PartyReceipt Receipt){public string Reference=>$"{Receipt.Date:dd-MM-yyyy} · {Receipt.Reference} · USD {Receipt.Amount:N2}"+(Receipt.Reverses!=null?" · REVERSAL":"");}
     private sealed class AllocationInput(string id,string invoice,string component)
     {public string Id{get;}=id;public string Invoice{get;}=invoice;public string Component{get;}=component;public string Amount{get;set;}="0.00";}
-    internal static void Password(Window owner,WorkbookStore store,LoginSession session)
-    {
-        var (window,form)=Form(owner,"Password management",540,470);
-        var current=Field(form,"Your current password",new PasswordBox());var next=Field(form,"New password (10–128 characters)",new PasswordBox());var confirm=Field(form,"Confirm new password",new PasswordBox());
-        var reset=Field(form,"Owner recovery action",new CheckBox{Content="Reset Operator password instead",IsEnabled=session.Role=="Owner"});
-        form.Children.Add(Ui.Button("Change password",()=>Safe(window,()=>{if(next.Password!=confirm.Password)throw new ArgumentException("Passwords do not match.");store.ChangePassword(session,current.Password,next.Password,reset.IsChecked==true);window.DialogResult=true;}),"PrimaryButton"));
-        form.Children.Add(Ui.Text("Changing your own password signs out existing sessions. Owner recovery requires a valid backup; there is no hidden master-password bypass.",11,"#64748B"));
-        if(window.ShowDialog()==true&&reset.IsChecked!=true)owner.Close();
-    }
     internal static void Backups(Window owner,WorkbookStore store,LoginSession session)
     {
         var (window,form)=Form(owner,"Backup and recovery",760,500);
@@ -149,7 +112,8 @@ internal static class WorkflowWindows
     internal static void Reminders(Window owner,ReportWorkflow service,Guid party,DateOnly asOf)
     {
         var (window,form)=Form(owner,"Receivables and reminders",900,550);
-        var items=service.Reminders(party,asOf);var table=new DataGrid{ItemsSource=items,AutoGenerateColumns=true,IsReadOnly=true,CanUserDeleteRows=false,CanUserAddRows=false,Height=350};form.Children.Add(table);
+        var name=service.Build(party,asOf,true).PartyName;
+        var items=service.Reminders(party,asOf).Select(r=>new {Party=name,r.Invoice,r.Due,r.Outstanding,r.OverdueDays,r.Status}).ToList();var table=new DataGrid{ItemsSource=items,AutoGenerateColumns=true,IsReadOnly=true,CanUserDeleteRows=false,CanUserAddRows=false,Height=350};form.Children.Add(table);
         form.Children.Add(Ui.Text("Includes settled, BL-pending, due-soon and overdue invoices. Unallocated advances do not settle a specific invoice.",12,"#64748B"));window.ShowDialog();
     }
 }

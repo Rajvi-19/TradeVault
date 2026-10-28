@@ -10,10 +10,11 @@ internal static class LiveChecks
         try
         {
             using var database=new PortableDatabase(new(root));var store=new WorkbookStore(database);
-            var login=new LoginWindow(store);login.PreviewUsername("operator");Capture(login,System.IO.Path.Combine(directory,"login.png"),860,570);Capture(login,System.IO.Path.Combine(directory,"login-minimum.png"),760,540);login.Close();
+            var login=new LoginWindow(store);login.PreviewUsername("operator");Capture(login,System.IO.Path.Combine(directory,"login.png"),540,520);Capture(login,System.IO.Path.Combine(directory,"login-minimum.png"),500,520);login.Close();
             var session=store.Login("owner","Owner@123");AcceptanceChecks.Seed(store,session);var window=new MainWindow(store,session,database.Paths.Database);
             foreach(var name in new[]{"form","details","ledger"}){window.PreviewSheet(name);Capture(window,System.IO.Path.Combine(directory,name+".png"),1480,920);if(name=="form")Capture(window,System.IO.Path.Combine(directory,"form-minimum.png"),1100,720);}
-            Capture(window,System.IO.Path.Combine(directory,"compact-window.png"),1000,600);window.Close();
+            Capture(window,System.IO.Path.Combine(directory,"compact-window.png"),1000,600);
+            var inbox=new ImportedReportsWindow(window,new ReportWorkflow(store,session));Capture(inbox,System.IO.Path.Combine(directory,"operator-reports.png"),1180,750);inbox.Close();window.Close();
             var party=store.CreateParty(session,"QA generated reports");var controller=new WorksheetController(store,session);controller.Load("form",party.Id);var row=controller.Add();row["F9"]="QA-GENERATED-001";row["F10"]="2026-06-01";row["F5"]="15000";row["F6"]="10000";row["F17"]="2026-06-17";controller.Save();
             new ReportWorkflow(store,session).Configure(party.Id,new("F6","F22",true,new(2026,1,1)));var generated=new MainWindow(store,session,database.Paths.Database);generated.PreviewParty("details",party.Id);Capture(generated,System.IO.Path.Combine(directory,"generated-details.png"),1440,880);generated.PreviewParty("ledger",party.Id);Capture(generated,System.IO.Path.Combine(directory,"generated-ledger.png"),1440,880);generated.Close();
             var op=store.Login("operator","Operator@123");var operatorWindow=new MainWindow(store,op,database.Paths.Database);Capture(operatorWindow,System.IO.Path.Combine(directory,"operator.png"),1440,880);operatorWindow.Close();
@@ -37,6 +38,7 @@ internal static class LiveChecks
             using(var db=new PortableDatabase(new(root)))
             {
                 var store=new WorkbookStore(db);
+                AuthUiChecks.Run(store);
                 try{store.Login("owner","wrong");throw new Exception("Bad password accepted");}catch(BusinessRuleException){}
                 var owner=store.Login("owner","Owner@123");var op=store.Login("operator","Operator@123");
                 FixRegressionChecks.Run(store,owner);
