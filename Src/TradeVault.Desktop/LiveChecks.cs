@@ -21,8 +21,9 @@ internal static class LiveChecks
         }
         finally{System.IO.Directory.Delete(root,true);}
     }
-    private static void Capture(System.Windows.Window window,string path,int width,int height)
+    internal static void Capture(System.Windows.Window window,string path,int width,int height)
     {
+        if(window.IsVisible){window.Width=width;window.Height=height;window.UpdateLayout();}
         var surface=(System.Windows.FrameworkElement)window.Content;
         surface.Measure(new(width,height));surface.Arrange(new(0,0,width,height));surface.UpdateLayout();
         window.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ContextIdle);surface.UpdateLayout();

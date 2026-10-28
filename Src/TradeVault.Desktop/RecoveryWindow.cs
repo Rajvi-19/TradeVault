@@ -45,7 +45,7 @@ internal static class RecoveryUi
         var setup=Ui.Button("I know my password — set up recovery",()=>KnownPassword(dialog,store,user.Text),"QuietButton");setup.Margin=new(0,12,0,0);panel.Children.Add(setup);
         panel.Children.Add(Ui.Text("Without a password or saved code, use a verified backup with known credentials. There is no master-password bypass.",11,"#64748B"));dialog.ShowDialog();code.Clear();password.Clear();confirmation.Clear();
     }
-    private static void KnownPassword(Window owner,WorkbookStore store,string initialName)
+    internal static void KnownPassword(Window owner,WorkbookStore store,string initialName)
     {
         var (dialog,panel)=Shell(owner,"Verify your account",390);
         var user=Field(panel,"Username (case-sensitive)",new TextBox{Text=initialName});var secret=Field(panel,"Current password",new RevealPassword());

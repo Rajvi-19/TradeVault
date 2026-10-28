@@ -11,6 +11,7 @@ public partial class App : System.Windows.Application
         ShutdownMode=ShutdownMode.OnExplicitShutdown;
         try
         {
+            if(e.Args.Length==2&&e.Args[0]=="--audit-pages"){PageAuditChecks.Run(e.Args[1]);Shutdown(0);return;}
 #if UI_ACCEPTANCE
             if(e.Args.Length==0){AcceptanceChecks.LaunchWorkspace();return;}
 #endif
@@ -36,6 +37,6 @@ public partial class App : System.Windows.Application
             }
             Shutdown(0);
         }
-        catch(Exception ex){Console.Error.WriteLine(ex);if(!e.Args.Any(a=>a is "--self-test" or "--qa-report" or "--render-ui" or "--seed-test-data" or "--seed-workflow-data"))MessageBox.Show(ex.Message,"TradeVault startup failed");Shutdown(1);}
+        catch(Exception ex){Console.Error.WriteLine(ex);if(!e.Args.Any(a=>a is "--audit-pages" or "--self-test" or "--qa-report" or "--render-ui" or "--seed-test-data" or "--seed-workflow-data"))MessageBox.Show(ex.Message,"TradeVault startup failed");Shutdown(1);}
     }
 }

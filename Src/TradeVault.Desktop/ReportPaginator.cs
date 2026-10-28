@@ -14,7 +14,7 @@ internal sealed class ReportPaginator : DocumentPaginator
     public ReportPaginator(ReportBundle report,Size size)
     {
         this.report=report;PageSize=size;
-        int capacity=Math.Max(1,(int)((size.Height-220)/38));
+        int capacity=Math.Max(1,(int)((size.Height-244)/38));
         foreach(var table in report.Tables)
         {
             for(int start=0;start<table.Rows.Count;start+=capacity)
@@ -48,12 +48,12 @@ internal sealed class ReportPaginator : DocumentPaginator
                 dc.DrawRectangle(header?new SolidColorBrush(Color.FromRgb(229,236,246)):total?Brushes.AliceBlue:Brushes.White,new Pen(Brushes.LightGray,.5),new Rect(x,y,cw,height));
                 Text(value,x,y,cw,height,header?8:9,header||total,!header&&page.Table.Columns[index].Type=="number");index++;}
         }
-        Row(page.Table.Columns.Select(c=>c.Label),108,48,true);
-        double y=156;foreach(var row in page.Table.Rows.Skip(page.Start).Take(page.Count))
+        Row(page.Table.Columns.Select(c=>c.Label),108,72,true);
+        double y=180;foreach(var row in page.Table.Rows.Skip(page.Start).Take(page.Count))
         {
-            Row(page.Table.Columns.Select(c=>{var value=row.GetValueOrDefault(c.Key,"");return c.Type=="number"&&decimal.TryParse(value,NumberStyles.Number,CultureInfo.InvariantCulture,out var amount)?amount.ToString("N2",CultureInfo.InvariantCulture):value;}),y,38);y+=38;
+            Row(page.Table.Columns.Select(c=>{var value=row.GetValueOrDefault(c.Key,"");if(c.Type=="date"&&DateOnly.TryParseExact(value,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var date))return date.ToString("dd-MM-yyyy",CultureInfo.InvariantCulture);return c.Type=="number"&&decimal.TryParse(value,NumberStyles.Number,CultureInfo.InvariantCulture,out var amount)?amount.ToString(page.Table.Name=="Account Details"&&c.Key is "A" or "M"?"0":"N2",CultureInfo.InvariantCulture):value;}),y,38);y+=38;
         }
-        if(page.Total)Row(page.Table.Columns.Select((c,i)=>i==0?"TOTAL / CLOSING":page.Table.Totals.TryGetValue(c.Key,out var total)?total.ToString("N2",CultureInfo.InvariantCulture):""),y,28,total:true);
+        if(page.Total)Row(page.Table.Columns.Select((c,i)=>i==0?"TOTAL":page.Table.Totals.TryGetValue(c.Key,out var total)?total.ToString("N2",CultureInfo.InvariantCulture):""),y,28,total:true);
         Text($"TradeVault  •  {page.Table.Name}  •  Page {pageNumber+1} of {PageCount}",left,PageSize.Height-24,width,22,8);
         return new DocumentPage(visual,PageSize,new Rect(PageSize),new Rect(PageSize));
     }

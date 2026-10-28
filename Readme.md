@@ -393,3 +393,14 @@ How to use: reopen the normal main app, select [TEST] Indigo Textile Imports —
 - Details: [business validation guide](Docs/Business-Validation.md).
 - Final verification: normal build passed with zero warnings/errors; all 50 backend tests, live checks and all 42 acceptance checks passed. Independent PDFium and pypdf readers validated the generated three-page PDF; all three pages rendered successfully and the first page was visually inspected. PDF generation does not exercise an installed printer driver.
 
+# Work log — 2026-10-28: client-delivery audit (UI 2026.10.28.6)
+
+- Audited authentication/recovery, Owner/Operator workspaces, party/register entry, dates/terms/shipping/formulas, receipts/advances/corrections/reversals, reminders, report cutoff/setup, Excel transfer/review, backups/migrations/restore and PDF output. Used isolated synthetic databases only.
+- Fixed historical receipt over-allocation hidden by future reversals, duplicate internal invoice IDs, generated-tab cutoff resets and missing opening-only difference totals. Added focused regressions and calendar event checks.
+- Fixed reminder date/USD formatting, standalone date-input affordance, PDF headings/date/integer presentation and clipped total label. Added pending-login close guard and a friendly duplicate-instance error.
+- Added repeatable WPF page/dialog capture harness covering Owner/Operator pages, correction/reversal and review dialogs, recovery and reports. Improved screenshot sizing for shown windows. Replaced obsolete Desktop.Audit probes and made verification scripts propagate live-check failures.
+- Verification: 53 backend tests, 42 acceptance checks and live UI/persistence checks pass; Debug/Release and audit runner build without warnings/errors. Full-width 35-invoice PDF has 9 pages; independent PDFium rendering and pypdf parsing pass. No real company records changed.
+- Native UI automation could not see the test process launched by the execution environment; hardware printing, physical USB handover/ejection, Windows file associations and a self-contained release on a clean client PC remain manual acceptance items. Source-field decisions for automatic Report setup are still pending; no accounting mapping was guessed.
+- Full findings, coverage, evidence and client sign-off items: [client audit report](Docs/Testing/2026-10-28/Client-Audit.md). Do not distribute `.build/client-audit` synthetic workspaces.
+- Final evidence: Release page harness passes with 36 screenshots/22 page states; normal Debug executable rebuilt successfully with current sources, zero warnings/errors. Final independent PDF/Excel checks saved under `.build/client-audit/final-release-pages/independent-file-checks.json`.
+

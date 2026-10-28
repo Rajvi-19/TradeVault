@@ -10,6 +10,7 @@ public sealed partial class WorkbookStore
     private void GuardRegister(LoginSession session,Guid party,List<Dictionary<string,string>> candidate)
     {
         var rows=candidate.Where(r=>!r.ContainsKey("_metadata")).ToList();
+        if(rows.Where(r=>!string.IsNullOrWhiteSpace(r.GetValueOrDefault("_id"))).GroupBy(r=>r["_id"],StringComparer.Ordinal).Any(g=>g.Count()>1))throw new BusinessRuleException("Duplicate internal invoice identifiers. Create a new row instead of copying internal identifiers.");
         for(int i=0;i<rows.Count;i++)
         {
             var issues=InvoiceRules.Validate(rows[i]);

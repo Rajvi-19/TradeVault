@@ -73,4 +73,5 @@ internal sealed class ImportedReportsWindow:Window
         form.Children.Add(Ui.Text("Your note is stored separately from the submitted report.",11,"#64748B"));var error=Ui.Text("",12,"#B42318");form.Children.Add(error);
         var save=Ui.Button("Save review",()=>{try{service.Review(item,(string)state.SelectedItem,note.Text);dialog.DialogResult=true;}catch(Exception ex){error.Text=ex.Message;}},"PrimaryButton");save.Margin=new(0,12,0,0);form.Children.Add(save);Ui.WindowFrame(dialog,form,"Review submission");if(dialog.ShowDialog()==true)Refresh();
     }
+    internal void PreviewReview(){table.SelectedIndex=0;Review();}
 }

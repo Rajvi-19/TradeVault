@@ -25,6 +25,8 @@ public sealed class MainWindow : Window
     private readonly TextBox opening=new(){Text="0.00",Width=100,MinHeight=30,Padding=new(8,4,8,4)};
     private readonly TextBox terms=new(){Text="90",Width=54,MinHeight=30,Padding=new(8,4,8,4)};
     private readonly DateCellEditor asOf=new(){Value=DateTime.Today.ToString("yyyy-MM-dd"),Width=145,MinHeight=30};
+    private System.Windows.Controls.Calendar? cutoffCalendar;
+    private System.Windows.Controls.Primitives.Popup? cutoffPopup;
     private readonly StackPanel openingGroup=new(){Orientation=Orientation.Horizontal};
     private readonly StackPanel termsGroup=new(){Orientation=Orientation.Horizontal};
     private readonly Dictionary<string,Button> nav=new();
@@ -81,6 +83,7 @@ public sealed class MainWindow : Window
         var calendarButton=Ui.Button("",()=>{},"QuietButton","\uE787");calendarButton.Width=32;calendarButton.MinHeight=30;
         System.Windows.Automation.AutomationProperties.SetName(calendarButton,"Choose reporting cutoff date");
         var calendar=new System.Windows.Controls.Calendar();var calendarPopup=new System.Windows.Controls.Primitives.Popup{Child=new Border{Background=Brushes.White,BorderBrush=Ui.Color("#D8E0EB"),BorderThickness=new(1),Child=calendar},PlacementTarget=calendarButton,Placement=System.Windows.Controls.Primitives.PlacementMode.Bottom,StaysOpen=false};
+        cutoffCalendar=calendar;cutoffPopup=calendarPopup;
         calendarButton.Click+=(_,_)=>{calendar.SelectedDate=DateOnly.TryParseExact(asOf.Value,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var selected)?selected.ToDateTime(TimeOnly.MinValue):DateTime.Today;calendar.DisplayDate=calendar.SelectedDate.Value;calendarPopup.IsOpen=true;};
         calendar.SelectedDatesChanged+=(_,_)=>{if(calendarPopup.IsOpen&&calendar.SelectedDate is {} selected){asOf.Value=selected.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture);calendarPopup.IsOpen=false;Calculate();}};
         options.Children.Add(calendarButton);
@@ -154,6 +157,12 @@ public sealed class MainWindow : Window
     {
         var selected=partyId??controller.PartyId;var next=new WorksheetController(store,session);next.Load(name,selected);
         var nextGenerated=name!="form"&&workflow.Mapping(selected)!=null;
+        if(nextGenerated)
+        {
+            // Both generated tabs use the register's cutoff, or the current unsaved report cutoff.
+            if(selected==controller.PartyId)next.AsOf=controller.AsOf;
+            else {var register=new WorksheetController(store,session);register.Load("form",selected);next.AsOf=register.AsOf;}
+        }
         var nextReport=nextGenerated?workflow.Build(selected,next.AsOf,true):null;
         controller=next;refreshing=true;opening.Text=controller.Opening.ToString("0.00",CultureInfo.InvariantCulture);terms.Text=controller.Terms.ToString();asOf.Value=controller.AsOf.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture);refreshing=false;
         foreach(var row in controller.Rows)Watch(row);
@@ -186,6 +195,12 @@ public sealed class MainWindow : Window
         if(!generatedView||grid?.Table.IsReadOnly!=true||((GridRow)grid.Table.Items[0])["F"]!="10000.00")throw new InvalidOperationException("Generated report UI did not use register source.");
         Save();if(store.Load(session,"details",party.Id).Rows.Count!=0)throw new InvalidOperationException("Generated view overwrote legacy worksheet.");
         asOf.Value="2026-05-01";Calculate();if(grid.Table.Items.Count!=0)throw new InvalidOperationException("Generated historical view did not refresh.");
+        Open("ledger");if(controller.AsOf!=new DateOnly(2026,5,1)||grid!.Table.Items.Cast<GridRow>().Any(r=>r["B"].Contains("WF-UI-1")))throw new InvalidOperationException("Switching generated tabs lost the reporting cutoff.");
+        Open("details");if(controller.AsOf!=new DateOnly(2026,5,1))throw new InvalidOperationException("Returning to details lost the cutoff.");
+        asOf.Value="2026-10-28";Calculate();
+        cutoffPopup!.IsOpen=true;cutoffCalendar!.SelectedDate=new DateTime(2026,8,15);
+        if(controller.AsOf!=new DateOnly(2026,8,15)||cutoffPopup.IsOpen)throw new InvalidOperationException("Calendar selection did not apply the reporting cutoff and close the popup.");
+        asOf.Value="2026-10-28";Calculate();
         workflow.RecordReceipt(party.Id,new(2026,7,1),5000,"UI workflow test",[new(ReportWorkflow.InvoiceKey(party.Id,row.Snapshot()),"Bank",5000)]);
         PreviewParty("details",party.Id);if(((GridRow)grid.Table.Items[0])["F"]!="5000.00")throw new InvalidOperationException("Generated UI did not reflect dated receipt.");
         PreviewParty("form",Guid.Empty);

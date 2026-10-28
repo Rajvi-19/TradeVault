@@ -33,6 +33,7 @@ public sealed class LoginWindow:Window
             catch(Exception ex){errors.Text=ex.Message;errorBox.Visibility=Visibility.Visible;password.Clear();}
             finally{button.IsEnabled=true;username.IsEnabled=true;password.IsEnabled=true;forgot.IsEnabled=true;progress.Visibility=Visibility.Collapsed;}
         };
+        Closing+=(_,e)=>{if(!button.IsEnabled&&Session==null)e.Cancel=true;};
         Ui.WindowFrame(this,new ScrollViewer{Content=form,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,Background=System.Windows.Media.Brushes.White},"TradeVault · Sign in");Loaded+=(_,_)=>username.Focus();
     }
 }

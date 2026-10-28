@@ -124,6 +124,16 @@ public sealed partial class ReportWorkflow(WorkbookStore store,LoginSession sess
             var allocations=receipts.SelectMany(r=>r.Allocations.Where(a=>a.InvoiceId==key).Select(a=>(r.Date,a.Component,a.Amount))).ToList();
             var allBank=baselineBank+allocations.Where(a=>a.Component=="Bank").Sum(a=>a.Amount);var allDiff=baselineDiff+allocations.Where(a=>a.Component=="Difference").Sum(a=>a.Amount);
             if(allBank>contract||allDiff>original-contract-shipping||allBank<0||allDiff<0)throw new BusinessRuleException(invoice+": receipts exceed an outstanding component.");
+            // Validate every effective-date checkpoint, not only the final balance after future reversals.
+            foreach(var component in new[]{"Bank","Difference"})
+            {
+                var movements=allocations.Where(a=>a.Component==component).Select(a=>(a.Date,a.Amount)).ToList();
+                var baseline=component=="Bank"?baselineBank:baselineDiff;var effective=component=="Bank"?bankDate:diffDate;
+                if(effective is {} baselineDate)movements.Add((baselineDate,baseline));
+                decimal paid=0;var ceiling=component=="Bank"?contract:original-contract-shipping;
+                foreach(var day in movements.GroupBy(a=>a.Date).OrderBy(g=>g.Key))
+                {paid+=day.Sum(a=>a.Amount);if(paid<0||paid>ceiling)throw new BusinessRuleException($"{invoice}: {component} receipts exceed the component balance on {day.Key:dd-MM-yyyy}.");}
+            }
             if(date>asOf)continue;
             var bank=(bankDate<=asOf?baselineBank:0)+allocations.Where(a=>a.Date<=asOf&&a.Component=="Bank").Sum(a=>a.Amount);
             var diff=(diffDate<=asOf?baselineDiff:0)+allocations.Where(a=>a.Date<=asOf&&a.Component=="Difference").Sum(a=>a.Amount);
@@ -142,7 +152,8 @@ public sealed partial class ReportWorkflow(WorkbookStore store,LoginSession sess
         if(asOf<mapping.OpeningDate)notes.Add("Opening balances are excluded before their effective date.");
         var unallocated=receipts.Where(r=>r.Date<=asOf).Sum(r=>r.Amount-r.Allocations.Sum(a=>a.Amount));notes.Add($"Unallocated advances USD {F(unallocated)} are credited in the party ledger but do not settle a specific invoice. Closing party balance USD {F(balance)}.");
         notes.Add($"Opening bank USD {F(mapping.OpeningBank)} and opening difference USD {F(mapping.OpeningDifference)} effective {mapping.OpeningDate:yyyy-MM-dd}; opening balances are not invoice-aged.");
-        return Bundle(party,asOf,"Generated",[Table("Account Details",details),Table("Debit Credit",ledger)],notes);
+        var detailTable=Table("Account Details",details);detailTable.Totals["K"]=runningDifference;
+        return Bundle(party,asOf,"Generated",[detailTable,Table("Debit Credit",ledger)],notes);
     }
     private ReportBundle BuildLegacy(Guid party,DateOnly asOf)
     {

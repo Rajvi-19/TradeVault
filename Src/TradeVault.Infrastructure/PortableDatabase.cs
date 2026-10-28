@@ -14,8 +14,10 @@ public sealed class PortableDatabase : IDisposable
     {
         Paths = paths;
         paths.EnsureDirectories();
-        lease = new FileStream(Path.Combine(paths.Data, ".instance.lock"),
-            FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        try{lease = new FileStream(Path.Combine(paths.Data, ".instance.lock"),
+            FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);}
+        catch(IOException ex)when((ex.HResult&0xFFFF) is 32 or 33)
+        {throw new IOException("TradeVault is already open from this application folder. Close its other window before opening it again.",ex);}
         try { Initialize(); }
         catch { lease.Dispose(); throw; }
     }

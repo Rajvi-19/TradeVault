@@ -18,7 +18,7 @@ internal static class WorkflowWindows
         Ui.WindowFrame(window,new ScrollViewer{Content=form,VerticalScrollBarVisibility=ScrollBarVisibility.Auto},title);return(window,form);
     }
     private static T Field<T>(StackPanel form,string label,T control)where T:FrameworkElement
-    {var text=Ui.Text(label,12,"#52627A");text.Margin=new(0,12,0,5);form.Children.Add(text);form.Children.Add(control);System.Windows.Automation.AutomationProperties.SetName(control,label);return control;}
+    {var text=Ui.Text(label,12,"#52627A");text.Margin=new(0,12,0,5);form.Children.Add(text);if(control is DateCellEditor date){date.Background=System.Windows.Media.Brushes.White;date.BorderBrush=Ui.Color("#DCE3ED");date.BorderThickness=new Thickness(1);date.MinHeight=32;}form.Children.Add(control);System.Windows.Automation.AutomationProperties.SetName(control,label);return control;}
     private static decimal Money(TextBox box)=>decimal.Parse(box.Text,NumberStyles.Number,CultureInfo.InvariantCulture);
     private static DateOnly Date(DateCellEditor box)=>DateOnly.ParseExact(DateCellConverter.Normalize(box.Text),"yyyy-MM-dd",CultureInfo.InvariantCulture);
     internal static bool Configure(Window owner,ReportWorkflow service,Guid party)
@@ -135,7 +135,10 @@ internal static class WorkflowWindows
     {
         var (window,form)=Form(owner,"Receivables and reminders",900,550);
         var name=service.Build(party,asOf,true).PartyName;
-        var items=service.Reminders(party,asOf).Select(r=>new {Party=name,r.Invoice,r.Due,r.Outstanding,r.OverdueDays,r.Status}).ToList();var table=new DataGrid{ItemsSource=items,AutoGenerateColumns=true,IsReadOnly=true,CanUserDeleteRows=false,CanUserAddRows=false,Height=350};form.Children.Add(table);
+        var items=service.Reminders(party,asOf).Select(r=>new {Party=name,r.Invoice,r.Due,r.Outstanding,r.OverdueDays,r.Status}).ToList();var table=new DataGrid{ItemsSource=items,AutoGenerateColumns=false,IsReadOnly=true,CanUserDeleteRows=false,CanUserAddRows=false,Height=350};
+        foreach(var (label,path,width,format) in new[]{("Party","Party",220,""),("Invoice","Invoice",190,""),("Due date","Due",110,"{0:dd-MM-yyyy}"),("Outstanding / USD","Outstanding",145,"{0:N2}"),("Overdue days","OverdueDays",110,""),("Status","Status",150,"")})
+            table.Columns.Add(new DataGridTextColumn{Header=label,Width=width,Binding=new System.Windows.Data.Binding(path){StringFormat=format,ConverterCulture=CultureInfo.InvariantCulture}});
+        form.Children.Add(Ui.Text($"Reporting cutoff: {asOf:dd-MM-yyyy} · All amounts USD",12,"#52627A"));form.Children.Add(table);
         form.Children.Add(Ui.Text("Includes settled, BL-pending, due-soon and overdue invoices. Unallocated advances do not settle a specific invoice.",12,"#64748B"));window.ShowDialog();
     }
 }

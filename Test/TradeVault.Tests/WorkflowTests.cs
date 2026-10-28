@@ -10,6 +10,29 @@ namespace TradeVault.Tests;
 
 public sealed class WorkflowTests
 {
+    [Fact]public void OpeningDifferenceIsVisibleWithoutInvoiceRows()
+    {
+        using var f=new Fixture();var party=f.Store.CreateParty(f.Owner,"Opening balance only");
+        f.Workflow.Configure(party.Id,new("F6","F22",true,new(2026,7,1),0,250));
+        var after=f.Workflow.Build(party.Id,new(2026,7,1),true);Assert.Empty(after.Tables[0].Rows);Assert.Equal(250,after.Tables[0].Totals["K"]);Assert.Equal(250,after.Tables[1].Totals["E"]);
+        Assert.Equal(0,f.Workflow.Build(party.Id,new(2026,6,30),true).Tables[0].Totals["K"]);
+    }
+    [Fact]public void FutureReversalDoesNotPermitHistoricalOverpayment()
+    {
+        using var f=new Fixture();var first=f.Workflow.RecordReceipt(f.Party,new(2026,7,1),10000,"Original settlement",[new("one","Bank",10000)]);
+        f.Workflow.ReverseReceipt(f.Party,first.Id,new(2026,9,1),"Later reversal");
+        Assert.Throws<BusinessRuleException>(()=>f.Workflow.RecordReceipt(f.Party,new(2026,8,1),10000,"Backdated duplicate",[new("one","Bank",10000)]));
+        Assert.Equal(2,f.Workflow.Receipts(f.Party).Count);
+        Assert.Equal("0.00",f.Workflow.Build(f.Party,new(2026,8,31),true).Tables[0].Rows[0]["F"]);
+        f.Workflow.RecordReceipt(f.Party,new(2026,9,1),10000,"Same-day replacement",[new("one","Bank",10000)]);
+    }
+    [Fact]public void DuplicateStableInvoiceIdsAreRejectedAtomically()
+    {
+        using var f=new Fixture();var saved=f.Store.Load(f.Owner,"form",f.Party);var rows=saved.Rows;
+        rows.Single(r=>r.GetValueOrDefault("F9")=="INV-002")["_id"]="one";
+        Assert.Throws<BusinessRuleException>(()=>f.Store.Save(f.Owner,"form",saved.Revision,rows,f.Party));
+        Assert.Equal(saved.Revision,f.Store.Load(f.Owner,"form",f.Party).Revision);
+    }
     [Fact]public void ExcelVisibleCellChangesAreRejected()
     {
         using var f=new Fixture();var path=f.Workflow.ExportExcel(f.Party,new(2026,10,27),true);
