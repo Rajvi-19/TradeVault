@@ -82,6 +82,7 @@ public sealed class WorksheetController(WorkbookStore store, LoginSession sessio
                 var termDays=term==""?(int.TryParse(row["_terms"],out var savedTerms)?savedTerms:Terms):int.TryParse(row[term],out var entered)?entered:90;
                 try{DueDates.Calculate(bl,termDays);}catch(BusinessRuleException ex){issues.Add(new(blKey,ex.Message));}
             }
+            if(requiredFields&&Name=="form")issues.AddRange(InvoiceRules.Validate(row.Snapshot()).Select(issue=>new CellIssue(issue.Field,issue.Message)));
             if(publish)row.SetIssues(issues); errors.AddRange(issues.Select(e=>$"Row {i+1}: {e.Message}"));
         }
         if (Terms is < 0 or > 3650) errors.Add("Default terms must be 0–3650 days.");

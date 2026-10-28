@@ -14,7 +14,6 @@ public sealed class DateCellEditor : TextBox
     public DateCellEditor()
     {
         SetResourceReference(StyleProperty,typeof(TextBox));MinHeight=0;Padding=new Thickness(6,2,6,2);BorderThickness=new Thickness(0);Background=System.Windows.Media.Brushes.Transparent;
-        ToolTip="Type DD-MM-YYYY. Example: 277 becomes 27-07-.";
         PreviewKeyDown+=(_,e)=>deleting=e.Key is Key.Back or Key.Delete;
         TextChanged+=(_,e)=>
         {

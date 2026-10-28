@@ -25,11 +25,14 @@ internal sealed class ReportPaginator : DocumentPaginator
     public override bool IsPageCountValid=>true;
     public override int PageCount=>pages.Count;
     public override Size PageSize{get;set;}
-    public override IDocumentPaginatorSource Source=>null!;
+    private sealed class SourceDocument(ReportPaginator paginator):IDocumentPaginatorSource
+    {public DocumentPaginator DocumentPaginator=>paginator;}
+    public override IDocumentPaginatorSource Source=>new SourceDocument(this);
     public override DocumentPage GetPage(int pageNumber)
     {
         if(pageNumber<0||pageNumber>=pages.Count)return DocumentPage.Missing;
         var page=pages[pageNumber];var visual=new DrawingVisual();using var dc=visual.RenderOpen();
+        dc.DrawRectangle(Brushes.White,null,new Rect(PageSize));
         double left=24,width=PageSize.Width-48,cw=width/page.Table.Columns.Count;
         void Text(string value,double x,double y,double w,double h,double size,bool bold=false,bool right=false)
         {

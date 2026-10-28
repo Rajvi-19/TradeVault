@@ -77,7 +77,13 @@ public sealed class MainWindow : Window
         var options=new WrapPanel{VerticalAlignment=VerticalAlignment.Center};
         termsGroup.Margin=new(0,0,14,0);var termLabel=Ui.Text("New terms",12,"#52627A");termLabel.Margin=new(0,0,6,0);termsGroup.Children.Add(termLabel);termsGroup.Children.Add(terms);termsGroup.Children.Add(Ui.Text(" days",11,"#64748B"));options.Children.Add(termsGroup);
         openingGroup.Margin=new(0,0,14,0);var openLabel=Ui.Text("Opening USD",12,"#52627A");openLabel.Margin=new(0,0,6,0);openingGroup.Children.Add(openLabel);openingGroup.Children.Add(opening);options.Children.Add(openingGroup);
-        var dateLabel=Ui.Text("As of",12,"#52627A");dateLabel.Margin=new(0,0,6,0);options.Children.Add(dateLabel);asOf.ToolTip="Reporting cutoff: includes dated transactions through this day and measures overdue days against it. Click Recalculate to refresh.";options.Children.Add(asOf);
+        var dateLabel=Ui.Text("As of",12,"#52627A");dateLabel.Margin=new(0,0,6,0);options.Children.Add(dateLabel);options.Children.Add(asOf);
+        var calendarButton=Ui.Button("",()=>{},"QuietButton","\uE787");calendarButton.Width=32;calendarButton.MinHeight=30;
+        System.Windows.Automation.AutomationProperties.SetName(calendarButton,"Choose reporting cutoff date");
+        var calendar=new System.Windows.Controls.Calendar();var calendarPopup=new System.Windows.Controls.Primitives.Popup{Child=new Border{Background=Brushes.White,BorderBrush=Ui.Color("#D8E0EB"),BorderThickness=new(1),Child=calendar},PlacementTarget=calendarButton,Placement=System.Windows.Controls.Primitives.PlacementMode.Bottom,StaysOpen=false};
+        calendarButton.Click+=(_,_)=>{calendar.SelectedDate=DateOnly.TryParseExact(asOf.Value,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var selected)?selected.ToDateTime(TimeOnly.MinValue):DateTime.Today;calendar.DisplayDate=calendar.SelectedDate.Value;calendarPopup.IsOpen=true;};
+        calendar.SelectedDatesChanged+=(_,_)=>{if(calendarPopup.IsOpen&&calendar.SelectedDate is {} selected){asOf.Value=selected.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture);calendarPopup.IsOpen=false;Calculate();}};
+        options.Children.Add(calendarButton);
         var calc=CompactButton("Recalculate",Calculate,"\uE9D9");options.Children.Add(calc);
         options.Children.Add(new Border{Width=1,Height=22,Background=Ui.Color("#D8E0EB"),Margin=new(10,0,2,0)});
         options.Children.Add(CompactButton("Reload",()=>Run(()=>{if(Discard())Open(controller.Name);}),"\uE72C"));

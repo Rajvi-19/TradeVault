@@ -49,7 +49,12 @@ internal static class WorkflowWindows
         var root=new DockPanel();var meta=new StackPanel{Margin=new(12)};
         meta.Children.Add(Ui.Text(report.PartyName+" · "+report.AsOf.ToString("dd-MM-yyyy"),20,"#18243B",true));
         meta.Children.Add(Ui.Text(report.Mode+" · revision "+report.Revision+" · source "+report.SourceId,11,"#64748B"));
-        meta.Children.Add(Ui.Button("Print / Save PDF",()=>Safe(window,()=>Print(report))));
+        meta.Children.Add(Ui.Button("Save PDF",()=>Safe(window,()=>SavePdf(window,report))));
+        meta.Children.Add(Ui.Button("Print",()=>Safe(window,()=>
+        {
+            try{Print(report);}
+            catch(Exception){MessageBox.Show(window,"Windows printing is unavailable. Save the same formatted report directly as PDF instead.","Save report as PDF",MessageBoxButton.OK,MessageBoxImage.Information);SavePdf(window,report);}
+        })));
         foreach(var note in report.Notes)meta.Children.Add(Ui.Text(note,11,"#64748B"));
         DockPanel.SetDock(meta,Dock.Top);root.Children.Add(meta);
         var tabs=new TabControl();foreach(var table in report.Tables){var panel=new DockPanel();var totals=Ui.Text(string.Join("   |   ",table.Totals.Select(t=>(table.Columns.FirstOrDefault(c=>c.Key==t.Key)?.Label??t.Key)+": USD "+t.Value.ToString("N2",CultureInfo.InvariantCulture))),12,"#2458D3",true);totals.Margin=new(10);DockPanel.SetDock(totals,Dock.Bottom);panel.Children.Add(totals);panel.Children.Add(ReportGrid(table));tabs.Items.Add(new TabItem{Header=table.Name,Content=panel});}root.Children.Add(tabs);
@@ -57,11 +62,28 @@ internal static class WorkflowWindows
     }
     private static void Print(ReportBundle report)
     {
-        var printer=new PrintDialog();if(printer.ShowDialog()!=true)return;
+        var printer=new PrintDialog();
         printer.PrintTicket.PageOrientation=System.Printing.PageOrientation.Landscape;
+        if(printer.ShowDialog()!=true)return;
         var width=printer.PrintableAreaWidth;var height=printer.PrintableAreaHeight;
         if(width<height)(width,height)=(height,width);
-        printer.PrintDocument(new ReportPaginator(report,new Size(width,height)),"TradeVault reports");
+        var paginator=new ReportPaginator(report,new Size(width,height));
+        var document=new System.Windows.Documents.FixedDocument();document.DocumentPaginator.PageSize=new Size(width,height);
+        for(int i=0;i<paginator.PageCount;i++)
+        {
+            var page=new System.Windows.Documents.FixedPage{Width=width,Height=height};
+            page.Children.Add(new System.Windows.Shapes.Rectangle{Width=width,Height=height,Fill=new System.Windows.Media.VisualBrush(paginator.GetPage(i).Visual){Stretch=System.Windows.Media.Stretch.None,AlignmentX=System.Windows.Media.AlignmentX.Left,AlignmentY=System.Windows.Media.AlignmentY.Top}});
+            var content=new System.Windows.Documents.PageContent{Child=page};document.Pages.Add(content);
+        }
+        try{printer.PrintDocument(document.DocumentPaginator,"TradeVault reports");}
+        catch(Exception ex){throw new InvalidOperationException("Windows could not print this report. Use Save PDF to create the report directly without a printer driver. Printer detail: "+ex.Message,ex);}
+    }
+    private static void SavePdf(Window owner,ReportBundle report)
+    {
+        var safe=new string(report.PartyName.Select(c=>System.IO.Path.GetInvalidFileNameChars().Contains(c)?'_':c).ToArray());
+        var picker=new SaveFileDialog{Filter="PDF report (*.pdf)|*.pdf",FileName=$"{safe} - Account Reports - {report.AsOf:yyyy-MM-dd}.pdf",InitialDirectory=AppContext.BaseDirectory};
+        if(picker.ShowDialog(owner)!=true)return;ReportPdf.Save(report,picker.FileName);
+        try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(picker.FileName){UseShellExecute=true});}catch(Exception){MessageBox.Show(owner,"PDF saved:\n"+picker.FileName);}
     }
     internal static void Inbox(Window owner,ReportWorkflow service) { new ImportedReportsWindow(owner,service).ShowDialog(); }
     internal static void Receipts(Window owner,ReportWorkflow service,Guid party)

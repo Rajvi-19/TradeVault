@@ -25,6 +25,7 @@ internal static class FixRegressionChecks
         var small=new GridRow();small["C"]="2";var large=new GridRow();large["C"]="10";
         var sorter=new ExcelGrid.BlankLastComparer([],new Field("C","DEBIT"),true);Check(sorter.Compare(small,large)<0,"Amounts sort numerically.");
         var picker=new DateCellEditor();picker.Text="05-11-2026";Check(picker.Value=="2026-11-05","Typed date writes ISO value.");
+        Check(picker.ToolTip==null,"Date input has no focus tooltip.");
         picker.Value="2026-06-17";Check(picker.Text=="17-06-2026","Reloaded date uses day-first display.");
         picker.Text="";Check(picker.Value=="","Clearing date clears value.");
         Check(DateCellEditor.FormatTyping("277")=="27-07-","Single digit month auto padded.");
@@ -40,5 +41,10 @@ internal static class FixRegressionChecks
         var window=new LoginWindow(store);var frame=(DockPanel)window.Content;var header=(DockPanel)frame.Children[0];
         var buttons=((StackPanel)header.Children[0]).Children.OfType<Button>().ToArray();
         Check(buttons.Length==3&&buttons.All(b=>b.Width>=40),"Visible caption controls exist.");window.Close();
+        var printTable=new TradeVault.Application.ReportTable("Print regression",[new("A","INVOICE"),new("B","AMOUNT / USD","number")],Enumerable.Range(1,35).Select(i=>new Dictionary<string,string>{{"A","SYNTHETIC-"+i},{"B","125.50"}}).ToList(),new(){{"B",4392.5m}});
+        var report=new TradeVault.Application.ReportBundle(1,"test",Guid.NewGuid(),Guid.NewGuid(),"SYNTHETIC PDF TEST",new(2026,10,28),DateTimeOffset.UtcNow,Guid.NewGuid(),1,"Generated",[printTable],[]);
+        var paginator=new ReportPaginator(report,new(1122,793));Check(paginator.PageCount>=3&&paginator.Source.DocumentPaginator==paginator,"Print pagination has a valid source and multiple pages.");
+        var folder=System.IO.Path.Combine(AppContext.BaseDirectory,"TestEvidence");System.IO.Directory.CreateDirectory(folder);var pdf=System.IO.Path.Combine(folder,"report-print-regression.pdf");ReportPdf.Save(report,pdf);
+        Check(System.IO.File.ReadAllText(pdf).StartsWith("%PDF-1.4"),"Direct PDF export succeeds without a printer.");
     }
 }

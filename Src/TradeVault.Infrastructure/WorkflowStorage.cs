@@ -10,6 +10,11 @@ public sealed partial class WorkbookStore
     private void GuardRegister(LoginSession session,Guid party,List<Dictionary<string,string>> candidate)
     {
         var rows=candidate.Where(r=>!r.ContainsKey("_metadata")).ToList();
+        for(int i=0;i<rows.Count;i++)
+        {
+            var issues=InvoiceRules.Validate(rows[i]);
+            if(issues.Count>0)throw new BusinessRuleException($"Row {i+1}: "+string.Join("\n",issues.Select(issue=>issue.Message)));
+        }
         if(rows.Where(r=>!string.IsNullOrWhiteSpace(r.GetValueOrDefault("F9"))).GroupBy(r=>r["F9"].Trim(),StringComparer.OrdinalIgnoreCase).Any(g=>g.Count()>1))throw new BusinessRuleException("Duplicate invoice reference for this party.");
         var receipts=Document<TradeVault.Application.ReceiptBook>(session,"receipts",party.ToString())?.Receipts??[];
         if(receipts.Count==0)return;
