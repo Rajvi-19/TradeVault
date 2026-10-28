@@ -13,7 +13,7 @@ internal static class WorkflowWindows
     private static void Safe(Window owner,Action action){try{action();}catch(Exception ex){MessageBox.Show(owner,ex.Message,"TradeVault",MessageBoxButton.OK,MessageBoxImage.Information);}}
     private static (Window Window,StackPanel Form) Form(Window owner,string title,int width=660,int height=560)
     {
-        var window=new Window{Owner=owner,Width=width,Height=height,MinWidth=480,MinHeight=300,WindowStartupLocation=WindowStartupLocation.CenterOwner};
+        var window=new Window{Owner=owner,Width=Math.Min(width,SystemParameters.WorkArea.Width),Height=Math.Min(height,SystemParameters.WorkArea.Height),MinWidth=Math.Min(480,SystemParameters.WorkArea.Width),MinHeight=300,WindowStartupLocation=WindowStartupLocation.CenterOwner};
         var form=new StackPanel{Margin=new(18)};form.Children.Add(Ui.Text(title,20,"#18243B",true));
         Ui.WindowFrame(window,new ScrollViewer{Content=form,VerticalScrollBarVisibility=ScrollBarVisibility.Auto},title);return(window,form);
     }
@@ -23,23 +23,23 @@ internal static class WorkflowWindows
     private static DateOnly Date(DateCellEditor box)=>DateOnly.ParseExact(DateCellConverter.Normalize(box.Text),"yyyy-MM-dd",CultureInfo.InvariantCulture);
     internal static bool Configure(Window owner,ReportWorkflow service,Guid party)
     {
-        var existing=service.Mapping(party);var (window,form)=Form(owner,"Report setup",700,650);
-        form.Children.Add(Ui.Text("Choose the independent amount sources explicitly. Existing manual worksheets are preserved. Changing mappings after receipts are posted is blocked.",12,"#64748B"));
+        var existing=service.Mapping(party);var (window,form)=Form(owner,"Report calculation settings",700,650);
+        form.Children.Add(Ui.Text("Choose these rules once per customer so the invoice register feeds both reports correctly. Rules cannot change after payments are recorded.",12,"#64748B"));
         ComboBox Choice(params KeyValuePair<string,string>[] values)=>new(){ItemsSource=values,DisplayMemberPath="Value",SelectedValuePath="Key",MinHeight=32};
-        var contract=Field(form,"Bank contract amount source",Choice(new("F6","Our customs invoice amount (F6)"),new("F7","Pakistan customs invoice amount (F7)")));
-        var received=Field(form,"Existing bank receipts source (opening cumulative amounts)",Choice(new("F22","Received MY → PK customs invoice amount (F22), dated F24"),new("F25","Received Nemichem account amount (F25), dated F26")));
+        var contract=Field(form,"Which invoice amount is the bank-contract portion?",Choice(new("F6","Our customs invoice amount"),new("F7","Pakistan customs invoice amount")));
+        var received=Field(form,"Where were earlier bank payments entered?",Choice(new("F22","Malaysia → Pakistan receipts, using Payment date"),new("F25","Nemichem receipts, using Nemichem receipt date")));
         if(existing!=null){contract.SelectedValue=existing.ContractField;received.SelectedValue=existing.BankReceivedField;}
-        var shipping=Field(form,"Shipping accounting",new CheckBox{Content="Explicitly deduct each register row's shipping amount once, on its invoice date",IsChecked=existing?.DeductRegisteredShipping??false});
-        form.Children.Add(Ui.Text("Unchecked means shipping remains manual and is excluded from generated balances. This does not infer per-container or paid-date treatment.",11,"#64748B"));
-        var openingDate=Field(form,"Opening balances effective date",new DateCellEditor{Value=(existing?.OpeningDate??DateOnly.FromDateTime(DateTime.Today)).ToString("yyyy-MM-dd"),MinHeight=32});
-        var bank=Field(form,"Opening bank balance / USD",new TextBox{Text=(existing?.OpeningBank??0).ToString("0.00",CultureInfo.InvariantCulture)});
-        var diff=Field(form,"Opening difference balance / USD",new TextBox{Text=(existing?.OpeningDifference??0).ToString("0.00",CultureInfo.InvariantCulture)});
-        var save=Ui.Button("Enable generated reports",()=>Safe(window,()=>{if(contract.SelectedValue is not string c||received.SelectedValue is not string r)throw new ArgumentException("Choose both amount sources.");service.Configure(party,new(c,r,shipping.IsChecked==true,Date(openingDate),Money(bank),Money(diff)));window.DialogResult=true;}),"PrimaryButton");save.Margin=new(0,16,0,0);form.Children.Add(save);
+        var shipping=Field(form,"Shipping deduction",new CheckBox{Content="Subtract each invoice's shipping charge from what the customer owes",IsChecked=existing?.DeductRegisteredShipping??false});
+        form.Children.Add(Ui.Text("Checked: deduct the row's shipping charge once on its invoice date. Unchecked: do not deduct shipping. This does not record a shipping payment.",11,"#64748B"));
+        var openingDate=Field(form,"Date earlier outstanding balances start",new DateCellEditor{Value=(existing?.OpeningDate??DateOnly.FromDateTime(DateTime.Today)).ToString("yyyy-MM-dd"),MinHeight=32});
+        var bank=Field(form,"Earlier bank portion still owed (USD)",new TextBox{Text=(existing?.OpeningBank??0).ToString("0.00",CultureInfo.InvariantCulture)});
+        var diff=Field(form,"Earlier difference portion still owed (USD)",new TextBox{Text=(existing?.OpeningDifference??0).ToString("0.00",CultureInfo.InvariantCulture)});
+        var save=Ui.Button("Save calculation settings",()=>Safe(window,()=>{if(contract.SelectedValue is not string c||received.SelectedValue is not string r)throw new ArgumentException("Choose both amount sources.");service.Configure(party,new(c,r,shipping.IsChecked==true,Date(openingDate),Money(bank),Money(diff)));window.DialogResult=true;}),"PrimaryButton");save.Margin=new(0,16,0,0);form.Children.Add(save);
         return window.ShowDialog()==true;
     }
     internal static ExcelGrid ReportGrid(ReportTable table)
     {
-        var fields=table.Columns.Select(c=>new Field(c.Key,c.Label,true,c.Type=="text"?240:170)).ToArray();
+        var fields=table.Columns.Select(c=>new Field(c.Key,ExcelFields.For(table.Name=="Account Details"?"details":"ledger").FirstOrDefault(f=>f.Key==c.Key)?.Label??c.Label,true,c.Type=="text"?240:170)).ToArray();
         var rows=new ObservableCollection<GridRow>(table.Rows.Select(data=>{var row=new GridRow();foreach(var cell in data)row[cell.Key]=cell.Value;return row;}));
         return new(fields,rows,true);
     }
@@ -86,39 +86,7 @@ internal static class WorkflowWindows
         try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(picker.FileName){UseShellExecute=true});}catch(Exception){MessageBox.Show(owner,"PDF saved:\n"+picker.FileName);}
     }
     internal static void Inbox(Window owner,ReportWorkflow service) { new ImportedReportsWindow(owner,service).ShowDialog(); }
-    internal static void Receipts(Window owner,ReportWorkflow service,Guid party)
-    {
-        var (window,form)=Form(owner,"Receipts and allocations",900,740);
-        if(service.Mapping(party)==null){MessageBox.Show(owner,"Complete Report setup for this party first.");return;}
-        var history=new ListBox{Height=135,DisplayMemberPath="Reference"};void Reload()=>history.ItemsSource=service.Receipts(party).Select(r=>new ReceiptHistory(r)).ToArray();Reload();
-        Field(form,"Receipt history / reversals",history);
-        form.Children.Add(Ui.Button("Reverse selected receipt",()=>Safe(window,()=>{
-            if(history.SelectedItem is not ReceiptHistory chosen)throw new ArgumentException("Select a receipt.");
-            var (dialog,body)=Form(window,"Reverse receipt",540,360);var date=Field(body,"Effective correction date",new DateCellEditor{Value=DateTime.Today.ToString("yyyy-MM-dd"),MinHeight=32});var reason=Field(body,"Reason",new TextBox());
-            body.Children.Add(Ui.Button("Post reversal",()=>Safe(dialog,()=>{service.ReverseReceipt(party,chosen.Receipt.Id,Date(date),reason.Text);dialog.DialogResult=true;}),"PrimaryButton"));dialog.ShowDialog();Reload();
-        })));
-        var receiptDate=Field(form,"New receipt date",new DateCellEditor{Value=DateTime.Today.ToString("yyyy-MM-dd"),MinHeight=32});
-        var amount=Field(form,"Receipt total / USD",new TextBox{Text="0.00"});var reference=Field(form,"Reference / account",new TextBox());
-        var allocations=new ObservableCollection<AllocationInput>();foreach(var invoice in service.Invoices(party)){var id=ReportWorkflow.InvoiceKey(party,invoice);allocations.Add(new(id,invoice.GetValueOrDefault("F9",""),"Bank"));allocations.Add(new(id,invoice.GetValueOrDefault("F9",""),"Difference"));}
-        Guid? correcting=null;
-        var table=new DataGrid{ItemsSource=allocations,AutoGenerateColumns=false,CanUserAddRows=false,Height=175};
-        foreach(var (label,path,locked) in new[]{("Invoice","Invoice",true),("Component","Component",true),("Allocate / USD","Amount",false)})table.Columns.Add(new DataGridTextColumn{Header=label,IsReadOnly=locked,Width=label=="Invoice"?300:180,Binding=new System.Windows.Data.Binding(path){UpdateSourceTrigger=System.Windows.Data.UpdateSourceTrigger.LostFocus}});
-        Field(form,"Allocate across invoices (leave zero for no allocation)",table);
-        form.Children.Add(Ui.Button("Correct selected / allocate an advance",()=>Safe(window,()=>{
-            if(history.SelectedItem is not ReceiptHistory chosen||chosen.Receipt.Reverses!=null)throw new ArgumentException("Select an original receipt.");correcting=chosen.Receipt.Id;
-            amount.Text=chosen.Receipt.Amount.ToString("0.00",CultureInfo.InvariantCulture);reference.Text=chosen.Receipt.Reference;receiptDate.Value=DateTime.Today.ToString("yyyy-MM-dd");
-            foreach(var item in allocations)item.Amount=(chosen.Receipt.Allocations.SingleOrDefault(a=>a.InvoiceId==item.Id&&a.Component==item.Component)?.Amount??0).ToString("0.00",CultureInfo.InvariantCulture);table.Items.Refresh();
-        })));
-        var totals=Ui.Text("Allocate amounts above, then choose Calculate summary.",12,"#2458D3");form.Children.Add(totals);
-        form.Children.Add(Ui.Button("Calculate summary",()=>Safe(window,()=>{table.CommitEdit();table.CommitEdit(DataGridEditingUnit.Row,true);var sum=allocations.Sum(a=>decimal.Parse(a.Amount,CultureInfo.InvariantCulture));totals.Text=$"Receipt: USD {Money(amount):N2}   Allocated: USD {sum:N2}   Unallocated: USD {Money(amount)-sum:N2}";})));
-        form.Children.Add(Ui.Button("Post receipt",()=>Safe(window,()=>{
-            table.CommitEdit();table.CommitEdit(DataGridEditingUnit.Row,true);var splits=allocations.Where(a=>decimal.Parse(a.Amount,CultureInfo.InvariantCulture)!=0).Select(a=>new ReceiptSplit(a.Id,a.Component,decimal.Parse(a.Amount,CultureInfo.InvariantCulture))).ToList();
-            if(correcting is {} id)service.CorrectReceipt(party,id,Date(receiptDate),Money(amount),reference.Text,splits);else service.RecordReceipt(party,Date(receiptDate),Money(amount),reference.Text,splits);correcting=null;amount.Text="0.00";reference.Clear();foreach(var a in allocations)a.Amount="0.00";table.Items.Refresh();Reload();totals.Text="Receipt posted. Outstanding amounts refresh when you open generated reports.";
-        }),"PrimaryButton"));window.ShowDialog();
-    }
-    private sealed record ReceiptHistory(PartyReceipt Receipt){public string Reference=>$"{Receipt.Date:dd-MM-yyyy} · {Receipt.Reference} · USD {Receipt.Amount:N2}"+(Receipt.Reverses!=null?" · REVERSAL":"");}
-    private sealed class AllocationInput(string id,string invoice,string component)
-    {public string Id{get;}=id;public string Invoice{get;}=invoice;public string Component{get;}=component;public string Amount{get;set;}="0.00";}
+    internal static void Receipts(Window owner,ReportWorkflow service,Guid party) { if(service.Mapping(party)==null){MessageBox.Show(owner,"Choose report calculation settings for this customer first.");return;}new PaymentsWindow(owner,service,party).ShowDialog(); }
     internal static void Backups(Window owner,WorkbookStore store,LoginSession session)
     {
         var (window,form)=Form(owner,"Backup and recovery",760,500);
@@ -133,7 +101,7 @@ internal static class WorkflowWindows
     }
     internal static void Reminders(Window owner,ReportWorkflow service,Guid party,DateOnly asOf)
     {
-        var (window,form)=Form(owner,"Receivables and reminders",900,550);
+        var (window,form)=Form(owner,"Unpaid invoices and payment reminders",900,550);
         var name=service.Build(party,asOf,true).PartyName;
         var items=service.Reminders(party,asOf).Select(r=>new {Party=name,r.Invoice,r.Due,r.Outstanding,r.OverdueDays,r.Status}).ToList();var table=new DataGrid{ItemsSource=items,AutoGenerateColumns=false,IsReadOnly=true,CanUserDeleteRows=false,CanUserAddRows=false,Height=350};
         foreach(var (label,path,width,format) in new[]{("Party","Party",220,""),("Invoice","Invoice",190,""),("Due date","Due",110,"{0:dd-MM-yyyy}"),("Outstanding / USD","Outstanding",145,"{0:N2}"),("Overdue days","OverdueDays",110,""),("Status","Status",150,"")})

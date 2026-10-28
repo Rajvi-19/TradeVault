@@ -1,0 +1,52 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="abc4525d-69cc-47cd-8b70-b7cf3872c59a" name="Rii@DESKTOP-6RKBQ7P 2026-10-28 03:08:59" runUser="DESKTOP-6RKBQ7P\CodexSandboxOffline" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-28T03:08:59.5285849-07:00" queuing="2026-10-28T03:08:59.5285853-07:00" start="2026-10-28T03:08:54.0881015-07:00" finish="2026-10-28T03:09:08.3261374-07:00" />
+  <TestSettings name="default" id="c62e6372-e125-4593-b5f8-b5f2fbdc09e7">
+    <Deployment runDeploymentRoot="Rii_DESKTOP-6RKBQ7P_2026-10-28_03_08_59" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="a722b87d-554c-4164-884c-7b78b4f8a599" testId="89612ff4-d550-63ed-88a8-64fdfc238880" testName="TradeVault.Tests.WorkflowTests.ExcelVisibleCellChangesAreRejected" computerName="DESKTOP-6RKBQ7P" duration="00:00:02.9056292" startTime="2026-10-28T03:09:05.3066916-07:00" endTime="2026-10-28T03:09:08.2112408-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a722b87d-554c-4164-884c-7b78b4f8a599" />
+    <UnitTestResult executionId="370f2ffa-42c4-4642-80ac-804b63727e20" testId="ae42991c-6456-2870-f6f1-9ee4ed0ec301" testName="TradeVault.Tests.WorkflowTests.ExportedExcelIsOpenXmlWithMetadataNumbersAndNoFormulaInjection" computerName="DESKTOP-6RKBQ7P" duration="00:00:03.9711792" startTime="2026-10-28T03:08:55.4854546-07:00" endTime="2026-10-28T03:08:59.4721871-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="370f2ffa-42c4-4642-80ac-804b63727e20" />
+    <UnitTestResult executionId="2b21be4b-fe62-43d5-9324-899b8c18a592" testId="48c9e5be-bca3-3ac9-201e-92b6447a1ee6" testName="TradeVault.Tests.WorkflowTests.ExcelExportContainsOnlyTwoWorkbooksWithoutTrailingNotes" computerName="DESKTOP-6RKBQ7P" duration="00:00:02.6454705" startTime="2026-10-28T03:09:02.6626547-07:00" endTime="2026-10-28T03:09:05.3055757-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2b21be4b-fe62-43d5-9324-899b8c18a592" />
+    <UnitTestResult executionId="4247c65c-1e5f-4789-a747-630a16bb9202" testId="4cc26759-7f46-3b3d-62d5-e70b514fe762" testName="TradeVault.Tests.WorkflowTests.PaymentScreenBalancesAreDatedAndAllowReplacingOnlyAnActiveReceipt" computerName="DESKTOP-6RKBQ7P" duration="00:00:03.1865364" startTime="2026-10-28T03:08:59.5052584-07:00" endTime="2026-10-28T03:09:02.6599302-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4247c65c-1e5f-4789-a747-630a16bb9202" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="TradeVault.Tests.WorkflowTests.ExcelExportContainsOnlyTwoWorkbooksWithoutTrailingNotes" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\workflowverification\tradevault.tests.dll" id="48c9e5be-bca3-3ac9-201e-92b6447a1ee6">
+      <Execution id="2b21be4b-fe62-43d5-9324-899b8c18a592" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\WorkflowVerification\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.WorkflowTests" name="ExcelExportContainsOnlyTwoWorkbooksWithoutTrailingNotes" />
+    </UnitTest>
+    <UnitTest name="TradeVault.Tests.WorkflowTests.ExcelVisibleCellChangesAreRejected" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\workflowverification\tradevault.tests.dll" id="89612ff4-d550-63ed-88a8-64fdfc238880">
+      <Execution id="a722b87d-554c-4164-884c-7b78b4f8a599" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\WorkflowVerification\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.WorkflowTests" name="ExcelVisibleCellChangesAreRejected" />
+    </UnitTest>
+    <UnitTest name="TradeVault.Tests.WorkflowTests.PaymentScreenBalancesAreDatedAndAllowReplacingOnlyAnActiveReceipt" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\workflowverification\tradevault.tests.dll" id="4cc26759-7f46-3b3d-62d5-e70b514fe762">
+      <Execution id="4247c65c-1e5f-4789-a747-630a16bb9202" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\WorkflowVerification\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.WorkflowTests" name="PaymentScreenBalancesAreDatedAndAllowReplacingOnlyAnActiveReceipt" />
+    </UnitTest>
+    <UnitTest name="TradeVault.Tests.WorkflowTests.ExportedExcelIsOpenXmlWithMetadataNumbersAndNoFormulaInjection" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\workflowverification\tradevault.tests.dll" id="ae42991c-6456-2870-f6f1-9ee4ed0ec301">
+      <Execution id="370f2ffa-42c4-4642-80ac-804b63727e20" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\WorkflowVerification\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.WorkflowTests" name="ExportedExcelIsOpenXmlWithMetadataNumbersAndNoFormulaInjection" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="89612ff4-d550-63ed-88a8-64fdfc238880" executionId="a722b87d-554c-4164-884c-7b78b4f8a599" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ae42991c-6456-2870-f6f1-9ee4ed0ec301" executionId="370f2ffa-42c4-4642-80ac-804b63727e20" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="48c9e5be-bca3-3ac9-201e-92b6447a1ee6" executionId="2b21be4b-fe62-43d5-9324-899b8c18a592" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4cc26759-7f46-3b3d-62d5-e70b514fe762" executionId="4247c65c-1e5f-4789-a747-630a16bb9202" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="4" executed="4" passed="4" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v4.0.1+0f7d528729 (64-bit .NET 10.0.14)&#xD;
+[xUnit.net 00:00:00.21]   Discovering: TradeVault.Tests&#xD;
+[xUnit.net 00:00:00.32]   Discovered:  TradeVault.Tests&#xD;
+[xUnit.net 00:00:00.38]   Starting:    TradeVault.Tests&#xD;
+[xUnit.net 00:00:13.16]   Finished:    TradeVault.Tests&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

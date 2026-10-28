@@ -87,6 +87,11 @@ internal static class AcceptanceChecks
                 Check("C05","Source workbook field counts",()=>Assert(ExcelFields.For("form").Count==26&&ExcelFields.For("details").Count==14&&ExcelFields.For("ledger").Count==9,"Field mismatch"),"26 invoice, 14 details, 9 ledger columns.");
                 Check("U01","Date normalization",()=>Assert(DateCellConverter.Normalize("26/10/2026")=="2026-10-26"&&DateCellConverter.Normalize("26-Oct-2026")=="2026-10-26","Date normalization failed"),"Day-first and named month normalize to ISO.");
                 Check("U02","Invalid date input retained",()=>Assert(DateCellConverter.Normalize("31/02/2026")=="31/02/2026","Invalid date silently converted"),"Invalid date preserved so validation can explain it.");
+                Check("U12","Calendar date validation is immediate",()=>{
+                    var editor=new DateCellEditor{Value="54-04-2007"};Assert(editor.HasInvalidDate&&!editor.TryCommitDate(),"Day 54 was accepted");
+                    editor.Value="31-02-2026";Assert(editor.HasInvalidDate&&!editor.TryCommitDate(),"February 31 was accepted");
+                    editor.Value="29-02-2024";Assert(!editor.HasInvalidDate&&editor.TryCommitDate()&&editor.Value=="2024-02-29","Valid leap day rejected");editor.Value="";Assert(editor.TryCommitDate(),"Blank optional date rejected");
+                },"Impossible days and month lengths are flagged immediately; real leap days and blank optional dates remain valid.");
                 sheet.Load("form");var grid=new ExcelGrid(sheet.Fields,sheet.Rows,promote:draft=>sheet.Add(draft));
                 var surface=new Grid();surface.Children.Add(grid);surface.Measure(new(1200,600));surface.Arrange(new(0,0,1200,600));surface.UpdateLayout();System.Windows.Application.Current.Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ContextIdle);
                 Check("U03","Continuous blank sheet without stored blanks",()=>Assert(grid.Table.Items.Count>=sheet.Rows.Count+100&&sheet.Rows.Count==11,"Blank rows persisted"),"100 spare rows available independently of stored rows.");
@@ -99,6 +104,15 @@ internal static class AcceptanceChecks
                 Check("U10","Typing promotes row and preserves defaults",()=>{var row=grid.Table.Items.Cast<GridRow>().Last();row["F1"]="QA Typed";row["F9"]="QA-TYPED";Assert(sheet.Rows.Contains(row)&&row["F18"]=="3800.00","Promotion failed");},"A spare row becomes a record only after input.");
                 sheet.Load("form");
                 Check("U11","Read-only grid rejects paste",()=>{var view=new ExcelGrid(sheet.Fields,sheet.Rows,true);var before=sheet.Rows[0]["F1"];view.Paste("forbidden");Assert(view.Table.IsReadOnly&&sheet.Rows[0]["F1"]==before,"Readonly modified");},"Read-only view refuses programmatic paste.");
+                Check("U13","Tab commits valid dates and skips calculated cells",()=>{
+                    var row=sheet.Rows[0];row["F4"]="54-04-2007";grid.Table.CurrentCell=new(row,grid.Table.Columns[3]);grid.MoveByTab(false);Assert(grid.Table.CurrentColumn==grid.Table.Columns[3],"Tab left an invalid date");
+                    row["F4"]="2024-02-29";grid.MoveByTab(false);Assert(grid.Table.CurrentColumn==grid.Table.Columns[4],"Tab did not select next input");
+                    grid.Table.CurrentCell=new(row,grid.Table.Columns[6]);grid.MoveByTab(false);Assert(grid.Table.CurrentColumn==grid.Table.Columns[8],"Tab did not skip locked difference");grid.MoveByTab(true);Assert(grid.Table.CurrentColumn==grid.Table.Columns[6],"Shift Tab did not return to prior input");
+                    grid.Table.CurrentCell=new(row,grid.Table.Columns[^1]);row["F26"]="";grid.MoveByTab(false);Assert(grid.Table.CurrentColumn==grid.Table.Columns[0]&&grid.Table.CurrentItem!=row,"Tab did not wrap to next row");
+                },"Invalid date keeps current cell; Tab/Shift+Tab navigate input columns and Tab wraps to next row.");
+                Check("U14","Invalid pasted date is atomic",()=>{
+                    var row=sheet.Rows[0];var before=row["F3"];grid.Table.CurrentCell=new(row,grid.Table.Columns[2]);grid.Paste("SHOULD-NOT-CHANGE\t54-04-2007");Assert(row["F3"]==before,"Invalid date paste partially changed data");
+                },"A range containing an impossible date is rejected before changing any input.");
                 var login=new LoginWindow(store);var main=new MainWindow(store,owner,db.Paths.Database);
                 Check("W04","Workspace fits a 1366 by 768 desktop",()=>{var area=new Rect(0,0,1366,728);var size=Ui.WorkspaceSize(area);Assert(size.Width<=area.Width&&size.Height<=area.Height,"Startup window extends outside work area");},"Startup size accounts for taskbar space so caption and report navigation remain on screen.");
                 Check("W05","All three worksheet tabs remain visible",main.CheckNavigationLayout,"Invoice register, Account details and Debit & credit button bounds are inside the 1366 by 728 workspace.");

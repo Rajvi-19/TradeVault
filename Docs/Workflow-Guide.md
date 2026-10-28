@@ -37,19 +37,21 @@ Report setup can be changed before receipts exist. After receipts are posted, ma
 - Invoices with receipt history cannot be deleted. Their historical amount/date inputs are protected; use explicit receipt corrections rather than overwriting history.
 - Generated reporting requires complete invoice dates, source amounts and dates for nonzero baseline receipts. An incomplete register remains accessible for correction even when a generated report cannot be built.
 
-## Dated receipts and allocations
+## Customer payments and unpaid invoices
 
-Use Receipts for the selected party:
-- Enter receipt date, total USD and reference/account.
-- Allocate Bank and/or Difference amounts to one or several invoices.
-- Calculate summary shows receipt, allocated and unallocated amounts.
-- Post receipt validates precision, dates, party ownership, duplicate allocation lines, receipt over-allocation and invoice-component overpayment.
-- Leave allocations at zero to record an advance. It appears as a party-ledger credit without settling a specific invoice.
-- Correct selected / allocate an advance loads an original receipt into the editor. Posting creates a dated reversal and replacement atomically. This can allocate an earlier advance after invoices exist.
-- Reverse selected receipt records an explicit dated correction with a reason. It does not delete the original.
-- A failed correction appends nothing and leaves the original receipt in effect.
+Open Payments / unpaid invoices for the selected customer. One row per invoice shows the unpaid bank portion, unpaid difference portion, total unpaid and payment due date at the selected payment date. Future invoices are excluded. Invoice balances come from application services; their sum does not subtract unassigned advances or invoice-unallocated opening balances.
 
-Historical receipt allocations and reversals are included on their effective dates. Settled invoices are not shown as overdue in generated reports/reminders. The register also uses settlement-aware overdue arithmetic after mapping is configured. Legacy unconfigured sheets retain their manual/calendar behavior.
+1. Enter Date money was received, Total money received (USD), and a Payment description / bank transfer reference. The description is a note, not a bank-account selector.
+2. Enter amounts in Pay bank portion and Pay difference portion against the relevant invoices. Bank means the contract portion; Difference means the portion remaining after approved shipping. Leave other amounts at zero.
+3. The summary updates automatically: money received, assigned to invoices and unassigned advance. Unpaid after this payment previews each invoice balance. A separate Calculate summary button is no longer needed.
+4. Save new payment validates and saves. Negative/invalid amounts, assignments above a portion's unpaid balance and assignments above the receipt total are blocked. Unassigned money is a customer advance; it reduces the ledger but does not settle an invoice until assigned.
+5. Open Recorded payments to select an existing active payment. Edit selected payment / assign its advance loads that payment. The date label changes to the date the correction takes effect. Save payment correction records reversal plus replacement atomically. Its preview removes the original payment before showing available balances, so its amounts can be reassigned. Future payments are excluded from the dated preview; final save still validates against all recorded payments.
+6. Cancel recorded payment asks for an effective date and reason. The original stays in history and its effect is reversed. This does not initiate a bank refund. Cancelled/replaced entries are marked and cannot be edited again.
+7. Start new payment / clear form exits correction mode and clears draft entries. The form scrolls vertically, and the summary/save controls stay visible at the bottom. The invoice table also scrolls horizontally/vertically when needed.
+
+Saving valid register edits or switching from the register to either report saves the register first and rebuilds the generated view from it. Invalid edits keep the user in place with an error. Customers without calculation settings are prompted to choose explicit sources before opening generated reports. Existing manual worksheets remain preserved. Invoice amount/date fields linked to receipt history remain protected; the change does not bypass historical safeguards.
+
+Historical receipts/corrections are included at their effective dates. Both report tabs use the selected report cutoff. Changing source invoice values does not reconstruct every previous invoice version; existing exported/imported snapshots stay frozen.
 
 ## Report preview, export and print
 

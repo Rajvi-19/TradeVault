@@ -12,7 +12,8 @@ public sealed class ExcelGrid : UserControl
     public DataGrid Table { get; } = new();
     private readonly ObservableCollection<GridRow> rows;
     private readonly IReadOnlyList<Field> fields;
-    private readonly TextBlock feedback = new() { TextWrapping = TextWrapping.Wrap, Margin = new(8,3,8,3), FontSize=10, Foreground=Brushes.DimGray };
+    private readonly TextBlock feedback = new() { TextWrapping = TextWrapping.Wrap, Margin = new(8,3,8,3), FontSize=11, Foreground=Ui.Color("#B42318"),Visibility=Visibility.Collapsed };
+    private string Feedback{set{feedback.Text=value;feedback.Visibility=string.IsNullOrWhiteSpace(value)?Visibility.Collapsed:Visibility.Visible;}}
     private readonly CollectionViewSource source;
     private readonly ObservableCollection<GridRow> displayRows;
     private readonly HashSet<GridRow> blanks=[];
@@ -51,8 +52,7 @@ public sealed class ExcelGrid : UserControl
                 value.SetBinding(TextBox.TextProperty,new Binding($"[{fields[Table.Columns.IndexOf(column)].Key}]"){Source=row,Mode=BindingMode.OneWay,ValidatesOnNotifyDataErrors=false});
             }
         };
-        feedback.Text = readOnly ? "Read-only · Sorting changes the view, not the account order." : "Type in any blank row · Ctrl+C / Ctrl+V · Dates: 26/10/2026, 26-Oct-2026 or yyyy-MM-dd";
-        DockPanel.SetDock(feedback,Dock.Bottom); root.Children.Add(feedback);
+        DockPanel.SetDock(feedback,Dock.Top); root.Children.Add(feedback);
         source = new CollectionViewSource { Source = displayRows };
         source.Filter += (_,e) => e.Accepted = e.Item is GridRow r && fields.Any(f => r[f.Key].Contains(search.Text,StringComparison.OrdinalIgnoreCase));
         search.TextChanged += (_,_) => { Table.CommitEdit(); Table.CommitEdit(DataGridEditingUnit.Row,true); source.View.Refresh(); };
@@ -97,16 +97,42 @@ public sealed class ExcelGrid : UserControl
             ((ListCollectionView)source.View).CustomSort=new BlankLastComparer(blanks,fields.First(f=>f.Key==key),direction==System.ComponentModel.ListSortDirection.Ascending);
         };
         Table.PreviewKeyDown += (_,e) => {
+            if(e.Key==Key.Tab&&!readOnly&&(Keyboard.Modifiers&ModifierKeys.Control)==0){e.Handled=MoveByTab((Keyboard.Modifiers&ModifierKeys.Shift)!=0);return;}
             if (e.Key == Key.V && Keyboard.Modifiers == ModifierKeys.Control && !readOnly)
             {
                 e.Handled = true;
                 try {
                     PasteClipboard();
-                } catch (System.Runtime.InteropServices.ExternalException) { feedback.Text = "Clipboard is busy. Retry paste."; }
+                } catch (System.Runtime.InteropServices.ExternalException) { Feedback = "Clipboard is busy. Retry paste."; }
             }
         };
-        Table.CellEditEnding += (_,_) => Dispatcher.BeginInvoke(new Action(() => Edited?.Invoke()));
+        Table.CellEditEnding += (_,e) => {
+            if(e.EditAction==DataGridEditAction.Commit&&FindInput(e.EditingElement) is DateCellEditor date&&!date.TryCommitDate()){e.Cancel=true;Feedback="Invalid date. Enter a real calendar date or clear the cell.";Dispatcher.BeginInvoke(new Action(()=>{date.Focus();date.SelectAll();}));return;}
+            Dispatcher.BeginInvoke(new Action(() => Edited?.Invoke()));
+        };
         root.Children.Add(Table); Content = root;
+    }
+    private static TextBox? FindInput(DependencyObject root)
+    {
+        if(root is TextBox input)return input;
+        for(int i=0;i<VisualTreeHelper.GetChildrenCount(root);i++)if(FindInput(VisualTreeHelper.GetChild(root,i)) is {} found)return found;
+        return null;
+    }
+    internal bool MoveByTab(bool backwards)
+    {
+        if(Table.IsReadOnly||Table.CurrentItem is not GridRow row||Table.CurrentColumn is not {} column)return false;
+        var field=fields[Table.Columns.IndexOf(column)];var content=column.GetCellContent(row);var input=content==null?null:FindInput(content);
+        if(field.IsDate&&(!DateCellEditor.IsValidDate(row[field.Key])||(input is DateCellEditor date&&!date.TryCommitDate())))
+        {Feedback="Invalid date. Enter a real calendar date (for example 28-10-2026) or clear the cell.";input?.Focus();input?.SelectAll();Edited?.Invoke();return true;}
+        if(!Table.CommitEdit()||!Table.CommitEdit(DataGridEditingUnit.Row,true))return true;
+        var editable=Table.Columns.Where(c=>!c.IsReadOnly).OrderBy(c=>c.DisplayIndex).ToArray();if(editable.Length==0)return false;
+        var target=backwards?editable.LastOrDefault(c=>c.DisplayIndex<column.DisplayIndex):editable.FirstOrDefault(c=>c.DisplayIndex>column.DisplayIndex);
+        int index=Table.Items.IndexOf(row);
+        if(target==null){index+=backwards?-1:1;if(index<0||index>=Table.Items.Count)return true;target=backwards?editable[^1]:editable[0];}
+        var next=Table.Items[index];Table.ScrollIntoView(next,target);Table.CurrentCell=new(next,target);Table.SelectedCells.Clear();Table.SelectedCells.Add(Table.CurrentCell);Table.UpdateLayout();
+        DependencyObject? focus=target.GetCellContent(next);while(focus!=null&&focus is not DataGridCell)focus=VisualTreeHelper.GetParent(focus);if(focus is DataGridCell cell)cell.Focus();else Table.Focus();Table.BeginEdit();
+        Dispatcher.BeginInvoke(new Action(()=>{if(Table.CurrentColumn!=target||Table.CurrentItem!=next)return;Table.UpdateLayout();var element=target.GetCellContent(next);if(element!=null&&FindInput(element) is {} editor){editor.Focus();Keyboard.Focus(editor);editor.SelectAll();}}),System.Windows.Threading.DispatcherPriority.Input);
+        Feedback="";Edited?.Invoke();return true;
     }
     private static int CompactWidth(Field field)=>field.Label.Contains("COUNTRY")?125:field.Label.Contains("DATE")?175:field.Label.Length>36?220:field.Label.Length>24?195:165;
     internal void FilterForCheck(string text)
@@ -160,32 +186,33 @@ public sealed class ExcelGrid : UserControl
     {
         Table.Focus();
         try { if(ApplicationCommands.Copy.CanExecute(null,Table)) ApplicationCommands.Copy.Execute(null,Table); }
-        catch(System.Runtime.InteropServices.ExternalException) {feedback.Text="Clipboard is busy. Retry copy.";}
+        catch(System.Runtime.InteropServices.ExternalException) {Feedback="Clipboard is busy. Retry copy.";}
     }
     public void PasteClipboard()
     {
         if(Table.IsReadOnly)return;
-        try {if(Clipboard.ContainsText())Paste(Clipboard.GetText());else feedback.Text="Copy a range of cells before pasting.";}
-        catch(System.Runtime.InteropServices.ExternalException) {feedback.Text="Clipboard is busy. Retry paste.";}
+        try {if(Clipboard.ContainsText())Paste(Clipboard.GetText());else Feedback="Copy a range of cells before pasting.";}
+        catch(System.Runtime.InteropServices.ExternalException) {Feedback="Clipboard is busy. Retry paste.";}
     }
     public void Paste(string text)
     {
-        if (Table.IsReadOnly) { feedback.Text = "This service snapshot is read-only."; return; }
+        if (Table.IsReadOnly) { Feedback = "This service snapshot is read-only."; return; }
         Table.CommitEdit(); Table.CommitEdit(DataGridEditingUnit.Row,true);
         var visible = source.View.Cast<GridRow>().ToList();
         int row = visible.IndexOf(Table.CurrentItem as GridRow ?? visible.FirstOrDefault()!);
         int col = Table.CurrentColumn?.DisplayIndex ?? 0;
-        if (row < 0) { feedback.Text = "Clear the filter or add a row before pasting."; return; }
+        if (row < 0) { Feedback = "Clear the filter or add a row before pasting."; return; }
         var ordered = Table.Columns.OrderBy(c => c.DisplayIndex).Select(c => fields[Table.Columns.IndexOf(c)]).ToArray();
         try {
             var changes = PastePlan.Create(text,row,col,visible.Count,ordered);
+            foreach(var change in changes){var field=ordered.First(f=>f.Key==change.Key);if(field.IsDate&&!DateCellEditor.IsValidDate(change.Value))throw new ArgumentException("Paste contains an invalid date. No cells were changed.");}
             foreach (var change in changes) {
                 var field=ordered.First(f=>f.Key==change.Key);
                 visible[change.Row][change.Key] = field.IsDate?DateCellConverter.Normalize(change.Value):change.Value;
             }
-            feedback.Text = $"Pasted {changes.Count} input cells — click Save to persist changes.";
+            Feedback = $"Pasted {changes.Count} input cells — click Save to persist changes.";
             Edited?.Invoke();
-        } catch (ArgumentException ex) { feedback.Text = ex.Message; }
+        } catch (ArgumentException ex) { Feedback = ex.Message; }
     }
 }
 

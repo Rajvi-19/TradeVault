@@ -1,0 +1,12 @@
+# Payment clarity and linked reports — 2026-10-28
+
+Build: UI 2026.10.28.7. Updated the normal main Debug executable, without packaging or modifying the working database.
+
+- Report-tab navigation saves valid invoice edits before opening the generated view. Invalid edits block navigation. Explicit calculation settings remain required per customer; historical receipt safeguards remain enforced. A live self-test edits invoice value, opens Account details and Debit & credit, and checks both results.
+- New PaymentsWindow replaces ambiguous component rows with one invoice row showing due date, unpaid bank/difference/total, two payment entry columns and unpaid-after-payment preview. Service contracts supply dated balances. Correction previews exclude the original active payment. Cancellations/replaced receipts are identified in history and blocked from re-editing.
+- Automatic summaries and validation replace Calculate summary. Customer advances, cancelled payments and payment descriptions have plain-language explanations. Footer totals/save controls stay pinned while the form scrolls; history is collapsed by default to prioritise unpaid invoices.
+- Friendly field headings and action names applied to the invoice register, both report views, new exports, calculation settings and payment/reminder actions. Underlying identifiers/data and original reference workbooks unchanged.
+
+Verification: Desktop builds with zero warnings/errors. Full backend run: 54 passed, no failures. After final service validation/heading changes, four focused payment/Excel/PDF tests passed. Desktop acceptance: 42 passed. Live self-test passed after the compact payment layout and invoice-to-both-reports checks. The final main executable self-test was also run. Synthetic rendered screenshots inspected at 1180x700 and 1000x600; summary/save controls are inside the viewport, and invoice rows are visible with horizontal/vertical scrolling available. Evidence: TRX files, desktop-results.md, and Screenshots/ in this directory.
+
+Limitations: no physical mouse/clipboard/printer or multi-monitor acceptance was performed. Generated balances follow the chosen report/payment date and existing invoice-history constraints. No source mapping, company record, database schema or imported submission was changed. Existing baseline receipts must not be entered again as new payments. A date change preserves assignments only for invoices still present at that date; check the summary before saving.

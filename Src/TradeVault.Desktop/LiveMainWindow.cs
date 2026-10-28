@@ -37,6 +37,9 @@ public sealed class MainWindow : Window
     private ExcelGrid? grid;
     private bool dirty,refreshing,compact=true;
     private readonly Grid sheetArea=new();
+    private readonly Border coverageBanner=new(){Background=Ui.Color("#FFF7DF"),Padding=new(10,6,10,6),Margin=new(10,0,10,4),Visibility=Visibility.Collapsed};
+    private readonly TextBlock coverageText=Ui.Text("",12,"#805400");
+    internal Func<DateOnly,DateOnly,bool>? ConfirmReportDateChange;
 
     public MainWindow(WorkbookStore store,LoginSession session,string path)
     {
@@ -60,7 +63,7 @@ public sealed class MainWindow : Window
         var navigation=new StackPanel{Orientation=Orientation.Horizontal,Margin=new(6,0,0,0)};
         foreach(var (name,label,icon) in new[]{("form","Invoice register","\uE8A5"),("details","Account details","\uE8D4"),("ledger","Debit & credit","\uE8AB")})
         {
-            var b=Ui.Button(label,()=>Run(()=>{if(Discard())Open(name);}),"QuietButton",icon);b.Padding=new(12,5,12,5);b.MinHeight=32;b.Margin=new(2,3,2,3);nav.Add(name,b);navigation.Children.Add(b);
+            var b=Ui.Button(label,()=>Run(()=>Navigate(name)),"QuietButton",icon);b.Padding=new(12,5,12,5);b.MinHeight=32;b.Margin=new(2,3,2,3);nav.Add(name,b);navigation.Children.Add(b);
         }
         if(session.Role=="Owner")
         {
@@ -101,6 +104,7 @@ public sealed class MainWindow : Window
         workflows.Children.Add(CompactButton("Reminders",()=>Run(()=>{RequireSaved();RequireParty();Options();WorkflowWindows.Reminders(this,workflow,controller.PartyId,controller.AsOf);}),"\uE787"));
         DockPanel.SetDock(workflows,Dock.Top);root.Children.Add(workflows);
         notification=new Border{Background=Ui.Color("#FFF2F0"),BorderBrush=Ui.Color("#F3C8C3"),BorderThickness=new(1),Padding=new(10,6,10,6),Margin=new(10,0,10,4),Child=message,Visibility=Visibility.Collapsed};DockPanel.SetDock(notification,Dock.Top);root.Children.Add(notification);
+        var coveragePanel=new DockPanel();var include=Ui.Button("Show all saved invoices",()=>Run(ShowAllSavedInvoices));DockPanel.SetDock(include,Dock.Right);coveragePanel.Children.Add(include);coveragePanel.Children.Add(coverageText);coverageBanner.Child=coveragePanel;DockPanel.SetDock(coverageBanner,Dock.Top);root.Children.Add(coverageBanner);
         var sheet=new Border{Background=Brushes.White,BorderBrush=Ui.Color("#DCE3ED"),BorderThickness=new(1),Margin=new(10,0,10,4),Child=sheetArea};root.Children.Add(sheet);
         opening.TextChanged+=(_,_)=>{if(!refreshing&&!generatedView)MarkDirty();};terms.TextChanged+=(_,_)=>{if(!refreshing&&!generatedView)MarkDirty();};asOf.TextChanged+=(_,_)=>{if(!refreshing&&grid!=null&&!generatedView)MarkDirty();};asOf.LostKeyboardFocus+=(_,_)=>Calculate();
         System.Windows.Automation.AutomationProperties.SetName(opening,"Opening balance in USD");System.Windows.Automation.AutomationProperties.SetName(terms,"Payment terms in calendar days");System.Windows.Automation.AutomationProperties.SetName(asOf,"Report as of date");
@@ -124,6 +128,13 @@ public sealed class MainWindow : Window
     }
     private static Button CompactButton(string text,Action action,string glyph){var b=Ui.Button(text,action,"QuietButton",glyph);b.MinHeight=30;b.Padding=new(9,4,9,4);b.Margin=new(4,0,0,0);return b;}
     private void RequireSaved(){if(dirty)throw new ArgumentException("Save or reload your current changes first.");}
+    private void Navigate(string name)
+    {
+        if(grid!=null&&(!grid.Table.CommitEdit()||!grid.Table.CommitEdit(DataGridEditingUnit.Row,true)))throw new ArgumentException("Correct the highlighted invoice cells before opening another tab.");
+        if(dirty)Save();
+        if(name!="form"&&controller.PartyId!=Guid.Empty&&workflow.Mapping(controller.PartyId)==null&&!WorkflowWindows.Configure(this,workflow,controller.PartyId))return;
+        Open(name);
+    }
     private void ShowOpeningReminders()
     {
         int overdue=0,soon=0,unavailable=0,configured=0;
@@ -157,7 +168,7 @@ public sealed class MainWindow : Window
     {
         var selected=partyId??controller.PartyId;var next=new WorksheetController(store,session);next.Load(name,selected);
         var nextGenerated=name!="form"&&workflow.Mapping(selected)!=null;
-        if(nextGenerated)
+        if(nextGenerated||(name=="form"&&grid!=null&&controller.Name!="form"&&selected==controller.PartyId))
         {
             // Both generated tabs use the register's cutoff, or the current unsaved report cutoff.
             if(selected==controller.PartyId)next.AsOf=controller.AsOf;
@@ -178,13 +189,45 @@ public sealed class MainWindow : Window
         status.Text=name=="form"&&workflow.Mapping(selected)==null?"Select a named party and complete Report setup to calculate Difference Amount.":"All changes saved";status.Foreground=Ui.Color("#64748B");revision.Text=$"Revision {controller.Revision} · Local storage";
         assignButton.Visibility=controller.PartyId==Guid.Empty?Visibility.Visible:Visibility.Collapsed;
         assignButton.IsEnabled=controller.Rows.Count>0;
+        UpdateCoverage();
+    }
+    private void UpdateCoverage()
+    {
+        var scope=workflow.Coverage(controller.PartyId,controller.AsOf);coverageBanner.Visibility=scope.AfterDate>0?Visibility.Visible:Visibility.Collapsed;
+        coverageText.Text=$"{scope.Saved} invoices saved. {scope.AfterDate} dated after As of {controller.AsOf:dd-MM-yyyy} are excluded from both reports. Latest invoice: {scope.LatestDate:dd-MM-yyyy}.";
+        if(generatedView)count.Text=$"{scope.Included} of {scope.Saved} invoices · read-only";
+    }
+    private void ShowAllSavedInvoices()
+    {
+        RequireSaved();var scope=workflow.Coverage(controller.PartyId,controller.AsOf);if(scope.LatestDate is not {} latest)return;
+        var target=latest>controller.AsOf?latest:controller.AsOf;workflow.SetReportDate(controller.PartyId,target);controller.AsOf=target;Open(controller.Name);
     }
     private void UpdateRecords(){count.Text=generatedView?"Generated · read-only":$"{controller.Rows.Count} record{(controller.Rows.Count==1?"":"s")}";deleteButton.IsEnabled=!generatedView&&grid?.Table.CurrentItem is GridRow row&&controller.Rows.Contains(row);assignButton.IsEnabled=controller.PartyId==Guid.Empty&&controller.Rows.Count>0&&!dirty;}
     private void Add(){if(grid==null||generatedView)return;var row=controller.Add();Watch(row);MarkDirty();UpdateRecords();grid.Table.ScrollIntoView(row);grid.Table.CurrentCell=new DataGridCellInfo(row,grid.Table.Columns.First(c=>!c.IsReadOnly));grid.Table.Focus();grid.Table.BeginEdit();}
     private void Delete(){if(grid?.Table.CurrentItem is GridRow row&&controller.Rows.Contains(row)&&MessageBox.Show(this,"Remove the selected record? Save changes to confirm the deletion.","Delete record",MessageBoxButton.YesNo,MessageBoxImage.Warning)==MessageBoxResult.Yes){controller.Rows.Remove(row);MarkDirty();UpdateRecords();Calculate();}}
     private void Options(){if(!decimal.TryParse(opening.Text,NumberStyles.Number,CultureInfo.InvariantCulture,out var value)||decimal.Round(value,2)!=value)throw new ArgumentException("Opening balance: enter USD with at most two decimals.");if(!int.TryParse(terms.Text,out var days)||days<0||days>3650)throw new ArgumentException("Payment terms must be 0–3650 days.");controller.Opening=value;controller.Terms=days;if(!DateOnly.TryParseExact(DateCellConverter.Normalize(asOf.Text),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var reportDate))throw new ArgumentException("As of: enter a valid date (dd-MM-yyyy).");controller.AsOf=reportDate;}
-    private void Calculate(){if(grid==null)return;try{Options();if(generatedView){var report=workflow.Build(controller.PartyId,controller.AsOf,true);grid=WorkflowWindows.ReportGrid(report.Tables[controller.Name=="details"?0:1]);sheetArea.Children.Clear();sheetArea.Children.Add(grid);status.Text="Generated report refreshed · "+controller.AsOf.ToString("dd-MM-yyyy");return;}refreshing=true;controller.Calculate();controller.Validate(false);notification.Visibility=Visibility.Collapsed;status.Text=dirty?"● Unsaved changes":"All changes saved";status.Foreground=Ui.Color(dirty?"#9A6700":"#64748B");}catch(Exception ex){Error(ex.Message);}finally{refreshing=false;}}
-    private void Save(){if(grid==null||generatedView)return;if(!grid.Table.CommitEdit()||!grid.Table.CommitEdit(DataGridEditingUnit.Row,true))throw new ArgumentException("Correct invalid cells before saving.");Options();refreshing=true;try{controller.Save();dirty=false;saveButton.IsEnabled=false;notification.Visibility=Visibility.Collapsed;status.Foreground=Ui.Color("#247653");status.Text="Changes saved";revision.Text=$"Revision {controller.Revision} · Local storage";UpdateRecords();}finally{refreshing=false;}}
+    private void Calculate(){if(grid==null)return;try{Options();if(generatedView){var report=workflow.Build(controller.PartyId,controller.AsOf,true);grid=WorkflowWindows.ReportGrid(report.Tables[controller.Name=="details"?0:1]);sheetArea.Children.Clear();sheetArea.Children.Add(grid);status.Text="Generated report refreshed · "+controller.AsOf.ToString("dd-MM-yyyy");UpdateCoverage();return;}refreshing=true;controller.Calculate();controller.Validate(false);notification.Visibility=Visibility.Collapsed;status.Text=dirty?"● Unsaved changes":"All changes saved";status.Foreground=Ui.Color(dirty?"#9A6700":"#64748B");}catch(Exception ex){Error(ex.Message);}finally{refreshing=false;}}
+    private void Save()
+    {
+        if(grid==null||generatedView)return;
+        if(!grid.Table.CommitEdit()||!grid.Table.CommitEdit(DataGridEditingUnit.Row,true))throw new ArgumentException("Correct invalid cells before saving.");
+        Options();refreshing=true;
+        try
+        {
+            controller.Save();dirty=false;saveButton.IsEnabled=false;notification.Visibility=Visibility.Collapsed;
+            if(controller.Name=="form")
+            {
+                var scope=workflow.Coverage(controller.PartyId,controller.AsOf);
+                if(scope.AfterDate>0&&scope.LatestDate is {} latest)
+                {
+                    var advance=ConfirmReportDateChange?.Invoke(controller.AsOf,latest)??(MessageBox.Show(this,$"Saved successfully. {scope.AfterDate} invoice(s) are dated after the report date {controller.AsOf:dd-MM-yyyy}. They will not appear in either report at that date.\n\nChange As of to {latest:dd-MM-yyyy} so all saved invoices appear?","Include later-dated invoices?",MessageBoxButton.YesNo,MessageBoxImage.Information)==MessageBoxResult.Yes);
+                    if(advance){controller.AsOf=latest;asOf.Value=latest.ToString("yyyy-MM-dd");controller.Save();}
+                }
+            }
+            status.Foreground=Ui.Color("#247653");status.Text="Changes saved";revision.Text=$"Revision {controller.Revision} · Local storage";UpdateRecords();UpdateCoverage();
+        }
+        finally{refreshing=false;}
+    }
     internal void PreviewSheet(string name)=>Open(name);
     internal void PreviewParty(string name,Guid party){RefreshParties(party);Open(name,party);}
     internal void CheckWorkflowInteractions()
@@ -201,8 +244,20 @@ public sealed class MainWindow : Window
         cutoffPopup!.IsOpen=true;cutoffCalendar!.SelectedDate=new DateTime(2026,8,15);
         if(controller.AsOf!=new DateOnly(2026,8,15)||cutoffPopup.IsOpen)throw new InvalidOperationException("Calendar selection did not apply the reporting cutoff and close the popup.");
         asOf.Value="2026-10-28";Calculate();
+        PreviewParty("form",party.Id);controller.Rows[0]["F5"]="16000";Navigate("details");
+        if(((GridRow)grid!.Table.Items[0])["C"]!="16000.00")throw new InvalidOperationException("Invoice edits did not save when opening Account details.");
+        Navigate("ledger");if(grid!.Table.Items.Cast<GridRow>().Last()["E"]!="12200.00")throw new InvalidOperationException("Invoice edit did not reach debit/credit.");
+        Navigate("form");controller.Rows[0]["F5"]="15000";Navigate("details");
+        var payments=new PaymentsWindow(this,workflow,party.Id);payments.CheckForAcceptance();payments.Close();
         workflow.RecordReceipt(party.Id,new(2026,7,1),5000,"UI workflow test",[new(ReportWorkflow.InvoiceKey(party.Id,row.Snapshot()),"Bank",5000)]);
         PreviewParty("details",party.Id);if(((GridRow)grid.Table.Items[0])["F"]!="5000.00")throw new InvalidOperationException("Generated UI did not reflect dated receipt.");
+        PreviewParty("form",party.Id);ConfirmReportDateChange=(_,_)=>false;var future=controller.Add();Watch(future);future["F9"]="WF-FUTURE";future["F10"]="2026-11-20";future["F5"]="15000";future["F6"]="10000";Save();
+        Navigate("details");if(grid!.Table.Items.Count!=1||coverageBanner.Visibility!=Visibility.Visible)throw new InvalidOperationException("Later invoice was hidden without a reporting-date warning.");
+        ShowAllSavedInvoices();if(grid!.Table.Items.Count!=2||controller.AsOf!=new DateOnly(2026,11,20))throw new InvalidOperationException("Show all saved invoices did not include the future invoice.");
+        Navigate("ledger");if(!grid!.Table.Items.Cast<GridRow>().Any(r=>r["B"].Contains("WF-FUTURE")))throw new InvalidOperationException("Later invoice did not reach Debit/Credit.");
+        Navigate("form");if(controller.AsOf!=new DateOnly(2026,11,20)||workflow.Coverage(party.Id,new(2026,11,20)).AfterDate!=0)throw new InvalidOperationException("Report date was lost when returning to register.");
+        ConfirmReportDateChange=(_,_)=>true;future=controller.Add();Watch(future);future["F9"]="WF-FUTURE-2";future["F10"]="2026-12-01";future["F5"]="15000";future["F6"]="10000";Save();Navigate("details");
+        if(grid!.Table.Items.Count!=3||controller.AsOf!=new DateOnly(2026,12,1))throw new InvalidOperationException("Accepted report-date advance did not display the new invoice.");ConfirmReportDateChange=null;
         PreviewParty("form",Guid.Empty);
     }
     private void RefreshParties(Guid selected)

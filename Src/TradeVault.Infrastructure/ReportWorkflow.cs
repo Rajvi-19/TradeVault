@@ -41,6 +41,35 @@ public sealed partial class ReportWorkflow(WorkbookStore store,LoginSession sess
     public static string InvoiceKey(Guid party,Dictionary<string,string> row)=>row.GetValueOrDefault("_id")??Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(party+"|"+row.GetValueOrDefault("F9","").Trim().ToUpperInvariant())));
     public List<Dictionary<string,string>> Invoices(Guid party)=>store.Load(session,"form",party).Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
     public List<PartyReceipt> Receipts(Guid party)=>store.Document<ReceiptBook>(session,"receipts",party.ToString())?.Receipts??[];
+    public ReportCoverage Coverage(Guid party,DateOnly asOf)
+    {
+        var rows=Invoices(party);var dates=rows.Select(r=>DateOnly.TryParseExact(r.GetValueOrDefault("F10",""),"yyyy-MM-dd",Culture,DateTimeStyles.None,out var date)?(DateOnly?)date:null).ToList();
+        return new(rows.Count,dates.Count(d=>d<=asOf),dates.Count(d=>d>asOf),dates.Count(d=>d==null),dates.Where(d=>d!=null).Max());
+    }
+    public void SetReportDate(Guid party,DateOnly date)
+    {
+        Party(party);var snapshot=store.Load(session,"form",party);var metadata=snapshot.Rows.SingleOrDefault(r=>r.ContainsKey("_metadata"));
+        if(metadata==null){metadata=new(){["_metadata"]="1",["opening"]="0",["terms"]="90"};snapshot.Rows.Insert(0,metadata);}
+        metadata["asOf"]=date.ToString("yyyy-MM-dd",Culture);store.Save(session,"form",snapshot.Revision,snapshot.Rows,party);
+    }
+    public List<InvoicePaymentBalance> PaymentBalances(Guid party,DateOnly date,Guid? replacing=null)
+    {
+        var receipts=Receipts(party);
+        if(replacing is {} id)
+        {
+            var original=receipts.SingleOrDefault(r=>r.Id==id)??throw new BusinessRuleException("Choose a recorded payment.");
+            if(original.Reverses!=null||receipts.Any(r=>r.Reverses==id)||date<original.Date)throw new BusinessRuleException("Choose an active payment and a correction date on or after its original date.");
+            receipts=receipts.Where(r=>r.Id!=id).ToList();
+        }
+        var table=BuildGenerated(party,date,receipts,false).Tables[0];var invoices=Invoices(party);
+        return table.Rows.Select(r=>new InvoicePaymentBalance(InvoiceKey(party,invoices.Single(i=>i.GetValueOrDefault("F9")==r["B"])),r["B"],string.IsNullOrEmpty(r["N"])?null:DateOnly.ParseExact(r["N"],"yyyy-MM-dd",Culture),decimal.Parse(r["F"],Culture),decimal.Parse(r["I"],Culture)-decimal.Parse(r["J"],Culture))).ToList();
+    }
+    public static decimal RemainingAfterPayment(InvoicePaymentBalance invoice,decimal bank,decimal difference)
+    {
+        Money(bank);Money(difference);if(bank<0||difference<0)throw new BusinessRuleException("Payment assignments cannot be negative.");
+        if(bank>invoice.BankUnpaid||difference>invoice.DifferenceUnpaid)throw new BusinessRuleException("Payment exceeds the unpaid bank or difference amount for "+invoice.Invoice+".");
+        return invoice.TotalUnpaid-bank-difference;
+    }
     public PartyReceipt RecordReceipt(Guid party,DateOnly date,decimal amount,string reference,List<ReceiptSplit> splits)
     {
         Party(party);if(Mapping(party)==null)throw new BusinessRuleException("Configure generated reports first.");
@@ -165,7 +194,7 @@ public sealed partial class ReportWorkflow(WorkbookStore store,LoginSession sess
     {
         var details=name=="Account Details";
         var keys=details?new[]{"A","B","C","D","E","F","G","H","I","J","K","L","M","N"}:new[]{"B","C","D","E","G","H","I","J","K"};
-        var labels=details?new[]{"SR. NO.","OUR CUSTOMS INVOICE NO & DATE","ORIGINAL AMOUNT $","BANK CONTRACT AMOUNT $","REC. INVOICE  PAYMENT IN MALAYSIA A/C","PENDING INVOICE PAYMENT IN MALAYSIA A/C","DIFFRENCE AMAOUNT $","SHIPMENT PAYMENT $","PER BILL DIFF. AFTER SHIPMENT PAYMENT USD","REC. DIFF. AMOUNT","TOTAL DIFF. AMOUNT PENDING $","BL DATE. MLY TO PAK","TERMS","DUE DATE"}:new[]{"PARTICULARS","DEBIT","CREDIT","BALANCE (USD)","DUE","BANK PAYMENT","BL DATE","TERMS","DUE"};
+        var labels=details?new[]{"SR. NO.","OUR CUSTOMS INVOICE NO & DATE","ORIGINAL AMOUNT $","BANK CONTRACT AMOUNT $","REC. INVOICE  PAYMENT IN MALAYSIA A/C","PENDING INVOICE PAYMENT IN MALAYSIA A/C","DIFFRENCE AMAOUNT $","SHIPMENT PAYMENT $","PER BILL DIFF. AFTER SHIPMENT PAYMENT  USD","REC. DIFF. AMOUNT","TOTAL DIFF. AMOUNT PENDING $","BL DATE. MLY TO PAK","TERMS","DUE DATE"}:new[]{"Transaction description","Amount added / USD (Debit)","Amount deducted / USD (Credit)","Running amount owed / USD","Payment due date","Bank amount / USD","Bill of lading date","Payment terms / days","Payment due date"};
         return keys.Select((k,i)=>new ReportColumn(k,labels[i],(details?k is "L" or "N":k is "G" or "I" or "K")?"date":(details?k is not("B"):k is "C" or "D" or "E" or "H" or "J")?"number":"text")).ToList();
     }
     private static ReportTable Table(string name,List<Dictionary<string,string>> rows)

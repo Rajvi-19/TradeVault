@@ -10,6 +10,25 @@ namespace TradeVault.Tests;
 
 public sealed class WorkflowTests
 {
+    [Fact]public void FutureInvoiceCoverageAndExplicitCutoffAdvancePreserveInvoiceInputs()
+    {
+        using var f=new Fixture();var before=f.Workflow.Invoices(f.Party);var scope=f.Workflow.Coverage(f.Party,new(2026,5,31));
+        Assert.Equal(2,scope.AfterDate);Assert.Equal(0,scope.Included);Assert.Equal(new DateOnly(2026,6,1),scope.LatestDate);
+        Assert.Empty(f.Workflow.Build(f.Party,new(2026,5,31),true).Tables[0].Rows);
+        f.Workflow.SetReportDate(f.Party,new(2026,6,1));Assert.Equal(2,f.Workflow.Build(f.Party,new(2026,6,1),true).Tables[0].Rows.Count);
+        var after=f.Workflow.Invoices(f.Party);Assert.Equal(System.Text.Json.JsonSerializer.Serialize(before),System.Text.Json.JsonSerializer.Serialize(after));
+        Assert.Equal("2026-06-01",f.Store.Load(f.Owner,"form",f.Party).Rows.Single(r=>r.ContainsKey("_metadata"))["asOf"]);
+    }
+    [Fact]public void PaymentScreenBalancesAreDatedAndAllowReplacingOnlyAnActiveReceipt()
+    {
+        using var f=new Fixture();Assert.Empty(f.Workflow.PaymentBalances(f.Party,new(2026,5,1)));
+        var receipt=f.Workflow.RecordReceipt(f.Party,new(2026,7,1),3200,"SCREEN",[new("one","Bank",3000),new("one","Difference",200)]);
+        var balance=f.Workflow.PaymentBalances(f.Party,new(2026,7,1)).Single(b=>b.Id=="one");
+        Assert.Equal(7000,balance.BankUnpaid);Assert.Equal(1000,balance.DifferenceUnpaid);Assert.Equal(8000,balance.TotalUnpaid);
+        Assert.Equal(6500,ReportWorkflow.RemainingAfterPayment(balance,1000,500));Assert.Throws<BusinessRuleException>(()=>ReportWorkflow.RemainingAfterPayment(balance,7001,0));
+        Assert.Equal(11200,f.Workflow.PaymentBalances(f.Party,new(2026,7,1),receipt.Id).Single(b=>b.Id=="one").TotalUnpaid);
+        f.Workflow.ReverseReceipt(f.Party,receipt.Id,new(2026,8,1),"TEST");Assert.Throws<BusinessRuleException>(()=>f.Workflow.PaymentBalances(f.Party,new(2026,8,1),receipt.Id));
+    }
     [Fact]public void OpeningDifferenceIsVisibleWithoutInvoiceRows()
     {
         using var f=new Fixture();var party=f.Store.CreateParty(f.Owner,"Opening balance only");

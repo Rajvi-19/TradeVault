@@ -8,6 +8,22 @@ namespace TradeVault.Desktop;
 public sealed class DateCellEditor : TextBox
 {
     private bool syncing, deleting;
+    public bool HasInvalidDate{get;private set;}
+    private System.Windows.Media.Brush? previousBrush;private Thickness previousThickness;
+    public static bool IsValidDate(string input)=>string.IsNullOrWhiteSpace(input)||DateOnly.TryParseExact(DateCellConverter.Normalize(input),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out _);
+    public bool TryCommitDate()
+    {
+        UpdateValidation();if(HasInvalidDate)return false;
+        SetCurrentValue(ValueProperty,DateCellConverter.Normalize(Text));Refresh();return true;
+    }
+    private void UpdateValidation()
+    {
+        var invalid=!IsValidDate(Text);
+        if(invalid&&!HasInvalidDate){previousBrush=BorderBrush;previousThickness=BorderThickness;}
+        if(invalid){BorderBrush=Ui.Color("#C2413C");BorderThickness=new(1);ToolTip="Enter a real calendar date, for example 28-10-2026. Clear the cell if the date is unknown.";}
+        else if(HasInvalidDate){BorderBrush=previousBrush;BorderThickness=previousThickness;ToolTip=null;}
+        HasInvalidDate=invalid;
+    }
     public static readonly DependencyProperty ValueProperty=DependencyProperty.Register(nameof(Value),typeof(string),typeof(DateCellEditor),
         new FrameworkPropertyMetadata("",FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,(d,_)=>((DateCellEditor)d).Refresh()));
     public string Value{get=>(string)GetValue(ValueProperty);set=>SetValue(ValueProperty,value);}
@@ -27,7 +43,7 @@ public sealed class DateCellEditor : TextBox
                 var incompleteYear=parts.Length==3&&parts[0].Length!=4&&parts[2].Length<4;
                 SetCurrentValue(ValueProperty,incompleteYear?Text:DateCellConverter.Normalize(Text));
             }
-            finally{syncing=false;deleting=false;}
+            finally{syncing=false;deleting=false;UpdateValidation();}
         };
         System.Windows.Automation.AutomationProperties.SetName(this,"Date, day-month-year");
     }
@@ -53,6 +69,6 @@ public sealed class DateCellEditor : TextBox
     {
         if(syncing)return;syncing=true;
         try{Text=DateOnly.TryParseExact(Value,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var date)?date.ToString("dd-MM-yyyy",CultureInfo.InvariantCulture):Value;}
-        finally{syncing=false;}
+        finally{syncing=false;UpdateValidation();}
     }
 }
