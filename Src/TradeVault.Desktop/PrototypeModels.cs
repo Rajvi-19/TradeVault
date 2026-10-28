@@ -31,6 +31,7 @@ public interface IPrototypeService
 
 public sealed class GridRow : INotifyPropertyChanged, INotifyDataErrorInfo
 {
+    public Dictionary<string,string> Snapshot()=>new(values);
     private readonly Dictionary<string, string> values = new();
     private IReadOnlyList<CellIssue> issues = [];
     public string this[string key]

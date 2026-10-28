@@ -4,40 +4,31 @@ Offline Windows software for shipment records, USD receivables and party reports
 
 ## Project status
 
-Latest phase (2026-10-27): party-scoped workspaces are implemented. Use Create party / Select party to keep each party's three worksheets, opening balances and settings separate. Existing pre-party data migrates to Unassigned records after an automatic pre-upgrade backup. See [Party workspaces](Docs/Party-Workspaces.md) for safe assignment instructions. Earlier status/audit entries below describe prior milestones.
+Current implementation: **UI 2026.10.27.9**, 2026-10-27. Party workspaces, generated reports, receipt allocation/correction, Excel/package export, Owner import/review, reminders, backup/restore and password management are implemented. Legacy independent worksheets are preserved. Generated reports require explicit field mapping; see the [workflow guide](Docs/Workflow-Guide.md).
 
-As of 2026-10-27: the Desktop application starts at a real login page and uses SQLite for three empty, editable Excel-shaped worksheets. The previous mock implementation has been removed. Live worksheet persistence is separate from the earlier normalized invoice/receipt service; automatic cross-report population and receipt allocation UI integration remain outstanding. Read the newest work log below for current scope; older entries describe historical milestones.
+Verification: 28 backend tests and 39 desktop acceptance checks passed, along with the published executable's isolated self-test. See the [implementation report](Docs/Testing/2026-10-27/Implementation/Report.md) for evidence and limitations. Physical USB/clean-PC, hands-on UI/printer acceptance and confidentiality decisions remain outstanding.
 
 ## Run the connected application
 
-- Build/run: `dotnet run --project Src/TradeVault.Desktop/TradeVault.Desktop.csproj`. Close any running copy before rebuilding.
-- Built executable: `Src/TradeVault.Desktop/bin/Debug/net10.0-windows/TradeVault.Desktop.exe`.
-- Predefined usernames: `owner` and `operator`. Initial credentials are provisioned in `WorkbookStore`; password hashes are stored using salted PBKDF2-SHA256 (600,000 iterations). No role dropdown bypass exists. Do not record passwords in this log.
-- Select a worksheet, type into a blank row, then Save. Untouched spare rows are not stored. Reload or close/reopen to verify persistence. New company databases contain no sample records. The current compact interface is labelled UI 2026.10.26.3; old running instances must be closed and rebuilt/relaunched to load changes.
-- Labels/order come from `Docs/formet.xlsx` (26 fields), Account Details row 2 (14 fields) and Debit/Credit row 2 (9 populated fields). Source spelling is preserved; surrounding whitespace is trimmed. The two identically named DUE columns remain separate. Dates use `yyyy-MM-dd`; money is USD with up to two decimals.
-- Calculated columns are locked. Account Details uses F=D-E, G=C-D, I=C-D-H, K=previous K+I-J (including the corrected first row), N=L+M. Ledger E=previous E+C-D and K=I+J. Opening balance is editable above the reports. Input form due/reminder/overdue derive from Malaysia BL date and editable default terms; its difference amount remains an input because that source has no formula defining it.
-- Worksheet rows are saved atomically with revision checks in `worksheets`; authentication checks are enforced by WorkbookStore. Each worksheet is independent and has its own opening balance/terms metadata. They are not automatically reconciled or populated from each other. Receipt amounts in these worksheets are cumulative manual inputs, not the existing normalized receipt allocation workflow.
-- Database location is shown in the window footer: `Data/tradevault.db` beside the executable. Keep the whole application folder on the USB for portable operation. The current development executable still requires the installed .NET 10 Desktop Runtime. The SQLite file is not encrypted; authentication alone does not prevent direct file access. Physical USB/no-host-artefact acceptance remains outstanding.
-- Owner report import is explicitly marked unavailable; no dummy submissions, receipt totals or reports are displayed.
+- Development: `dotnet run --project Src/TradeVault.Desktop/TradeVault.Desktop.csproj`. Close the old running copy before rebuilding/relaunching.
+- Portable release: extract the entire `Src/TradeVault.Desktop/bin/Portable/TradeVault-win-x64-2026.10.27.7.zip` onto each USB and open TradeVault.Desktop.exe. Keep separate Owner and Operator folders. The runtime is bundled.
+- Preserve existing Data/ and Backups/ folders during upgrades. Company databases, exported reports and backups live beside the executable. No company data was changed during implementation tests.
+- Predefined usernames are owner and operator; credentials use salted PBKDF2 hashes. Change passwords through the application. Do not record passwords in this log.
+- USD throughout; 90-day terms and USD 3,800 shipping defaults are editable. Terms are retained per invoice; changing the default affects new records.
+- Owner import stores immutable submissions separately from working records. Checksums provide integrity, not sender authentication. The database and packages are not encrypted.
+- Earlier work-log entries below describe historical milestones and may contain superseded status statements.
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-Desktop interface prototype implemented in `Src/TradeVault.Desktop/` with synthetic in-memory services and dependency-free UI checks. Database, real authentication, accounting services and file handling are not implemented in this prototype. `Docs/` contains three reference workbooks.
-=======
-Backend foundation implemented and verified: Domain/Application/Infrastructure projects, SQLite migration, party/invoice services, receipt allocations, bank-contract balance queries, consistent backup and nine passing automated tests. There is no desktop executable or production-ready application yet. Authentication, full accounting reports, Excel exports and owner report import remain future work. Use synthetic data until encryption and security are implemented.
+## Historical foundation status (superseded)
 
-## Backend quick start
+The original introductory milestone statements are retained here for attribution/history. The current implementation status above supersedes them.
 
-- Open `TradeVault.sln` with a .NET 10 SDK available.
-- Run `powershell -NoProfile -ExecutionPolicy Bypass -File ./build-backend.ps1` from the project root. Execution-policy bypass applies only to that build process; no machine policy is changed.
-- Initial dependency restore needs developer internet access. Subsequent local builds can use `-NoRestore`; deployed software will not need NuGet or internet.
-- Read [Developer A integration guide](Docs/Backend-Integration.md) for service composition, field definitions, examples and implementation boundaries.
-- SQLite schema source: `Src/TradeVault.Infrastructure/Migrations/001_Initial.sql`. Only this milestone's tables are implemented; the larger entity list below remains the proposed future design.
-- Service contracts: `Src/TradeVault.Application/Contracts.cs`. The desktop project should consume these instead of writing its own persistence or financial calculations.
->>>>>>> Stashed changes
-=======
-Windows desktop interface implemented in `Src/TradeVault.Desktop/`, redesigned around a modern Excel-style workspace. It currently uses synthetic in-memory services while Developer B's integration is pending; authentication, accounting, persistence and file operations are not production-ready. `Docs/` contains three reference workbooks. Earlier work-log entries describe the previous UI and remain preserved as history.
->>>>>>> Stashed changes
+Desktop interface prototype implemented in Src/TradeVault.Desktop/ with synthetic in-memory services and dependency-free UI checks. Database, real authentication, accounting services and file handling were not implemented in that prototype. Docs/ contains three reference workbooks.
+
+Backend foundation implemented and verified: Domain/Application/Infrastructure projects, SQLite migration, party/invoice services, receipt allocations, bank-contract balance queries, consistent backup and nine passing automated tests. At that milestone there was no desktop executable or production-ready application; authentication, full accounting reports, Excel exports and owner report import were future work.
+
+The later modern Excel-style workspace milestone initially used synthetic services pending integration. Its authentication, accounting, persistence and file operations were not production-ready at that stage. Subsequent entries record integration and replacement of those mocks.
+
+Historical backend quick start: open TradeVault.sln with the .NET 10 SDK; run build-backend.ps1 (initial restore requires network). See Docs/Backend-Integration.md and Application/Contracts.cs. The original schema foundation is Migrations/001_Initial.sql; subsequent migrations and schema 4 extend that foundation.
 
 ## Documentation rule
 
@@ -194,7 +185,6 @@ First end-to-end milestone: create one invoice on the Operator USB, allocate a p
 - Git pull updates source files; it does not rebuild ignored executable outputs or update copies on another folder/USB. Launch the rebuilt output, or use `dotnet run --project Src/TradeVault.Desktop/TradeVault.Desktop.csproj` after pulling.
 - Changes: this README and generated build outputs only; no UI or backend source changes. Interactive visual acceptance remains pending.
 
-<<<<<<< Updated upstream
 ### 2026-10-26 — Pulled desktop prototype verification and launch guide
 
 - Inspected Developer A's Desktop project, startup/self-test entry point, mock service composition and integration proposal. `MainWindow` currently constructs `MockPrototypeService`; no backend adapter is connected.
@@ -204,7 +194,6 @@ First end-to-end milestone: create one invoice on the Operator USB, allocate a p
 - Limitations: saves are memory-only; closing loses mock edits. No real login, database save, receipt posting, Excel export or report-file import is connected. No actual UI session or physical USB test was performed in this verification.
 - Repository observation: the current checkout has no root `TradeVault.sln`, common backend build settings, build script or backend integration guide from the earlier foundation. Git reports backend project directories and development caches as untracked. No files were deleted or backend integration attempted during this inspection. Reconcile/track Developer B's foundation before connecting it to Desktop.
 - Files changed in this session: `Readme.md` only; build outputs were generated under Desktop bin/obj. Next: manually review the prototype, restore/reconcile backend source control, then implement a Desktop adapter against the shared Application contracts.
-=======
 ### 2026-10-26 — Developer B backend foundation
 
 - Added `TradeVault.sln`, common build settings, local NuGet configuration, ignored build/data patterns and `build-backend.ps1`.
@@ -218,7 +207,6 @@ First end-to-end milestone: create one invoice on the Operator USB, allocate a p
 - Environment notes: SDK is installed. Initial restore encountered host NuGet configuration access and sandbox network restrictions; redirected development caches/config into `.build/` and successfully restored packages with network-enabled execution. The build script disables automatic ASP.NET certificate generation; the initial SDK first-run output reported certificate setup before that setting was added. No company data was used in builds/tests.
 - Limitations: not tested on physical removable media or a clean deployment PC. No login/role enforcement, encryption, full audit before/after values, receipt correction/reallocation, difference/shipping postings, report generation/import, or production restore UI. Historical queries use current invoice values, not temporal invoice versions. Explicit development roots are allowed; production USB enforcement remains to be added. All those items are documented, not claimed complete.
 - Next: Developer A connects its grid to the contracts; confirm amount/shipping/receipt-component policies before expanding the accounting model. Then add authentication/security, remaining accounting entities and both report outputs.
->>>>>>> Stashed changes
 
 ### 2026-10-26 — Requirements and planning baseline
 
@@ -287,3 +275,54 @@ First end-to-end milestone: create one invoice on the Operator USB, allocate a p
 - Actual live QA accessibility tree exposed native Minimize/Maximize/Close. Windows screenshot capture timed out and click geometry was unavailable; mouse clicks/state transitions are NOT claimed passed. The user then stopped Computer Use with physical Escape; no further UI automation was performed. An isolated QA window may still be open.
 - Limitations: owner submission import/export, integrated allocation UI, automatic cross-worksheet report generation and production USB acceptance remain incomplete. Numeric sorting is currently text-based and is recorded as a limitation in the report. Native clicks, clipboard/keyboard/dialog interactions, calendar popup, high-DPI and multi-monitor testing remain pending. Existing historical README merge markers were preserved.
 - Next: save/close the running old app and rebuild/relaunch the normal project to load UI 2026.10.26.3; resume interactive acceptance when allowed. Do not use the synthetic InteractiveQA build for company work.
+
+### 2026-10-27 — Current-state review and isolated synthetic-data audit
+
+- Reviewed commit 5029364, latest source and project history before testing. Confirmed party workspaces/schema-3 migration backups, legacy assignment, custom caption controls, date masks, scoped validation, numeric sorting and persisted party metadata. Older documentation about absent party scoping/native-only captions is superseded; previous entries were preserved.
+- No application logic or company data changed. Added only a test-only audit runner under Test/TradeVault.Desktop.Audit and evidence/report artifacts under Docs/Testing/2026-10-27; appended this README entry. Shared solution and backend projects were not modified.
+- Built Desktop to isolated bin/Audit20261027: passed, zero warnings/errors. Executed current acceptance suite: 39 passed, zero failed. Current --self-test, including FixRegressionChecks and party UI-handler checks, passed. Backend xUnit: 14 passed, zero failed/skipped, including all five party/migration tests. Rendered and reviewed synthetic login/register screens at normal/minimum size.
+- Additional audit seeded 3 named TEST parties, 12 invoices, 12 detail rows and 39 ledger entries into a new isolated database with pre-seed backup. Eight probes produced 4 successful safeguards and 4 confirmed gaps: duplicate worksheet invoices accepted, overdue arithmetic ignores receipt fields, no worksheet historical cutoff, and register terms remain worksheet-wide. Successful probes cover seeding/counts, party mismatch rejection, independent application roots and partial-receipt pending amounts.
+- First restore of the new audit project hit NuGet vulnerability metadata access failure in the sandbox; approved network-enabled retry restored dependencies. Fixed a missing System.IO import in that test runner; final probe run succeeded. No project-wide security/audit suppression or application changes were introduced.
+- Full report: Docs/Testing/2026-10-27/Report.md. Includes current changes, detailed test evidence, source-vs-UI boundaries, prioritized recommendations, eight remaining delivery phases and completion gates. Summary JSON, desktop case results, eight probe results, backend TRX and synthetic screenshots are alongside it.
+- Limitations: no new physical UI/clipboard/caption-button, removable-media, clean-PC, high-DPI, accessibility, performance or damaged-storage tests. Export/import, integrated allocation UI and automatic shared-data reporting remain missing. Application is a functioning party-scoped worksheet system, not yet the full original product. Synthetic audit databases remain in ignored test-output folders; company storage/reference workbooks were not opened for writing.
+- Next: review and approve the prioritized work order; address demonstrated correctness/policy gaps and integrate the original invoice-to-reports/manual-owner-sharing flow. Keep independent USD amount fields and defer automatic shipping postings until their accounting trigger is explicit.
+
+### 2026-10-27 — Remaining-phase confirmation
+
+- Rechecked current commit 5029364, README and Desktop/Application feature entry points. No new application implementation since the preceding audit; Owner import is still disabled and receipt services remain disconnected from the UI.
+- Review only: appended this README entry; no code, company data or reference workbook changes. No tests rerun; referenced the existing 2026-10-27 test report rather than claiming new results.
+- Remaining order: report export, Owner package import/review, receipt UI, authoritative shared report data, reporting correctness/reminders, backup/access hardening, portable release and end-to-end acceptance. Track duplicate worksheet references and worksheet-wide terms as correctness work alongside those phases.
+
+## Work session — 2026-10-27 — remaining workflow implementation
+
+Implemented generated reports from an explicitly configured register mapping; dated split receipts, advances, corrections/reversals; settlement-aware reminders and per-invoice terms; two Excel exports, printable views and versioned packages; Owner preview/import, duplicate/revision protection, read-only history and reviews; backup/restore and password management; self-contained x64 USB packaging. Imported submissions remain separate from Owner working data. Existing worksheet/normalized data is preserved.
+
+Files affected: Application/WorkflowContracts.cs; Infrastructure/WorkflowStorage.cs, ReportWorkflow.cs, ReportFiles.cs, PortableDatabase.cs and WorkbookStore.cs; Desktop/WorkflowWindows.cs, LiveMainWindow.cs, WorksheetController.cs, PrototypeModels.cs, App.xaml.cs, Ui.cs, LiveChecks.cs and AcceptanceChecks.cs; Desktop publish/verification scripts; backend WorkflowTests.cs and migration tests; TradeVault.sln; Docs/Workflow-Guide.md and Docs/Testing/2026-10-27/Implementation/. Older developer work-log entries are preserved; stale introductory status and unresolved merge marker lines were removed.
+
+Verification: Desktop build zero warnings/errors; 28 backend tests passed; 39 desktop acceptance checks passed; generated workflow self-test passed; published runtime-contained executable self-test exit 0; Excel structure independently read successfully. Synthetic test databases were isolated; no company database was changed. The portable ZIP excludes Data, Backups, Reports and synthetic TestData.
+
+Limitations/next steps: physical USB and clean-PC testing, hands-on UI/DPI/clipboard/printer acceptance, company field-mapping validation and confidentiality/recovery policy remain release gates. No encryption/signatures or full historical invoice-state reconstruction are claimed. Negative-net generated credit notes remain unsupported. See the implementation report for complete boundaries. Prior audit probes describe historical gaps and are superseded by the workflow tests for changed behavior.
+
+## Work session — 2026-10-27 — visible worksheet navigation and hover rendering
+
+Request: restore Account details and Debit & credit navigation and address intermittent black rectangles during cursor movement. The supplied screenshot showed build .6 with its top caption/navigation outside the visible screen. Fixed the 1440 by 880 startup size to fit the Windows work area (including taskbar), with minimum dimensions constrained for smaller displays. Retained all three tabs and added horizontal navigation scrolling for constrained widths. Replaced the dark default tooltip with a light opaque control template without drop shadow to mitigate hover artifacts; intermittent graphics behavior has not been reproduced interactively and is not claimed conclusively fixed.
+
+Files: Desktop/LiveMainWindow.cs, Ui.cs, App.xaml and AcceptanceChecks.cs. Build label is UI 2026.10.27.8. Verification: Desktop build zero warnings/errors; 41 acceptance checks passed including simulated 1366 by 768 work-area sizing and actual bounds for all three navigation buttons; self-contained x64 publication succeeded. Evidence: Docs/Testing/2026-10-27/NavigationFix/desktop-results.md. No accounting or company data changes.
+
+Next steps/limitations: close the older running build and launch .8; verify cursor hover on the affected display. Physical DPI/multi-monitor and intermittent GPU/compositor artifacts still require hands-on confirmation. Preserve Data and Backups when updating USB application files.
+
+## Work session — 2026-10-27 — read-only workbook calculation analysis
+
+Inspected all three reference XLSX files using bundled Python/openpyxl in formula mode and compared WorksheetController, ExcelFields and ReportWorkflow. No workbook, company database or application behavior was changed. formet.xlsx contains 26 labels and no formulas. Account Details contains difference C-D, bank pending D-E, net difference C-D-H, running difference, due-date and summary formulas. Debit/Credit contains running balances and BL-plus-terms due dates, with three G due cells linked to K and earlier examples entered as dates.
+
+Findings: invoice-register F8 remains manual although report G is calculated; selecting whether the bank contract maps to Our Customs or Pak Customs requires company confirmation. Account Details K4 uses K3+J4 whereas subsequent rows use previous K+I-J; current app uses the consistent latter rule. J21 sums only J3:J14 despite populated J15:J18; H21 stops at H15 (later H inputs currently blank). N14:N18 lack due formulas. Row 8 is a receipt-only row and should not be mistaken for a missing invoice. Generated app reports use the saved register and receipts after explicit mapping; preserved legacy reports remain independent/manual. Exported Excel contains calculated values, not live Excel formulas. Formula inspection is not a recalculation in Microsoft Excel. Next: confirm bank-contract source and shipping treatment before changing the register difference field to a locked calculated field. Explanation delivered in the conversation; this session makes no formula-rule changes.
+
+## Work session — 2026-10-27 — workbook-derived test workspace and calculated fields
+
+Implemented Invoice Register Difference Amount as a locked calculated column, provided by ReportWorkflow.RegisterDifference: Original minus the explicitly configured bank-contract source. It stays blank if mapping or required inputs are absent; register status/tooltip explains setup. No company mapping was guessed. Ledger's duplicate G Due is now locked and follows calculated K Due. Existing consistent first-row running balance, complete generated totals and BL-plus-terms calculations apply rather than reproducing the source spreadsheet errors. Reference XLSX files remain unchanged.
+
+Created a separate self-contained build UI 2026.10.27.9 at Src/TradeVault.Desktop/bin/Portable/ExcelDemo-2026.10.27.9 with an intentionally included TEST database: 14 workbook-derived invoices plus a two-invoice receipt-practice party, two shared/partial receipts and USD 250 advance. Source names/identifiers replaced; real reference amounts retained. Missing dates/terms and round-off treatment are documented in DEMO-READ-ME.md and Docs/Testing/2026-10-27/ExcelDemo/Guide.md. Blank shipping is zero; pending BL is blank. Unknown Pak Customs amounts stay blank. Missing invoice date and all baseline payment dates use explicitly documented TEST assumptions. Main generated balance USD 713,243.00, bank pending USD 400,363.00 and difference pending USD 312,880.00 were independently inspected. Corrected legacy balance including USD 0.25 round-off is USD 312,879.75. Generated reports intentionally omit that undated non-invoice adjustment.
+
+Files: Infrastructure/ReportWorkflow.cs; Desktop/ExcelFields.cs, WorksheetController.cs, LiveMainWindow.cs, Ui.cs, App.xaml.cs and new ExcelDemoSeeder.cs; WorkflowTests.cs and AcceptanceChecks.cs; Workflow-Guide.md; workbook-derived JSON fixture, evidence and guide under Docs/Testing/2026-10-27/ExcelDemo. Demo seeding is explicit and rejects existing database files; normal startup never inserts samples. Existing company databases were not opened or modified.
+
+Verification: build zero warnings/errors; 29 backend tests passed (TRX retained), 42 acceptance checks passed, isolated desktop self-test passed, self-contained x64 publication succeeded, 16 calculated F8 values persisted, 14/2 generated report rows verified, corrected legacy round-off balance checked. Samples and exports are included only in the separate TEST package. Physical cursor/DPI/USB/printer acceptance remains outstanding. Next: run the test package, select a TEST party and exercise edits/receipts/export/import in independent application folders. Confirm contract mapping for actual company records before enabling generated reports there.

@@ -1,0 +1,16 @@
+{
+  "ReviewDate": "2026-10-27",
+  "SourceCommit": "5029364",
+  "BuildLabel": "UI 2026.10.27.6",
+  "DesktopPass": 39,
+  "DesktopFail": 0,
+  "BackendPass": 14,
+  "BackendFail": 0,
+  "BackendTotal": 14,
+  "AuditProbePass": 4,
+  "AuditConfirmedGaps": 4,
+  "AuditUnexpectedFailures": 0,
+  "DesktopSelfTest": "PASS",
+  "PhysicalInteractiveAcceptance": "Not performed",
+  "ApplicationLogicChanged": false
+}

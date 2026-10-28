@@ -75,7 +75,7 @@ public sealed class PartyWorkbookTests:IDisposable
         using(var c=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=paths.Database,Pooling=false}.ToString()))
         {
             c.Open();using var command=c.CreateCommand();
-            command.CommandText="DROP TABLE party_worksheets; DROP TABLE worksheet_parties; DELETE FROM schema_migrations WHERE version=3; INSERT INTO worksheets VALUES('details',7,$data)";
+            command.CommandText="DROP TABLE party_worksheets; DROP TABLE worksheet_parties; DROP TABLE workflow_documents; DROP TABLE workflow_audit; DELETE FROM schema_migrations WHERE version>=3; INSERT INTO worksheets VALUES('details',7,$data)";
             command.Parameters.AddWithValue("$data",legacy);command.ExecuteNonQuery();
         }
         using(var migrated=new PortableDatabase(paths))

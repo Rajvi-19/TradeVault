@@ -1,0 +1,53 @@
+{
+  "DatasetRoot": "C:\\Users\\Rii\\OneDrive\\Desktop\\Sinuvera\\TradeVault\\Test\\TradeVault.Desktop.Audit\\bin\\Audit20261027\\AuditData\\c83fccb863da4874b9b056b8a09e44ad",
+  "Findings": [
+    {
+      "Id": "P01",
+      "Status": "PASS",
+      "Scenario": "Seed three named parties in isolated database",
+      "Observation": "Named parties=3; invoices=12; details=12; ledger=39. Metadata excluded. Pre-seed backup exists=True."
+    },
+    {
+      "Id": "P02",
+      "Status": "GAP CONFIRMED",
+      "Scenario": "Duplicate invoice numbers in one party\u0027s worksheet",
+      "Observation": "Saved rows with same invoice number=2. No worksheet duplicate guard."
+    },
+    {
+      "Id": "P03",
+      "Status": "GAP CONFIRMED",
+      "Scenario": "Overdue status after all sample receivable components received",
+      "Observation": "Bank contract=10000; bank received=10000; net difference=1200; difference received=1200; displayed overdue days=41. Worksheet overdue is calendar-based, not settlement-aware."
+    },
+    {
+      "Id": "P04",
+      "Status": "GAP CONFIRMED",
+      "Scenario": "As-of date with later shipment/ledger row",
+      "Observation": "As-of=2026-10-01; BL=2027-01-01; running balance=100.00. No historical filtering in worksheet calculation."
+    },
+    {
+      "Id": "P05",
+      "Status": "GAP CONFIRMED",
+      "Scenario": "Input-register terms affect every invoice",
+      "Observation": "Changing worksheet terms to60 changes both due dates to 2026-08-16; no per-row terms input in the register."
+    },
+    {
+      "Id": "P06",
+      "Status": "PASS",
+      "Scenario": "Party mismatch blocks UI-controller save",
+      "Observation": "Controller rejected a mismatched party name."
+    },
+    {
+      "Id": "P07",
+      "Status": "PASS",
+      "Scenario": "Separate application roots remain independent",
+      "Observation": "Second isolated application root contains only Unassigned records and no first-database rows."
+    },
+    {
+      "Id": "P08",
+      "Status": "PASS",
+      "Scenario": "Partial receipt fixture retains pending amount",
+      "Observation": "Second invoice pending bank=30250.50; expected30250.50 after20000 received."
+    }
+  ]
+}

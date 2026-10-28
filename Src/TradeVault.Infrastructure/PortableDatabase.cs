@@ -51,7 +51,7 @@ public sealed class PortableDatabase : IDisposable
             {
                 inspect.CommandText="SELECT COALESCE(MAX(version),0) FROM schema_migrations";
                 var previous=Convert.ToInt32(inspect.ExecuteScalar());
-                if(previous is >0 and <3)CreateBackup();
+                if(previous is >0 and <4)CreateBackup();
             }
         }
         using (var setup = connection.CreateCommand())
@@ -69,7 +69,7 @@ public sealed class PortableDatabase : IDisposable
             SELECT COALESCE(MAX(version), 0) FROM schema_migrations;
             """;
         var version = Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
-        if (version > 3) throw new InvalidOperationException("This database requires a newer TradeVault application.");
+        if (version > 4) throw new InvalidOperationException("This database requires a newer TradeVault application.");
         if (version == 0)
         {
             using var stream = typeof(PortableDatabase).Assembly.GetManifestResourceStream(
@@ -116,6 +116,16 @@ public sealed class PortableDatabase : IDisposable
                 """;
             command.ExecuteNonQuery();
         }
+        if(version<4)
+        {
+            command.Parameters.Clear();
+            command.CommandText="""
+                CREATE TABLE workflow_documents(kind TEXT NOT NULL,id TEXT NOT NULL,revision INTEGER NOT NULL,data TEXT NOT NULL,PRIMARY KEY(kind,id)) STRICT;
+                CREATE TABLE workflow_audit(id TEXT PRIMARY KEY,actor TEXT NOT NULL,action TEXT NOT NULL,entity TEXT NOT NULL,before_json TEXT,after_json TEXT,created_at TEXT NOT NULL) STRICT;
+                INSERT INTO schema_migrations VALUES(4,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+                """;
+            command.ExecuteNonQuery();
+        }
         transaction.Commit();
     }
 
@@ -141,5 +151,12 @@ public sealed class PortableDatabase : IDisposable
         if (disposed) return;
         disposed = true;
         lease.Dispose();
+    }
+    internal void RestoreVerified(string path)
+    {
+        var rollback=CreateBackup();
+        void Copy(string sourcePath){using var source=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=sourcePath,Mode=SqliteOpenMode.ReadOnly,Pooling=false}.ToString());source.Open();using var destination=Open();source.BackupDatabase(destination);}
+        try{Copy(path);Initialize();}
+        catch{Copy(rollback);throw;}
     }
 }

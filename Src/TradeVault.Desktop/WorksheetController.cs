@@ -31,13 +31,16 @@ public sealed class WorksheetController(WorkbookStore store, LoginSession sessio
                 if(data.TryGetValue("asOf",out var asOf)&&DateOnly.TryParseExact(asOf,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var reportDate))AsOf=reportDate;
                 continue;
             }
-            var row = new GridRow(); foreach (var cell in data) row[cell.Key] = cell.Value; Rows.Add(row);
+            var row = new GridRow(); foreach (var cell in data) row[cell.Key] = cell.Value;
+            if(name=="form"){if(row["_id"].Length==0)row["_id"]=ReportWorkflow.InvoiceKey(PartyId,data);if(row["_terms"].Length==0)row["_terms"]=Terms.ToString();}
+            Rows.Add(row);
         }
         Calculate();
     }
     public GridRow Add(GridRow? draft=null)
     {
         var row = draft??new GridRow();
+        if(Name=="form"){row["_id"]=Guid.NewGuid().ToString();row["_terms"]=Terms.ToString();}
         if(Name=="form"&&PartyId!=Guid.Empty&&string.IsNullOrWhiteSpace(row["F1"]))row["F1"]=PartyName;
         if (Name == "form" && string.IsNullOrEmpty(row["F18"])) row["F18"] = "3800.00";
         if (Name == "details") { if(string.IsNullOrEmpty(row["H"]))row["H"] = "3800.00"; if(string.IsNullOrEmpty(row["M"]))row["M"] = "90"; }
@@ -76,7 +79,7 @@ public sealed class WorksheetController(WorkbookStore store, LoginSession sessio
             var blKey=Name=="form"?"F17":Name=="details"?"L":"I";
             if(DateOnly.TryParseExact(row[blKey],"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var bl))
             {
-                var termDays=term==""?Terms:int.TryParse(row[term],out var entered)?entered:90;
+                var termDays=term==""?(int.TryParse(row["_terms"],out var savedTerms)?savedTerms:Terms):int.TryParse(row[term],out var entered)?entered:90;
                 try{DueDates.Calculate(bl,termDays);}catch(BusinessRuleException ex){issues.Add(new(blKey,ex.Message));}
             }
             if(publish)row.SetIssues(issues); errors.AddRange(issues.Select(e=>$"Row {i+1}: {e.Message}"));
@@ -88,6 +91,7 @@ public sealed class WorksheetController(WorkbookStore store, LoginSession sessio
     {
         Validate(false);
         decimal running = Opening;
+        var workflow=Name=="form"?new ReportWorkflow(store,session):null;
         bool runningKnown=true;
         for (int i=0; i<Rows.Count; i++)
         {
@@ -108,22 +112,24 @@ public sealed class WorksheetController(WorkbookStore store, LoginSession sessio
                 if(runningKnown){running += Number(row,"I")-Number(row,"J");Set(row,"K",running);}else row["K"]="";
                 Due(row,"L","M","N");
             }
-            else if (Name == "ledger") { if(runningKnown){running+=Number(row,"C")-Number(row,"D");Set(row,"E",running);}else row["E"]=""; Due(row,"I","J","K"); }
+            else if (Name == "ledger") { if(runningKnown){running+=Number(row,"C")-Number(row,"D");Set(row,"E",running);}else row["E"]=""; Due(row,"I","J","K");row["G"]=row["K"]; }
             else
             {
-                Due(row,"F17","","F19",Terms);
+                var difference=workflow!.RegisterDifference(PartyId,row.Snapshot());if(difference is {} calculated)Set(row,"F8",calculated);else row["F8"]="";
+                Due(row,"F17","_terms","F19",Terms);
                 var due = Date(row,"F19");
                 row["F20"] = due is {} d && d.DayNumber >= 30 ? d.AddDays(-30).ToString("yyyy-MM-dd") : "";
-                row["F21"] = due is {} deadline ? Math.Max(0,AsOf.DayNumber-deadline.DayNumber).ToString() : "";
+                row["F21"] = due is {} deadline ? (new ReportWorkflow(store,session).SettlementAwareOverdue(PartyId,row.Snapshot(),AsOf)??Math.Max(0,AsOf.DayNumber-deadline.DayNumber)).ToString() : "";
             }
         }
     }
     public void Save()
     {
         var errors = Validate(); if (errors.Count > 0) throw new BusinessRuleException(string.Join("\n",errors.Take(8)));
+        if(Name=="form"&&Rows.GroupBy(r=>r["F9"].Trim(),StringComparer.OrdinalIgnoreCase).Any(g=>g.Count()>1))throw new BusinessRuleException("Duplicate invoice references. Include financial year/container suffix when distinct.");
         Calculate();
         var data = new List<Dictionary<string,string>> { new() { ["_metadata"]="1", ["opening"]=Opening.ToString(CultureInfo.InvariantCulture), ["terms"]=Terms.ToString(CultureInfo.InvariantCulture),["asOf"]=AsOf.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture) } };
-        data.AddRange(Rows.Select(row => Fields.ToDictionary(f=>f.Key,f=>row[f.Key])));
+        data.AddRange(Rows.Select(row => {var data=Fields.ToDictionary(f=>f.Key,f=>row[f.Key]);if(Name=="form"){data["_id"]=row["_id"];data["_terms"]=row["_terms"];}return data;}));
         Revision = store.Save(session,Name,Revision,data,PartyId);
     }
 }

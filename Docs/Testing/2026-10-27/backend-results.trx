@@ -1,0 +1,112 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="8aac0d61-18f5-4d71-b01e-c4c12794c1f7" name="Rii@DESKTOP-6RKBQ7P 2026-10-27 10:10:12" runUser="DESKTOP-6RKBQ7P\CodexSandboxOffline" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-27T10:10:12.4816400-07:00" queuing="2026-10-27T10:10:12.4816405-07:00" start="2026-10-27T10:10:05.3289706-07:00" finish="2026-10-27T10:10:28.0495982-07:00" />
+  <TestSettings name="default" id="01b2eded-0665-458e-9561-4a65522607e1">
+    <Deployment runDeploymentRoot="Rii_DESKTOP-6RKBQ7P_2026-10-27_10_10_12" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="0624fb78-3aa8-4219-af8c-88276329e409" testId="8f41104a-320d-d93f-24f3-ad736a50a3c6" testName="TradeVault.Tests.PartyWorkbookTests.InvalidDuplicateAndUnauthenticatedPartyOperationsAreRejected" computerName="DESKTOP-6RKBQ7P" duration="00:00:02.0882949" startTime="2026-10-27T10:10:25.8475541-07:00" endTime="2026-10-27T10:10:27.9354097-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0624fb78-3aa8-4219-af8c-88276329e409" />
+    <UnitTestResult executionId="822e639f-efab-4189-98c3-c22439dee48e" testId="a63d53c5-4e09-e58c-89d1-32dddbaae2c7" testName="TradeVault.Tests.PartyWorkbookTests.PartiesHaveIndependentWorksheetsRevisionsAndMetadataAcrossReopen" computerName="DESKTOP-6RKBQ7P" duration="00:00:08.4089850" startTime="2026-10-27T10:10:09.4159820-07:00" endTime="2026-10-27T10:10:17.7952186-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="822e639f-efab-4189-98c3-c22439dee48e" />
+    <UnitTestResult executionId="7f42bd06-2f3d-40cc-84a9-8574cfd2612a" testId="b0f51ce6-08ea-7a24-0a97-217dad900908" testName="TradeVault.Tests.PartyWorkbookTests.AssignmentMovesMetadataAtomicallyAndRejectsOverwriteAndStaleSaves" computerName="DESKTOP-6RKBQ7P" duration="00:00:02.2440887" startTime="2026-10-27T10:10:23.6034380-07:00" endTime="2026-10-27T10:10:25.8468740-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7f42bd06-2f3d-40cc-84a9-8574cfd2612a" />
+    <UnitTestResult executionId="38948b2d-bc12-4a3c-8f4c-1768c5635858" testId="50c4c2fe-c18c-bc63-3143-b8e31507aae0" testName="TradeVault.Tests.BackendTests.HistoricalBalanceExcludesFutureReceiptsAndInvoices" computerName="DESKTOP-6RKBQ7P" duration="00:00:00.0846859" startTime="2026-10-27T10:10:11.1904103-07:00" endTime="2026-10-27T10:10:11.2749178-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="38948b2d-bc12-4a3c-8f4c-1768c5635858" />
+    <UnitTestResult executionId="5d85ad35-21e0-4aac-a323-e7b61502eefd" testId="82e707bc-6a6c-26f2-8a47-18991a217098" testName="TradeVault.Tests.BackendTests.BackupCanBeReopenedAndSecondInstanceIsBlocked" computerName="DESKTOP-6RKBQ7P" duration="00:00:00.0850162" startTime="2026-10-27T10:10:11.5442173-07:00" endTime="2026-10-27T10:10:11.6289089-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5d85ad35-21e0-4aac-a323-e7b61502eefd" />
+    <UnitTestResult executionId="ac59f532-5895-43ef-aab6-fe4bc6f25d20" testId="548d05c2-4827-30d2-4cc7-1aec23a82f46" testName="TradeVault.Tests.BackendTests.OverAllocationRollsBackEntireReceipt" computerName="DESKTOP-6RKBQ7P" duration="00:00:00.0712118" startTime="2026-10-27T10:10:11.3655694-07:00" endTime="2026-10-27T10:10:11.4365071-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ac59f532-5895-43ef-aab6-fe4bc6f25d20" />
+    <UnitTestResult executionId="27793852-4d72-41e2-a6bd-19d629394002" testId="d8f2a5c5-81e6-d363-e432-b145fc1df9b7" testName="TradeVault.Tests.PartyWorkbookTests.MixedInvoiceOwnershipCannotBeSilentlyAssigned" computerName="DESKTOP-6RKBQ7P" duration="00:00:02.8345235" startTime="2026-10-27T10:10:20.7685211-07:00" endTime="2026-10-27T10:10:23.6025097-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="27793852-4d72-41e2-a6bd-19d629394002" />
+    <UnitTestResult executionId="36ff4971-a839-4752-a8a3-0a37fa2d59e8" testId="faaf542b-3eb7-8381-737e-396a5211b5c8" testName="TradeVault.Tests.BackendTests.CrossPartyAndDuplicateAllocationsAreRejected" computerName="DESKTOP-6RKBQ7P" duration="00:00:00.1434240" startTime="2026-10-27T10:10:11.0492646-07:00" endTime="2026-10-27T10:10:11.1898895-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="36ff4971-a839-4752-a8a3-0a37fa2d59e8" />
+    <UnitTestResult executionId="c046e752-6b6f-4465-a80a-1117b1884057" testId="25efdb7c-5986-265a-eab7-8f3fe7325e08" testName="TradeVault.Tests.BackendTests.InvalidPrecisionDatesAndNegativeValuesAreRejected" computerName="DESKTOP-6RKBQ7P" duration="00:00:00.0717611" startTime="2026-10-27T10:10:11.6294793-07:00" endTime="2026-10-27T10:10:11.7008908-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c046e752-6b6f-4465-a80a-1117b1884057" />
+    <UnitTestResult executionId="3c4823a0-f0a3-4088-b947-3bb71425d21f" testId="5242cac7-7f4d-fd45-71ff-4b45ef373ebb" testName="TradeVault.Tests.BackendTests.DefaultsAndChangesPersistAcrossReopen" computerName="DESKTOP-6RKBQ7P" duration="00:00:00.0899314" startTime="2026-10-27T10:10:11.2753618-07:00" endTime="2026-10-27T10:10:11.3651010-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3c4823a0-f0a3-4088-b947-3bb71425d21f" />
+    <UnitTestResult executionId="e82a398a-1f19-4496-aa91-69fcd7ae1b0d" testId="d1412cac-dda6-083b-b458-c3cabbe735e5" testName="TradeVault.Tests.BackendTests.MultiplePartialReceiptsAndOneReceiptAcrossInvoices" computerName="DESKTOP-6RKBQ7P" duration="00:00:00.1068587" startTime="2026-10-27T10:10:11.4368868-07:00" endTime="2026-10-27T10:10:11.5436659-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e82a398a-1f19-4496-aa91-69fcd7ae1b0d" />
+    <UnitTestResult executionId="d2ff75e8-c017-4e6b-917d-7d63ec93b50a" testId="49affd9a-05dc-b2de-8404-dc494bf9a0b0" testName="TradeVault.Tests.BackendTests.StaleEditsDuplicatesAndReducingAllocatedAmountsAreRejected" computerName="DESKTOP-6RKBQ7P" duration="00:00:01.5710442" startTime="2026-10-27T10:10:09.4123086-07:00" endTime="2026-10-27T10:10:10.9578336-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d2ff75e8-c017-4e6b-917d-7d63ec93b50a" />
+    <UnitTestResult executionId="8bd42c46-551b-46b3-a542-ac6c6a8fafa5" testId="767d510b-9db0-29fa-aef8-21df501a0dd8" testName="TradeVault.Tests.BackendTests.OverdueStopsWhenFullyPaidAndUnknownBlHasNoDueDate" computerName="DESKTOP-6RKBQ7P" duration="00:00:00.0868968" startTime="2026-10-27T10:10:10.9830789-07:00" endTime="2026-10-27T10:10:11.0459206-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8bd42c46-551b-46b3-a542-ac6c6a8fafa5" />
+    <UnitTestResult executionId="9cf71235-92a6-4a95-8901-f2cde4ae2b8e" testId="cb5689fc-0c1e-07fa-c6a4-cbe86cc17af9" testName="TradeVault.Tests.PartyWorkbookTests.VersionTwoMigrationKeepsExactLegacyDataAndMakesUsableBackup" computerName="DESKTOP-6RKBQ7P" duration="00:00:02.9723427" startTime="2026-10-27T10:10:17.7976495-07:00" endTime="2026-10-27T10:10:20.7677819-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9cf71235-92a6-4a95-8901-f2cde4ae2b8e" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="TradeVault.Tests.BackendTests.StaleEditsDuplicatesAndReducingAllocatedAmountsAreRejected" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\audit20261027\tradevault.tests.dll" id="49affd9a-05dc-b2de-8404-dc494bf9a0b0">
+      <Execution id="d2ff75e8-c017-4e6b-917d-7d63ec93b50a" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\Audit20261027\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.BackendTests" name="StaleEditsDuplicatesAndReducingAllocatedAmountsAreRejected" />
+    </UnitTest>
+    <UnitTest name="TradeVault.Tests.BackendTests.DefaultsAndChangesPersistAcrossReopen" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\audit20261027\tradevault.tests.dll" id="5242cac7-7f4d-fd45-71ff-4b45ef373ebb">
+      <Execution id="3c4823a0-f0a3-4088-b947-3bb71425d21f" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\Audit20261027\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.BackendTests" name="DefaultsAndChangesPersistAcrossReopen" />
+    </UnitTest>
+    <UnitTest name="TradeVault.Tests.BackendTests.HistoricalBalanceExcludesFutureReceiptsAndInvoices" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\audit20261027\tradevault.tests.dll" id="50c4c2fe-c18c-bc63-3143-b8e31507aae0">
+      <Execution id="38948b2d-bc12-4a3c-8f4c-1768c5635858" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\Audit20261027\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.BackendTests" name="HistoricalBalanceExcludesFutureReceiptsAndInvoices" />
+    </UnitTest>
+    <UnitTest name="TradeVault.Tests.PartyWorkbookTests.AssignmentMovesMetadataAtomicallyAndRejectsOverwriteAndStaleSaves" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\audit20261027\tradevault.tests.dll" id="b0f51ce6-08ea-7a24-0a97-217dad900908">
+      <Execution id="7f42bd06-2f3d-40cc-84a9-8574cfd2612a" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\Audit20261027\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.PartyWorkbookTests" name="AssignmentMovesMetadataAtomicallyAndRejectsOverwriteAndStaleSaves" />
+    </UnitTest>
+    <UnitTest name="TradeVault.Tests.BackendTests.CrossPartyAndDuplicateAllocationsAreRejected" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\audit20261027\tradevault.tests.dll" id="faaf542b-3eb7-8381-737e-396a5211b5c8">
+      <Execution id="36ff4971-a839-4752-a8a3-0a37fa2d59e8" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\Audit20261027\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.BackendTests" name="CrossPartyAndDuplicateAllocationsAreRejected" />
+    </UnitTest>
+    <UnitTest name="TradeVault.Tests.BackendTests.MultiplePartialReceiptsAndOneReceiptAcrossInvoices" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\audit20261027\tradevault.tests.dll" id="d1412cac-dda6-083b-b458-c3cabbe735e5">
+      <Execution id="e82a398a-1f19-4496-aa91-69fcd7ae1b0d" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\Audit20261027\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.BackendTests" name="MultiplePartialReceiptsAndOneReceiptAcrossInvoices" />
+    </UnitTest>
+    <UnitTest name="TradeVault.Tests.PartyWorkbookTests.InvalidDuplicateAndUnauthenticatedPartyOperationsAreRejected" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\audit20261027\tradevault.tests.dll" id="8f41104a-320d-d93f-24f3-ad736a50a3c6">
+      <Execution id="0624fb78-3aa8-4219-af8c-88276329e409" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\Audit20261027\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.PartyWorkbookTests" name="InvalidDuplicateAndUnauthenticatedPartyOperationsAreRejected" />
+    </UnitTest>
+    <UnitTest name="TradeVault.Tests.BackendTests.OverAllocationRollsBackEntireReceipt" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\audit20261027\tradevault.tests.dll" id="548d05c2-4827-30d2-4cc7-1aec23a82f46">
+      <Execution id="ac59f532-5895-43ef-aab6-fe4bc6f25d20" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\Audit20261027\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.BackendTests" name="OverAllocationRollsBackEntireReceipt" />
+    </UnitTest>
+    <UnitTest name="TradeVault.Tests.BackendTests.InvalidPrecisionDatesAndNegativeValuesAreRejected" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\audit20261027\tradevault.tests.dll" id="25efdb7c-5986-265a-eab7-8f3fe7325e08">
+      <Execution id="c046e752-6b6f-4465-a80a-1117b1884057" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\Audit20261027\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.BackendTests" name="InvalidPrecisionDatesAndNegativeValuesAreRejected" />
+    </UnitTest>
+    <UnitTest name="TradeVault.Tests.BackendTests.OverdueStopsWhenFullyPaidAndUnknownBlHasNoDueDate" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\audit20261027\tradevault.tests.dll" id="767d510b-9db0-29fa-aef8-21df501a0dd8">
+      <Execution id="8bd42c46-551b-46b3-a542-ac6c6a8fafa5" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\Audit20261027\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.BackendTests" name="OverdueStopsWhenFullyPaidAndUnknownBlHasNoDueDate" />
+    </UnitTest>
+    <UnitTest name="TradeVault.Tests.PartyWorkbookTests.VersionTwoMigrationKeepsExactLegacyDataAndMakesUsableBackup" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\audit20261027\tradevault.tests.dll" id="cb5689fc-0c1e-07fa-c6a4-cbe86cc17af9">
+      <Execution id="9cf71235-92a6-4a95-8901-f2cde4ae2b8e" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\Audit20261027\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.PartyWorkbookTests" name="VersionTwoMigrationKeepsExactLegacyDataAndMakesUsableBackup" />
+    </UnitTest>
+    <UnitTest name="TradeVault.Tests.PartyWorkbookTests.PartiesHaveIndependentWorksheetsRevisionsAndMetadataAcrossReopen" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\audit20261027\tradevault.tests.dll" id="a63d53c5-4e09-e58c-89d1-32dddbaae2c7">
+      <Execution id="822e639f-efab-4189-98c3-c22439dee48e" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\Audit20261027\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.PartyWorkbookTests" name="PartiesHaveIndependentWorksheetsRevisionsAndMetadataAcrossReopen" />
+    </UnitTest>
+    <UnitTest name="TradeVault.Tests.PartyWorkbookTests.MixedInvoiceOwnershipCannotBeSilentlyAssigned" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\audit20261027\tradevault.tests.dll" id="d8f2a5c5-81e6-d363-e432-b145fc1df9b7">
+      <Execution id="27793852-4d72-41e2-a6bd-19d629394002" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\Audit20261027\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.PartyWorkbookTests" name="MixedInvoiceOwnershipCannotBeSilentlyAssigned" />
+    </UnitTest>
+    <UnitTest name="TradeVault.Tests.BackendTests.BackupCanBeReopenedAndSecondInstanceIsBlocked" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\audit20261027\tradevault.tests.dll" id="82e707bc-6a6c-26f2-8a47-18991a217098">
+      <Execution id="5d85ad35-21e0-4aac-a323-e7b61502eefd" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\Audit20261027\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.BackendTests" name="BackupCanBeReopenedAndSecondInstanceIsBlocked" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="8f41104a-320d-d93f-24f3-ad736a50a3c6" executionId="0624fb78-3aa8-4219-af8c-88276329e409" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a63d53c5-4e09-e58c-89d1-32dddbaae2c7" executionId="822e639f-efab-4189-98c3-c22439dee48e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b0f51ce6-08ea-7a24-0a97-217dad900908" executionId="7f42bd06-2f3d-40cc-84a9-8574cfd2612a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="50c4c2fe-c18c-bc63-3143-b8e31507aae0" executionId="38948b2d-bc12-4a3c-8f4c-1768c5635858" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="82e707bc-6a6c-26f2-8a47-18991a217098" executionId="5d85ad35-21e0-4aac-a323-e7b61502eefd" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="548d05c2-4827-30d2-4cc7-1aec23a82f46" executionId="ac59f532-5895-43ef-aab6-fe4bc6f25d20" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d8f2a5c5-81e6-d363-e432-b145fc1df9b7" executionId="27793852-4d72-41e2-a6bd-19d629394002" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="faaf542b-3eb7-8381-737e-396a5211b5c8" executionId="36ff4971-a839-4752-a8a3-0a37fa2d59e8" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="25efdb7c-5986-265a-eab7-8f3fe7325e08" executionId="c046e752-6b6f-4465-a80a-1117b1884057" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5242cac7-7f4d-fd45-71ff-4b45ef373ebb" executionId="3c4823a0-f0a3-4088-b947-3bb71425d21f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d1412cac-dda6-083b-b458-c3cabbe735e5" executionId="e82a398a-1f19-4496-aa91-69fcd7ae1b0d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="49affd9a-05dc-b2de-8404-dc494bf9a0b0" executionId="d2ff75e8-c017-4e6b-917d-7d63ec93b50a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="767d510b-9db0-29fa-aef8-21df501a0dd8" executionId="8bd42c46-551b-46b3-a542-ac6c6a8fafa5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="cb5689fc-0c1e-07fa-c6a4-cbe86cc17af9" executionId="9cf71235-92a6-4a95-8901-f2cde4ae2b8e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="14" executed="14" passed="14" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v4.0.1+0f7d528729 (64-bit .NET 10.0.14)&#xD;
+[xUnit.net 00:00:00.96]   Discovering: TradeVault.Tests&#xD;
+[xUnit.net 00:00:01.33]   Discovered:  TradeVault.Tests&#xD;
+[xUnit.net 00:00:01.44]   Starting:    TradeVault.Tests&#xD;
+[xUnit.net 00:00:20.10]   Finished:    TradeVault.Tests&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

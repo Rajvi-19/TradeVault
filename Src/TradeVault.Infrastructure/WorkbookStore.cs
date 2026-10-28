@@ -13,7 +13,7 @@ public sealed record WorksheetParty(Guid Id,string Name,bool IsUnassigned)
 }
 
 /// <summary>Authenticated persistence for independent Excel-shaped worksheets.</summary>
-public sealed class WorkbookStore
+public sealed partial class WorkbookStore
 {
     private readonly PortableDatabase database;
     private readonly Dictionary<Guid, LoginSession> sessions = new();
@@ -108,6 +108,7 @@ public sealed class WorkbookStore
     {
         Authorize(session, name);
         if (name == "operator-reports") throw new BusinessRuleException("Submitted reports cannot be edited.");
+        if(name=="form")GuardRegister(session,partyId??Guid.Empty,rows);
         using var c = database.Open(); using var t = c.BeginTransaction();
         var party=partyId??Guid.Empty;EnsureParty(c,t,party);
         using var cmd = c.CreateCommand(); cmd.Transaction = t;
@@ -115,11 +116,14 @@ public sealed class WorkbookStore
         cmd.Parameters.AddWithValue("$name", name);
         cmd.Parameters.AddWithValue("$party",party.ToString());
         if (Convert.ToInt32(cmd.ExecuteScalar()) != expectedRevision) throw new BusinessRuleException("Records changed. Reload before saving.");
+        cmd.CommandText="SELECT data FROM party_worksheets WHERE name=$name AND party_id=$party";var before=cmd.ExecuteScalar() as string;var after=JsonSerializer.Serialize(rows);
         cmd.CommandText = "INSERT INTO party_worksheets VALUES($party,$name,$revision,$data) ON CONFLICT(party_id,name) DO UPDATE SET revision=$revision,data=$data";
-        cmd.Parameters.AddWithValue("$revision", checked(expectedRevision + 1)); cmd.Parameters.AddWithValue("$data", JsonSerializer.Serialize(rows)); cmd.ExecuteNonQuery();
+        cmd.Parameters.AddWithValue("$revision", checked(expectedRevision + 1)); cmd.Parameters.AddWithValue("$data", after); cmd.ExecuteNonQuery();
         cmd.Parameters.Clear(); cmd.CommandText = "INSERT INTO audit_events VALUES($id,$entity,$action,$now)";
         cmd.Parameters.AddWithValue("$id", Guid.NewGuid().ToString()); cmd.Parameters.AddWithValue("$entity", party+":"+name);
         cmd.Parameters.AddWithValue("$action", $"WorksheetSaved:{session.Username}"); cmd.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O")); cmd.ExecuteNonQuery();
+        cmd.Parameters.Clear();cmd.CommandText="INSERT INTO workflow_audit VALUES($id,$actor,'WorksheetSaved',$entity,$before,$after,$time)";
+        cmd.Parameters.AddWithValue("$id",Guid.NewGuid().ToString());cmd.Parameters.AddWithValue("$actor",session.Username);cmd.Parameters.AddWithValue("$entity",party+":"+name);cmd.Parameters.AddWithValue("$before",(object?)before??DBNull.Value);cmd.Parameters.AddWithValue("$after",after);cmd.Parameters.AddWithValue("$time",DateTimeOffset.UtcNow.ToString("O"));cmd.ExecuteNonQuery();
         t.Commit(); return expectedRevision + 1;
     }
     /// <summary>Move a whole legacy sheet only to an empty destination; never infer row ownership.</summary>

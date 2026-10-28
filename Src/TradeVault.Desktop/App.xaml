@@ -55,7 +55,17 @@
     <ControlTemplate.Triggers><Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="DateBorder" Property="BorderBrush" Value="#2458D3"/></Trigger></ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
   </Style>
-  <Style TargetType="ToolTip"><Setter Property="Background" Value="#18243B"/><Setter Property="Foreground" Value="White"/><Setter Property="Padding" Value="10,7"/></Style>
+  <Style TargetType="ToolTip">
+   <Setter Property="OverridesDefaultStyle" Value="True"/>
+   <Setter Property="HasDropShadow" Value="False"/>
+   <Setter Property="Background" Value="#F7F9FC"/><Setter Property="Foreground" Value="#18243B"/>
+   <Setter Property="BorderBrush" Value="#CBD5E1"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="10,7"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToolTip">
+    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+     <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}"/>
+    </Border>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
   <Style TargetType="DataGrid">
    <Setter Property="Background" Value="White"/><Setter Property="RowBackground" Value="White"/><Setter Property="AlternatingRowBackground" Value="#FAFBFD"/>
    <Setter Property="RowHeight" Value="30"/><Setter Property="ColumnHeaderHeight" Value="54"/><Setter Property="GridLinesVisibility" Value="All"/>
