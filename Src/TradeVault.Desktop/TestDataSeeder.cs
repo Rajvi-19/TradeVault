@@ -4,6 +4,44 @@ namespace TradeVault.Desktop;
 /// <summary>Explicit opt-in only; never called by ordinary application startup.</summary>
 internal static class TestDataSeeder
 {
+    internal static void RunWorkflow(WorkbookStore store,PortableDatabase database)
+    {
+        var session=store.Login("owner","Owner@123");
+        try
+        {
+            var names=new[]{"[TEST] Indigo Textile Imports — Workflow","[TEST] Crescent Dye Traders — Workflow","[TEST] Ocean Colour Distributors — Workflow"};
+            var existing=store.GetParties(session).Select(p=>p.Name).ToHashSet();
+            if(names.All(existing.Contains)){Console.WriteLine("Workflow sample parties already exist. No records changed.");return;}
+            var backup=store.CreateBackup(session);Console.WriteLine("Pre-seed backup: "+backup);
+            for(int p=0;p<names.Length;p++)
+            {
+                if(existing.Contains(names[p]))continue;
+                var party=store.CreateParty(session,names[p]);var workflow=new ReportWorkflow(store,session);workflow.Configure(party.Id,new("F6","F22",true,new(2026,1,1)));
+                var c=new WorksheetController(store,session);c.Load("form",party.Id);c.AsOf=new(2026,10,27);
+                decimal factor=1+p*.2m;
+                var samples=new[]{
+                    new Sample("001",new(2026,6,1),new DateOnly(2026,6,17),15000*factor,10000*factor,0,0,3800,null),
+                    new Sample("002",new(2026,6,15),new DateOnly(2026,7,1),24000*factor,16000*factor,0,0,3800,null),
+                    new Sample("003",new(2026,8,1),new DateOnly(2026,8,1),30000*factor,20000*factor,0,0,3800,null),
+                    new Sample("004",new(2026,10,20),null,12000*factor,8000*factor,0,0,0,null)};
+                foreach(var s in samples)
+                {
+                    var r=c.Add();r["F2"]="Pakistan via Malaysia (TEST)";r["F3"]=$"TEST-PI-W{p+1}-{s.Number}";r["F4"]=s.InvoiceDate.AddDays(-7).ToString("yyyy-MM-dd");r["F9"]=$"TEST-INV-W{p+1}-{s.Number}";r["F10"]=s.InvoiceDate.ToString("yyyy-MM-dd");r["F5"]=Money(s.Original);r["F6"]=Money(s.Contract);
+                    r["F7"]=Money(s.Contract);r["F11"]=$"TEST-CN-IN-{p+1}{s.Number}";r["F12"]=$"TEST-BL-IN-{p+1}{s.Number}";r["F13"]=s.InvoiceDate.ToString("yyyy-MM-dd");r["F14"]=s.InvoiceDate.AddDays(7).ToString("yyyy-MM-dd");r["F15"]=$"TEST-CN-MY-{p+1}{s.Number}";r["F16"]=s.BlDate==null?"":$"TEST-BL-MY-{p+1}{s.Number}";r["F17"]=s.BlDate?.ToString("yyyy-MM-dd")??"";r["F18"]=Money(s.Shipping);r["F22"]="0.00";r["F23"]="0.00";r["F25"]="0.00";
+                    // TEST arrivals precede the second-leg BL; no shipment identifier claims real transport.
+                    if(s.BlDate is {} bl)r["F14"]=bl.ToString("yyyy-MM-dd");
+                }
+                c.Save();var rows=workflow.Invoices(party.Id);string Key(int i)=>ReportWorkflow.InvoiceKey(party.Id,rows[i]);
+                workflow.RecordReceipt(party.Id,new(2026,9,10),samples[0].Original-samples[0].Shipping,"TEST fully settled invoice",[new(Key(0),"Bank",samples[0].Contract),new(Key(0),"Difference",samples[0].Original-samples[0].Contract-samples[0].Shipping)]);
+                workflow.RecordReceipt(party.Id,new(2026,10,10),5000,"TEST partial receipt",[new(Key(1),"Bank",4500),new(Key(1),"Difference",500)]);
+                workflow.RecordReceipt(party.Id,new(2026,10,20),2000,"TEST shared receipt plus advance",[new(Key(1),"Bank",1500),new(Key(2),"Bank",400)]);
+                var report=workflow.Build(party.Id,new(2026,10,27),true);
+                if(report.Tables[0].Rows.Count!=4||workflow.Reminders(party.Id,new(2026,10,27)).Select(r=>r.Status).Distinct().Count()!=4)throw new InvalidOperationException("Sample workflow verification failed.");
+                Console.WriteLine($"Added {names[p]}: 4 invoices, 3 receipts, USD 100 unallocated; closing balance {report.Tables[1].Totals["E"]:0.00}.");
+            }
+        }
+        finally{store.Logout(session);}
+    }
     internal static void Run(WorkbookStore store,PortableDatabase database)
     {
         var session=store.Login("owner","Owner@123");

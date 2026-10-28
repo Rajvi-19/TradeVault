@@ -5,7 +5,7 @@ using System.Windows.Shell;
 namespace TradeVault.Desktop;
 internal static class Ui
 {
-    public const string BuildLabel="UI 2026.10.27.9";
+    public const string BuildLabel="UI 2026.10.27.10";
     internal static Size WorkspaceSize(Rect workArea)=>new(Math.Min(1440,workArea.Width),Math.Min(880,workArea.Height));
     public static void WindowFrame(Window window,UIElement body,string title,bool embeddedControls=false)
     {

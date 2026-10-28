@@ -23,6 +23,7 @@ public partial class App : System.Windows.Application
             var store=new WorkbookStore(database);
             if(e.Args.Length==2&&e.Args[0]=="--seed-excel-demo"){ExcelDemoSeeder.Run(store,e.Args[1]);Shutdown(0);return;}
 #if DEBUG
+            if(e.Args.Contains("--seed-workflow-data")){TestDataSeeder.RunWorkflow(store,database);Shutdown(0);return;}
             if(e.Args.Contains("--seed-test-data")){TestDataSeeder.Run(store,database);Shutdown(0);return;}
 #else
             if(e.Args.Contains("--seed-test-data"))throw new InvalidOperationException("Sample seeding is disabled in release builds.");
@@ -35,6 +36,6 @@ public partial class App : System.Windows.Application
             }
             Shutdown(0);
         }
-        catch(Exception ex){Console.Error.WriteLine(ex);if(!e.Args.Any(a=>a is "--self-test" or "--qa-report" or "--render-ui" or "--seed-test-data"))MessageBox.Show(ex.Message,"TradeVault startup failed");Shutdown(1);}
+        catch(Exception ex){Console.Error.WriteLine(ex);if(!e.Args.Any(a=>a is "--self-test" or "--qa-report" or "--render-ui" or "--seed-test-data" or "--seed-workflow-data"))MessageBox.Show(ex.Message,"TradeVault startup failed");Shutdown(1);}
     }
 }
