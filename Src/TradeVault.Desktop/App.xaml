@@ -68,6 +68,10 @@
    <Style.Triggers><Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter Property="BorderBrush" Value="#2458D3"/></Trigger></Style.Triggers>
   </Style>
   <Style TargetType="PasswordBox"><Setter Property="Padding" Value="10,9"/><Setter Property="MinHeight" Value="30"/><Setter Property="BorderBrush" Value="{StaticResource LineBrush}"/><Setter Property="Background" Value="White"/></Style>
+  <Style x:Key="AuthTextBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+   <Setter Property="Padding" Value="10,0"/><Setter Property="BorderBrush" Value="#D5DEEA"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TextBox"><Border x:Name="InputBorder" CornerRadius="5" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" Background="{TemplateBinding Background}"><ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Stretch" VerticalContentAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="InputBorder" Property="BorderBrush" Value="#2458D3"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
   <Style TargetType="DatePicker">
    <Setter Property="MinHeight" Value="30"/><Setter Property="BorderBrush" Value="{StaticResource LineBrush}"/><Setter Property="Background" Value="White"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="DatePicker">

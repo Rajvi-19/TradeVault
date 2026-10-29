@@ -10,6 +10,7 @@ namespace TradeVault.Desktop;
 public sealed class ExcelGrid : UserControl
 {
     public DataGrid Table { get; } = new();
+    private readonly TextBlock recordCount=Ui.Text("0 records",11,"#64748B");
     private readonly ObservableCollection<GridRow> rows;
     private readonly IReadOnlyList<Field> fields;
     private readonly TextBlock feedback = new() { TextWrapping = TextWrapping.Wrap, Margin = new(8,3,8,3), FontSize=11, Foreground=Ui.Color("#B42318"),Visibility=Visibility.Collapsed };
@@ -39,6 +40,7 @@ public sealed class ExcelGrid : UserControl
         var search = new TextBox { Width=200,MinHeight=28, Padding = new(8,3,8,3), ToolTip = "Filter visible rows across all columns" };
         System.Windows.Automation.AutomationProperties.SetName(search, "Filter rows");
         var tools=new DockPanel {Margin=new(8,4,8,4)};
+        recordCount.Margin=new(12,0,0,0);DockPanel.SetDock(recordCount,Dock.Right);tools.Children.Add(recordCount);
         if(readOnly){var legend=new TextBlock {Text="Read-only worksheet",FontSize=11,Foreground=Ui.Color("#64748B"),VerticalAlignment=VerticalAlignment.Center};DockPanel.SetDock(legend,Dock.Right);tools.Children.Add(legend);}
         var filter=new StackPanel {Orientation=Orientation.Horizontal};
         filter.Children.Add(new TextBlock {Text="Search records",VerticalAlignment=VerticalAlignment.Center,Margin=new(0,0,10,0),FontSize=12,Foreground=Ui.Color("#64748B")});filter.Children.Add(search);tools.Children.Add(filter);
@@ -46,7 +48,7 @@ public sealed class ExcelGrid : UserControl
         DockPanel.SetDock(feedback,Dock.Top); root.Children.Add(feedback);
         source = new CollectionViewSource { Source = displayRows };
         source.Filter += (_,e) => e.Accepted = e.Item is GridRow r && fields.Any(f => r[f.Key].Contains(search.Text,StringComparison.OrdinalIgnoreCase));
-        search.TextChanged += (_,_) => { Table.CommitEdit(); Table.CommitEdit(DataGridEditingUnit.Row,true); source.View.Refresh(); };
+        search.TextChanged += (_,_) => { Table.CommitEdit(); Table.CommitEdit(DataGridEditingUnit.Row,true); source.View.Refresh();RefreshRecordCount(); };
         Table.FontFamily=new("Segoe UI Variable Text, Segoe UI");
         Table.AutoGenerateColumns = false; Table.CanUserAddRows = false; Table.CanUserDeleteRows = false;
         Table.IsReadOnly = readOnly; Table.SelectionUnit = DataGridSelectionUnit.Cell;
@@ -108,7 +110,9 @@ public sealed class ExcelGrid : UserControl
             Dispatcher.BeginInvoke(new Action(() => Edited?.Invoke()));
         };
         root.Children.Add(Table); Content = root;
+        RefreshRecordCount();
     }
+    internal void RefreshRecordCount(){var total=rows.Count;var known=rows.ToHashSet();var visible=Table.Items.Cast<GridRow>().Count(known.Contains);recordCount.Text=visible==total?$"{total} record{(total==1?"":"s")}":$"{visible} of {total} records";}
     private static TextBox? FindInput(DependencyObject root)
     {
         if(root is TextBox input)return input;
@@ -192,6 +196,7 @@ public sealed class ExcelGrid : UserControl
         {foreach(var row in displayRows.Where(r=>!blanks.Contains(r)).ToArray())displayRows.Remove(row);}
         if(e.OldItems!=null)foreach(GridRow row in e.OldItems)displayRows.Remove(row);
         if(e.NewItems!=null)foreach(GridRow row in e.NewItems)if(!displayRows.Contains(row))displayRows.Insert(displayRows.Count-blanks.Count,row);
+        RefreshRecordCount();
     }
     private static Style EditingStyle()
     {

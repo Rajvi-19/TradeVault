@@ -11,8 +11,10 @@ internal sealed class RevealPassword:UserControl
     public RevealPassword(string label="Password")
     {
         var root=new Grid();root.ColumnDefinitions.Add(new());root.ColumnDefinitions.Add(new(){Width=new GridLength(42)});
+        hidden.BorderThickness=new(0);hidden.Background=System.Windows.Media.Brushes.Transparent;visible.BorderThickness=new(0);visible.Background=System.Windows.Media.Brushes.Transparent;
         root.Children.Add(hidden);root.Children.Add(visible);
-        toggle=Ui.Button("",Toggle,"QuietButton");toggle.Content=Eye(false);toggle.ToolTip="Show password";toggle.Margin=new(4,0,0,0);toggle.Padding=new Thickness(6);System.Windows.Automation.AutomationProperties.SetName(toggle,"Show password");Grid.SetColumn(toggle,1);root.Children.Add(toggle);Content=root;
+        toggle=Ui.Button("",Toggle,"QuietButton");toggle.Content=Eye(false);toggle.ToolTip="Show password";toggle.Margin=new(0);toggle.Padding=new Thickness(6);System.Windows.Automation.AutomationProperties.SetName(toggle,"Show password");Grid.SetColumn(toggle,1);root.Children.Add(toggle);
+        var frame=new Border{Background=System.Windows.Media.Brushes.White,BorderBrush=Ui.Color("#D5DEEA"),BorderThickness=new(1),CornerRadius=new(5)};Grid.SetColumnSpan(frame,2);Panel.SetZIndex(frame,-1);root.Children.Add(frame);root.IsKeyboardFocusWithinChanged+=(_,_)=>frame.BorderBrush=Ui.Color(root.IsKeyboardFocusWithin?"#2458D3":"#D5DEEA");Content=root;
         System.Windows.Automation.AutomationProperties.SetName(hidden,label);System.Windows.Automation.AutomationProperties.SetName(visible,label+" visible");
     }
     internal void Toggle()

@@ -20,7 +20,6 @@ public sealed class MainWindow : Window
     private bool changingParty;
     private readonly TextBlock status=Ui.Text("All changes saved",11,"#64748B");
     private readonly TextBlock title=Ui.Text("Invoice register",18,"#18243B",true);
-    private readonly TextBlock count=Ui.Text("0 records",11,"#64748B");
     private readonly TextBlock revision=Ui.Text("",11,"#64748B");
     private readonly TextBox opening=new(){Text="0.00",Width=100,MinHeight=30,Padding=new(8,4,8,4)};
     private readonly TextBox terms=new(){Text="90",Width=54,MinHeight=30,Padding=new(8,4,8,4)};
@@ -70,7 +69,7 @@ public sealed class MainWindow : Window
         tabs.Children.Add(new ScrollViewer{Content=navigation,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,VerticalScrollBarVisibility=ScrollBarVisibility.Disabled});DockPanel.SetDock(tabs,Dock.Top);root.Children.Add(tabs);
 
         var footer=new DockPanel{Height=24,Margin=new(12,0,12,0)};var build=Ui.Text(Ui.BuildLabel,10,"#64748B");build.Margin=new(16,0,0,0);DockPanel.SetDock(build,Dock.Right);footer.Children.Add(build);DockPanel.SetDock(revision,Dock.Right);footer.Children.Add(revision);footer.Children.Add(status);DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
-        var heading=new DockPanel{Margin=new(12,8,12,6)};DockPanel.SetDock(count,Dock.Right);heading.Children.Add(count);
+        var heading=new DockPanel{Margin=new(12,8,12,6)};
         var partyTools=new StackPanel{Orientation=Orientation.Horizontal};
         partySelector.SetResourceReference(StyleProperty,"PartySelectorStyle");
         System.Windows.Controls.TextSearch.SetTextPath(partySelector,"Name");
@@ -218,7 +217,7 @@ public sealed class MainWindow : Window
         assignButton.Visibility=controller.PartyId==Guid.Empty?Visibility.Visible:Visibility.Collapsed;
         assignButton.IsEnabled=controller.Rows.Count>0;
     }
-    private void UpdateRecords(){count.Text=generatedView?"Generated · read-only":$"{controller.Rows.Count} record{(controller.Rows.Count==1?"":"s")}";deleteButton.IsEnabled=!generatedView&&grid?.Table.CurrentItem is GridRow row&&controller.Rows.Contains(row);assignButton.IsEnabled=controller.PartyId==Guid.Empty&&controller.Rows.Count>0&&!dirty;}
+    private void UpdateRecords(){grid?.RefreshRecordCount();deleteButton.IsEnabled=!generatedView&&grid?.Table.CurrentItem is GridRow row&&controller.Rows.Contains(row);assignButton.IsEnabled=controller.PartyId==Guid.Empty&&controller.Rows.Count>0&&!dirty;}
     private void Add(){if(grid==null||generatedView)return;var row=controller.Add();if(controller.Name=="form"&&string.IsNullOrWhiteSpace(row["F1"]))row["F1"]=controller.PartyName;Watch(row);MarkDirty();UpdateRecords();grid.Table.ScrollIntoView(row);grid.Table.CurrentCell=new DataGridCellInfo(row,grid.Table.Columns.First(c=>!c.IsReadOnly));grid.Table.Focus();grid.Table.BeginEdit();}
     private void Delete()
     {
