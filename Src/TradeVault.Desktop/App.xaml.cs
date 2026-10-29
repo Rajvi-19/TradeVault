@@ -5,9 +5,10 @@ namespace TradeVault.Desktop;
 
 public partial class App : System.Windows.Application
 {
+    internal static bool AutomatedRun{get;private set;}
     protected override void OnStartup(StartupEventArgs e)
     {
-        base.OnStartup(e);
+        base.OnStartup(e);AutomatedRun=e.Args.Any(a=>a is "--self-test" or "--qa-report" or "--render-ui");
         ShutdownMode=ShutdownMode.OnExplicitShutdown;
         try
         {

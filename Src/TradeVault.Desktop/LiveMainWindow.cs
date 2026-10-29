@@ -15,7 +15,7 @@ public sealed class MainWindow : Window
     private readonly ReportWorkflow workflow;
     private bool generatedView;
     private bool busy;
-    private readonly ComboBox partySelector=new(){Width=230,MinHeight=30,DisplayMemberPath="Name"};
+    private readonly ComboBox partySelector=new(){Width=230,MinHeight=32,DisplayMemberPath="Name",IsTextSearchEnabled=true};
     private readonly Button assignButton;
     private bool changingParty;
     private readonly TextBlock status=Ui.Text("All changes saved",11,"#64748B");
@@ -24,9 +24,6 @@ public sealed class MainWindow : Window
     private readonly TextBlock revision=Ui.Text("",11,"#64748B");
     private readonly TextBox opening=new(){Text="0.00",Width=100,MinHeight=30,Padding=new(8,4,8,4)};
     private readonly TextBox terms=new(){Text="90",Width=54,MinHeight=30,Padding=new(8,4,8,4)};
-    private readonly DateCellEditor asOf=new(){Value=DateTime.Today.ToString("yyyy-MM-dd"),Width=145,MinHeight=30};
-    private System.Windows.Controls.Calendar? cutoffCalendar;
-    private System.Windows.Controls.Primitives.Popup? cutoffPopup;
     private readonly StackPanel openingGroup=new(){Orientation=Orientation.Horizontal};
     private readonly StackPanel termsGroup=new(){Orientation=Orientation.Horizontal};
     private readonly Dictionary<string,Button> nav=new();
@@ -35,11 +32,11 @@ public sealed class MainWindow : Window
     private readonly Border notification;
     private readonly TextBlock message=Ui.Text("",12,"#B42318");
     private ExcelGrid? grid;
-    private bool dirty,refreshing,compact=true;
+    private bool dirty,refreshing;
+    private bool calculationPending;
     private readonly Grid sheetArea=new();
-    private readonly Border coverageBanner=new(){Background=Ui.Color("#FFF7DF"),Padding=new(10,6,10,6),Margin=new(10,0,10,4),Visibility=Visibility.Collapsed};
-    private readonly TextBlock coverageText=Ui.Text("",12,"#805400");
-    internal Func<DateOnly,DateOnly,bool>? ConfirmReportDateChange;
+    private readonly List<(Key Key,ModifierKeys Modifiers,string Gesture,string Description,Action Action)> shortcuts=[];
+    internal Func<string,bool>? ConfirmRecordDeletion;
 
     public MainWindow(WorkbookStore store,LoginSession session,string path)
     {
@@ -49,68 +46,61 @@ public sealed class MainWindow : Window
         var windowControls=Ui.WindowControls(this);DockPanel.SetDock(windowControls,Dock.Right);header.Children.Add(windowControls);
         var account=new StackPanel{Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center,Margin=new(0,0,8,0)};
         System.Windows.Shell.WindowChrome.SetIsHitTestVisibleInChrome(account,true);
-        account.Children.Add(Ui.Text(session.Username+" · "+session.Role,12,"#E2E8F0"));
+        account.Children.Add(new Border{Background=Ui.Color("#20324D"),CornerRadius=new(12),Padding=new(10,4,10,4),Margin=new(0,0,10,0),Child=Ui.Text(session.Role,12,"#E2E8F0")});
         var backup=CompactButton("Backups",()=>Run(()=>{RequireSaved();WorkflowWindows.Backups(this,store,session);}),"\uE74E");backup.Foreground=Brushes.White;account.Children.Add(backup);
         var logout=Ui.Button("Sign out",()=>Run(()=>{if(Discard()){dirty=false;Close();}}),"QuietButton","\uE8AC");logout.Foreground=Ui.Color("#FFFFFF");logout.Margin=new(12,0,0,0);logout.MinHeight=28;logout.Padding=new(10,4,10,4);account.Children.Add(logout);
         DockPanel.SetDock(account,Dock.Right);header.Children.Add(account);
         var brand=new StackPanel{Orientation=Orientation.Horizontal,Margin=new(14,0,0,0)};
         var logo=Ui.BrandIcon(26);logo.Margin=new(0,0,9,0);brand.Children.Add(logo);
-        brand.Children.Add(Ui.Text("TradeVault",17,"#FFFFFF",true));var offline=Ui.Text("  /  Offline · USD",11,"#A5B6CE");brand.Children.Add(offline);header.Children.Add(brand);
+        brand.Children.Add(Ui.Text("TradeVault",18,"#FFFFFF",true));header.Children.Add(brand);
         DockPanel.SetDock(header,Dock.Top);root.Children.Add(header);
 
         var tabs=new DockPanel{Background=Brushes.White,Height=40};
-        saveButton=Ui.Button("Save changes",()=>Run(Save),"PrimaryButton","\uE74E");saveButton.MinHeight=30;saveButton.Padding=new(12,4,12,4);saveButton.Margin=new(0,4,10,4);DockPanel.SetDock(saveButton,Dock.Right);tabs.Children.Add(saveButton);
+        saveButton=Ui.Button("Save changes",()=>Run(Save),"PrimaryButton","\uE74E");saveButton.MinHeight=30;saveButton.MinWidth=140;saveButton.Width=140;ToolTipService.SetShowOnDisabled(saveButton,true);saveButton.Padding=new(12,4,12,4);saveButton.Margin=new(0,4,10,4);DockPanel.SetDock(saveButton,Dock.Right);tabs.Children.Add(saveButton);
         var navigation=new StackPanel{Orientation=Orientation.Horizontal,Margin=new(6,0,0,0)};
-        foreach(var (name,label,icon) in new[]{("form","Invoice register","\uE8A5"),("details","Account details","\uE8D4"),("ledger","Debit & credit","\uE8AB")})
+        foreach(var (name,label,icon) in new[]{("form","Invoice register","invoice"),("details","Account details","details"),("ledger","Debit & credit","ledger")})
         {
-            var b=Ui.Button(label,()=>Run(()=>Navigate(name)),"QuietButton",icon);b.Padding=new(12,5,12,5);b.MinHeight=32;b.Margin=new(2,3,2,3);nav.Add(name,b);navigation.Children.Add(b);
+            var b=Ui.LineIconButton(label,()=>Run(()=>Navigate(name)),icon);b.Padding=new(12,5,12,5);b.MinHeight=32;b.Margin=new(2,3,2,3);nav.Add(name,b);navigation.Children.Add(b);
         }
         if(session.Role=="Owner")
         {
-            var imports=Ui.Button("Operator reports",()=>Run(()=>{RequireSaved();WorkflowWindows.Inbox(this,workflow);}),"QuietButton","\uE8B5");imports.MinHeight=32;imports.Padding=new(10,5,10,5);navigation.Children.Add(imports);
+            var imports=Ui.LineIconButton("Operator reports",()=>Run(()=>{RequireSaved();WorkflowWindows.Inbox(this,workflow);}),"reports");imports.MinHeight=32;imports.Padding=new(10,5,10,5);navigation.Children.Add(imports);
         }
+
         tabs.Children.Add(new ScrollViewer{Content=navigation,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,VerticalScrollBarVisibility=ScrollBarVisibility.Disabled});DockPanel.SetDock(tabs,Dock.Top);root.Children.Add(tabs);
 
         var footer=new DockPanel{Height=24,Margin=new(12,0,12,0)};var build=Ui.Text(Ui.BuildLabel,10,"#64748B");build.Margin=new(16,0,0,0);DockPanel.SetDock(build,Dock.Right);footer.Children.Add(build);DockPanel.SetDock(revision,Dock.Right);footer.Children.Add(revision);footer.Children.Add(status);DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
         var heading=new DockPanel{Margin=new(12,8,12,6)};DockPanel.SetDock(count,Dock.Right);heading.Children.Add(count);
         var partyTools=new StackPanel{Orientation=Orientation.Horizontal};
+        partySelector.SetResourceReference(StyleProperty,"PartySelectorStyle");
+        System.Windows.Controls.TextSearch.SetTextPath(partySelector,"Name");
         var partyLabel=Ui.Text("Party",12,"#52627A");partyLabel.Margin=new(0,0,8,0);partyTools.Children.Add(partyLabel);partyTools.Children.Add(partySelector);
-        var create=CompactButton("Create party",()=>Run(CreateParty),"\uE710");partyTools.Children.Add(create);
-        assignButton=CompactButton("Assign worksheet",()=>Run(AssignWorksheet),"\uE8B5");partyTools.Children.Add(assignButton);
-        DockPanel.SetDock(partyTools,Dock.Right);heading.Children.Add(partyTools);heading.Children.Add(title);DockPanel.SetDock(heading,Dock.Top);root.Children.Add(heading);
+        var create=Ui.LineIconButton("New party",()=>Run(CreateParty),"party","SecondaryActionButton");create.Margin=new(8,0,8,0);create.Padding=new(10,6,10,6);create.MinHeight=32;create.ToolTip="Create party (Ctrl+Shift+N)";partyTools.Children.Add(create);
+        assignButton=CompactButton("Assign worksheet",()=>Run(AssignWorksheet),"\uE8B5");
+        DockPanel.SetDock(partyTools,Dock.Right);heading.Children.Add(partyTools);title.FontFamily=new("Segoe UI Variable Display, Segoe UI");title.FontSize=17;title.TextWrapping=TextWrapping.NoWrap;title.TextTrimming=TextTrimming.CharacterEllipsis;heading.Children.Add(title);DockPanel.SetDock(heading,Dock.Top);root.Children.Add(heading);
 
-        var options=new WrapPanel{VerticalAlignment=VerticalAlignment.Center};
+        var options=new WrapPanel{VerticalAlignment=VerticalAlignment.Center,HorizontalAlignment=HorizontalAlignment.Right};
         termsGroup.Margin=new(0,0,14,0);var termLabel=Ui.Text("New terms",12,"#52627A");termLabel.Margin=new(0,0,6,0);termsGroup.Children.Add(termLabel);termsGroup.Children.Add(terms);termsGroup.Children.Add(Ui.Text(" days",11,"#64748B"));options.Children.Add(termsGroup);
         openingGroup.Margin=new(0,0,14,0);var openLabel=Ui.Text("Opening USD",12,"#52627A");openLabel.Margin=new(0,0,6,0);openingGroup.Children.Add(openLabel);openingGroup.Children.Add(opening);options.Children.Add(openingGroup);
-        var dateLabel=Ui.Text("As of",12,"#52627A");dateLabel.Margin=new(0,0,6,0);options.Children.Add(dateLabel);options.Children.Add(asOf);
-        var calendarButton=Ui.Button("",()=>{},"QuietButton","\uE787");calendarButton.Width=32;calendarButton.MinHeight=30;
-        System.Windows.Automation.AutomationProperties.SetName(calendarButton,"Choose reporting cutoff date");
-        var calendar=new System.Windows.Controls.Calendar();var calendarPopup=new System.Windows.Controls.Primitives.Popup{Child=new Border{Background=Brushes.White,BorderBrush=Ui.Color("#D8E0EB"),BorderThickness=new(1),Child=calendar},PlacementTarget=calendarButton,Placement=System.Windows.Controls.Primitives.PlacementMode.Bottom,StaysOpen=false};
-        cutoffCalendar=calendar;cutoffPopup=calendarPopup;
-        calendarButton.Click+=(_,_)=>{calendar.SelectedDate=DateOnly.TryParseExact(asOf.Value,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var selected)?selected.ToDateTime(TimeOnly.MinValue):DateTime.Today;calendar.DisplayDate=calendar.SelectedDate.Value;calendarPopup.IsOpen=true;};
-        calendar.SelectedDatesChanged+=(_,_)=>{if(calendarPopup.IsOpen&&calendar.SelectedDate is {} selected){asOf.Value=selected.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture);calendarPopup.IsOpen=false;Calculate();}};
-        options.Children.Add(calendarButton);
-        var calc=CompactButton("Recalculate",Calculate,"\uE9D9");options.Children.Add(calc);
-        options.Children.Add(new Border{Width=1,Height=22,Background=Ui.Color("#D8E0EB"),Margin=new(10,0,2,0)});
-        options.Children.Add(CompactButton("Reload",()=>Run(()=>{if(Discard())Open(controller.Name);}),"\uE72C"));
-        deleteButton=CompactButton("Delete",()=>Run(Delete),"\uE74D");deleteButton.Foreground=Ui.Color("#A63E3E");options.Children.Add(deleteButton);
-        var density=CompactButton("Comfortable rows",()=>{compact=!compact;if(grid!=null)grid.Table.RowHeight=compact?28:36;},"\uE8A4");density.ToolTip="Switch between 28 and 36 pixel rows";options.Children.Add(density);
-        var optionBar=new Border{Background=Brushes.White,BorderBrush=Ui.Color("#DCE3ED"),BorderThickness=new(1),Padding=new(10,5,10,5),Margin=new(10,0,10,4),Child=options};DockPanel.SetDock(optionBar,Dock.Top);root.Children.Add(optionBar);
-        var workflows=new WrapPanel{Margin=new(10,0,10,4)};
+        var reload=CompactButton("Reload",ReloadSaved,"\uE72C");reload.ToolTip="Reload saved records (F5)";options.Children.Add(reload);
+        deleteButton=CompactButton("Delete",()=>Run(Delete),"\uE74D");deleteButton.ToolTip="Delete clears cells; select a whole row to delete a record with confirmation.";deleteButton.Foreground=Ui.Color("#A63E3E");options.Children.Add(deleteButton);
+        var toolbar=new Grid();toolbar.ColumnDefinitions.Add(new(){Width=new GridLength(1,GridUnitType.Star)});toolbar.ColumnDefinitions.Add(new(){Width=GridLength.Auto});Grid.SetColumn(options,1);toolbar.Children.Add(options);
+        var optionBar=new Border{Background=Brushes.White,BorderBrush=Ui.Color("#DCE3ED"),BorderThickness=new(1),Padding=new(10,5,10,5),Margin=new(10,0,10,4),Child=toolbar};DockPanel.SetDock(optionBar,Dock.Top);root.Children.Add(optionBar);
+        var workflows=new WrapPanel{VerticalAlignment=VerticalAlignment.Center,Margin=new(0,0,12,0)};
         workflows.Children.Add(CompactButton("Report setup",()=>Run(()=>{RequireSaved();RequireParty();if(WorkflowWindows.Configure(this,workflow,controller.PartyId))Open(controller.Name);}),"\uE713"));
         workflows.Children.Add(CompactButton("Export Excel",()=>ExportReports(),"\uE896"));
-        workflows.Children.Add(CompactButton("Preview / Print",()=>Run(()=>{RequireSaved();RequireParty();Options();WorkflowWindows.ReportView(this,workflow.Build(controller.PartyId,controller.AsOf,workflow.Mapping(controller.PartyId)!=null)).ShowDialog();}),"\uE749"));
+        workflows.Children.Add(CompactButton("Preview / Print",()=>Run(()=>{RequireSaved();RequireParty();Options();WorkflowWindows.ReportView(this,workflow.BuildCurrent(controller.PartyId,workflow.Mapping(controller.PartyId)!=null)).ShowDialog();}),"\uE749"));
         workflows.Children.Add(CompactButton("Receipts",()=>Run(()=>{RequireSaved();RequireParty();WorkflowWindows.Receipts(this,workflow,controller.PartyId);Open(controller.Name);}),"\uE8D4"));
         workflows.Children.Add(CompactButton("Reminders",()=>Run(()=>{RequireSaved();RequireParty();Options();WorkflowWindows.Reminders(this,workflow,controller.PartyId,controller.AsOf);}),"\uE787"));
-        DockPanel.SetDock(workflows,Dock.Top);root.Children.Add(workflows);
+        toolbar.Children.Add(workflows);
         notification=new Border{Background=Ui.Color("#FFF2F0"),BorderBrush=Ui.Color("#F3C8C3"),BorderThickness=new(1),Padding=new(10,6,10,6),Margin=new(10,0,10,4),Child=message,Visibility=Visibility.Collapsed};DockPanel.SetDock(notification,Dock.Top);root.Children.Add(notification);
-        var coveragePanel=new DockPanel();var include=Ui.Button("Show all saved invoices",()=>Run(ShowAllSavedInvoices));DockPanel.SetDock(include,Dock.Right);coveragePanel.Children.Add(include);coveragePanel.Children.Add(coverageText);coverageBanner.Child=coveragePanel;DockPanel.SetDock(coverageBanner,Dock.Top);root.Children.Add(coverageBanner);
         var sheet=new Border{Background=Brushes.White,BorderBrush=Ui.Color("#DCE3ED"),BorderThickness=new(1),Margin=new(10,0,10,4),Child=sheetArea};root.Children.Add(sheet);
-        opening.TextChanged+=(_,_)=>{if(!refreshing&&!generatedView)MarkDirty();};terms.TextChanged+=(_,_)=>{if(!refreshing&&!generatedView)MarkDirty();};asOf.TextChanged+=(_,_)=>{if(!refreshing&&grid!=null&&!generatedView)MarkDirty();};asOf.LostKeyboardFocus+=(_,_)=>Calculate();
-        System.Windows.Automation.AutomationProperties.SetName(opening,"Opening balance in USD");System.Windows.Automation.AutomationProperties.SetName(terms,"Payment terms in calendar days");System.Windows.Automation.AutomationProperties.SetName(asOf,"Report as of date");
+        opening.TextChanged+=(_,_)=>{if(!refreshing&&!generatedView)MarkDirty();};terms.TextChanged+=(_,_)=>{if(!refreshing&&!generatedView)MarkDirty();};
+        System.Windows.Automation.AutomationProperties.SetName(opening,"Opening balance in USD");System.Windows.Automation.AutomationProperties.SetName(terms,"Payment terms in calendar days");
         Ui.WindowFrame(this,root,"TradeVault · "+session.Role+" workspace",embeddedControls:true);
-        ToolTipService.SetToolTip(revision,"Storage: "+path);Closing+=(_,e)=>{if(busy||!Discard())e.Cancel=true;};
-        InputBindings.Add(new KeyBinding(new ActionCommand(()=>Run(Save)),Key.S,ModifierKeys.Control));InputBindings.Add(new KeyBinding(new ActionCommand(()=>Run(Add)),Key.N,ModifierKeys.Control));
+        ToolTipService.SetToolTip(revision,"Storage: "+path);Closing+=(_,e)=>{if(busy||(!App.AutomatedRun&&!Discard()))e.Cancel=true;};
+        RegisterShortcuts();
+        PreviewKeyDown+=(_,e)=>{if((e.Key==Key.Delete||(e.Key==Key.X&&Keyboard.Modifiers==ModifierKeys.Control))&&(grid==null||!grid.Table.IsKeyboardFocusWithin||Keyboard.FocusedElement is TextBox))return;if(e.IsRepeat&&shortcuts.Any(s=>s.Key==e.Key&&s.Modifiers==Keyboard.Modifiers)){e.Handled=true;return;}if(TryShortcut(e.Key,Keyboard.Modifiers))e.Handled=true;};
         System.Windows.Automation.AutomationProperties.SetName(partySelector,"Select party");
         RefreshParties(Guid.Empty);
         partySelector.SelectionChanged+=(_,_)=>SwitchParty();
@@ -126,7 +116,41 @@ public sealed class MainWindow : Window
             if(button.ActualWidth<=0||point.Y<0||point.Y+button.ActualHeight>728||point.X<0||point.X+button.ActualWidth>1366)throw new InvalidOperationException("Worksheet navigation is outside the visible workspace: "+name);
         }
     }
-    private static Button CompactButton(string text,Action action,string glyph){var b=Ui.Button(text,action,"QuietButton",glyph);b.MinHeight=30;b.Padding=new(9,4,9,4);b.Margin=new(4,0,0,0);return b;}
+    private static Button CompactButton(string text,Action action,string glyph){var b=Ui.Button(text,action,"QuietButton",glyph);b.FontFamily=new("Segoe UI Variable Text, Segoe UI");b.FontSize=12;b.FontWeight=FontWeights.Medium;b.MinHeight=30;b.Padding=new(9,4,9,4);b.Margin=new(4,0,0,0);b.ToolTip=text switch{"Export Excel"=>"Export Excel reports (Ctrl+E)","Preview / Print"=>"Preview or print reports (Ctrl+P)","Receipts"=>"Customer payments (Ctrl+Shift+R)",_=>text};return b;}
+    private void ReloadSaved(){if(Discard())Open(controller.Name);}
+    private void RegisterShortcuts()
+    {
+        void AddKey(Key key,ModifierKeys modifiers,string gesture,string description,Action action)=>shortcuts.Add((key,modifiers,gesture,description,action));
+        AddKey(Key.S,ModifierKeys.Control,"Ctrl+S","Save changes",()=>{if(grid!=null&&(!grid.Table.CommitEdit()||!grid.Table.CommitEdit(DataGridEditingUnit.Row,true)))throw new ArgumentException("Correct invalid cells before saving.");if(dirty)Save();});
+        AddKey(Key.N,ModifierKeys.Control,"Ctrl+N","Go to a new editable record",Add);
+        AddKey(Key.N,ModifierKeys.Control|ModifierKeys.Shift,"Ctrl+Shift+N","Create a party",CreateParty);
+        AddKey(Key.Delete,ModifierKeys.None,"Delete","Clear cells / delete whole row with confirmation",Delete);
+        AddKey(Key.X,ModifierKeys.Control,"Ctrl+X","Cut selected cells / whole record",CutSelection);
+        AddKey(Key.F,ModifierKeys.Control,"Ctrl+F","Search the current worksheet",()=>grid?.FocusSearch());
+        AddKey(Key.F5,ModifierKeys.None,"F5","Reload saved records",ReloadSaved);
+        AddKey(Key.L,ModifierKeys.Control,"Ctrl+L","Choose a party",()=>{partySelector.Focus();partySelector.IsDropDownOpen=true;});
+        AddKey(Key.D1,ModifierKeys.Control,"Ctrl+1","Open Invoice register",()=>Navigate("form"));
+        AddKey(Key.D2,ModifierKeys.Control,"Ctrl+2","Open Account details",()=>Navigate("details"));
+        AddKey(Key.D3,ModifierKeys.Control,"Ctrl+3","Open Debit & credit",()=>Navigate("ledger"));
+        AddKey(Key.E,ModifierKeys.Control,"Ctrl+E","Export Excel reports",ExportReports);
+        AddKey(Key.P,ModifierKeys.Control,"Ctrl+P","Open report preview / print",()=>{RequireSaved();RequireParty();Options();WorkflowWindows.ReportView(this,workflow.BuildCurrent(controller.PartyId,workflow.Mapping(controller.PartyId)!=null)).ShowDialog();});
+        AddKey(Key.R,ModifierKeys.Control|ModifierKeys.Shift,"Ctrl+Shift+R","Open customer receipts",()=>{RequireSaved();RequireParty();WorkflowWindows.Receipts(this,workflow,controller.PartyId);Open(controller.Name);});
+        AddKey(Key.F1,ModifierKeys.None,"F1","Show keyboard shortcuts",ShowShortcuts);
+    }
+    internal bool TryShortcut(Key key,ModifierKeys modifiers)
+    {
+        var item=shortcuts.FirstOrDefault(s=>s.Key==key&&s.Modifiers==modifiers);if(item.Action==null)return false;
+        if(!busy)Run(item.Action);return true;
+    }
+    private void ShowShortcuts()
+    {
+        var dialog=new Window{Owner=this,Width=650,Height=Math.Min(610,SystemParameters.WorkArea.Height),WindowStartupLocation=WindowStartupLocation.CenterOwner};
+        var panel=new StackPanel{Margin=new(18)};panel.Children.Add(Ui.Text("Keyboard shortcuts",20,"#18243B",true));
+        foreach(var item in shortcuts){var line=new DockPanel{Margin=new(0,10,0,0)};var gesture=Ui.Text(item.Gesture,13,"#2458D3",true);gesture.Width=180;DockPanel.SetDock(gesture,Dock.Left);line.Children.Add(gesture);line.Children.Add(Ui.Text(item.Description));panel.Children.Add(line);}
+        panel.Children.Add(Ui.Text("In grids: Tab / Shift+Tab move between inputs. Ctrl+C / Ctrl+V copy and paste. Click a row number to select a whole record. Delete clears cells; whole-row deletion asks for confirmation. Ctrl+X cuts cells or a whole record. While editing text, Delete and Ctrl+X use normal text-editing behavior.",12,"#64748B"));
+        var close=Ui.Button("Close",()=>dialog.Close());close.IsCancel=true;close.Margin=new(0,14,0,0);panel.Children.Add(close);
+        Ui.WindowFrame(dialog,new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto},"Keyboard shortcuts");dialog.ShowDialog();
+    }
     private void RequireSaved(){if(dirty)throw new ArgumentException("Save or reload your current changes first.");}
     private void Navigate(string name)
     {
@@ -148,7 +172,7 @@ public sealed class MainWindow : Window
     private async void ExportReports()
     {
         try{RequireSaved();RequireParty();Options();var party=controller.PartyId;var date=controller.AsOf;var generated=workflow.Mapping(party)!=null;busy=true;((UIElement)Content).IsEnabled=false;status.Text="Exporting reports…";
-            var package=await Task.Run(()=>workflow.ExportExcel(party,date,generated));status.Text="Reports exported";try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(package){UseShellExecute=true});}catch(Exception){MessageBox.Show(this,"Excel report saved successfully. No spreadsheet application could open it automatically. Open this file manually:\n"+package,"Report saved");}
+            var package=await Task.Run(()=>workflow.ExportExcel(party,date,generated,true));status.Text="Reports exported";try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(package){UseShellExecute=true});}catch(Exception){MessageBox.Show(this,"Excel report saved successfully. No spreadsheet application could open it automatically. Open this file manually:\n"+package,"Report saved");}
         }catch(Exception ex){Error(ex.Message);}finally{busy=false;((UIElement)Content).IsEnabled=true;}
     }
     private void RequireParty(){if(controller.PartyId==Guid.Empty)throw new ArgumentException("Select a named party first.");}
@@ -161,52 +185,63 @@ public sealed class MainWindow : Window
     }
     private void Run(Action action){try{action();}catch(Exception ex){Error(ex.Message);}}
     private void Error(string text){message.Text=text;notification.Visibility=Visibility.Visible;status.Text="Action needs attention";status.Foreground=Ui.Color("#B42318");}
-    private void MarkDirty(){dirty=true;saveButton.IsEnabled=true;status.Text="● Unsaved changes";status.Foreground=Ui.Color("#9A6700");}
-    private void Watch(GridRow row)=>row.Changed+=_=>{if(!refreshing)MarkDirty();};
+    private void SetSaveState(bool pending)
+    {
+        saveButton.IsEnabled=pending;saveButton.SetResourceReference(StyleProperty,"SaveActionButton");
+        var color=pending?"#FFFFFF":"#407057";saveButton.Background=Ui.Color(pending?"#2458D3":"#F3F8F5");saveButton.BorderBrush=Ui.Color(pending?"#2458D3":"#D4E2D9");saveButton.Foreground=Ui.Color(color);
+        var content=new StackPanel{Orientation=Orientation.Horizontal};var icon=Ui.Icon(pending?"\uE74E":"\uE73E",color,14);icon.Margin=new(0,0,7,0);content.Children.Add(icon);content.Children.Add(Ui.Text(pending?"Save changes":generatedView?"Read-only":"Saved",12,color,true));saveButton.Content=content;
+        saveButton.ToolTip=pending?"Save the current worksheet (Ctrl+S)":"All changes are saved. No action is needed.";
+        System.Windows.Automation.AutomationProperties.SetName(saveButton,pending?"Save changes, Control S":generatedView?"Read-only report":"All changes saved");
+    }
+    private void MarkDirty(){dirty=true;SetSaveState(true);status.Text="● Unsaved changes";status.Foreground=Ui.Color("#9A6700");}
+    private void Watch(GridRow row)=>row.Changed+=_=>{if(!refreshing){MarkDirty();if(!calculationPending){calculationPending=true;Dispatcher.BeginInvoke(new Action(()=>{calculationPending=false;if(dirty&&!generatedView)Calculate();}),System.Windows.Threading.DispatcherPriority.Background);}}};
     private bool Discard(){grid?.Table.CommitEdit();grid?.Table.CommitEdit(DataGridEditingUnit.Row,true);return !dirty||MessageBox.Show(this,"You have unsaved changes. Discard them and continue?","Unsaved changes",MessageBoxButton.YesNo,MessageBoxImage.Question)==MessageBoxResult.Yes;}
     private void Open(string name,Guid? partyId=null)
     {
         var selected=partyId??controller.PartyId;var next=new WorksheetController(store,session);next.Load(name,selected);
         var nextGenerated=name!="form"&&workflow.Mapping(selected)!=null;
-        if(nextGenerated||(name=="form"&&grid!=null&&controller.Name!="form"&&selected==controller.PartyId))
-        {
-            // Both generated tabs use the register's cutoff, or the current unsaved report cutoff.
-            if(selected==controller.PartyId)next.AsOf=controller.AsOf;
-            else {var register=new WorksheetController(store,session);register.Load("form",selected);next.AsOf=register.AsOf;}
-        }
-        var nextReport=nextGenerated?workflow.Build(selected,next.AsOf,true):null;
-        controller=next;refreshing=true;opening.Text=controller.Opening.ToString("0.00",CultureInfo.InvariantCulture);terms.Text=controller.Terms.ToString();asOf.Value=controller.AsOf.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture);refreshing=false;
+        next.AsOf=DateOnly.FromDateTime(DateTime.Today);next.Calculate();
+        var nextReport=nextGenerated?workflow.BuildCurrent(selected):null;
+        controller=next;refreshing=true;opening.Text=controller.Opening.ToString("0.00",CultureInfo.InvariantCulture);terms.Text=controller.Terms.ToString();refreshing=false;
         foreach(var row in controller.Rows)Watch(row);
-        title.Text=name switch{"form"=>"Invoice register","details"=>"Account details",_=>"Debit & credit"};
-        title.ToolTip=name=="form"?"Difference Amount = Original Amount minus the contract source selected in Report setup. Blank until setup is complete.":null;
+        title.Text=(name switch{"form"=>"Invoice register","details"=>"Account details",_=>"Debit & credit"})+" · "+controller.PartyName;
+        title.ToolTip=controller.PartyName+(name=="form"?"\nDifference Amount = Original Amount minus the contract source selected in Report setup. Blank until setup is complete.":"");
+        partySelector.ToolTip=controller.PartyName;
         foreach(var item in nav){item.Value.Background=Ui.Color(item.Key==name?"#E8EFFD":"#FFFFFF");item.Value.Foreground=Ui.Color(item.Key==name?"#2458D3":"#52627A");}
         openingGroup.Visibility=name=="form"?Visibility.Collapsed:Visibility.Visible;termsGroup.Visibility=name=="form"?Visibility.Visible:Visibility.Collapsed;
         generatedView=nextGenerated;
         if(generatedView){grid=WorkflowWindows.ReportGrid(nextReport!.Tables[name=="details"?0:1]);title.Text+=" · generated";}
-        else grid=new ExcelGrid(controller.Fields,controller.Rows,promote:row=>{controller.Add(row);Watch(row);MarkDirty();UpdateRecords();});grid.Table.RowHeight=compact?28:36;grid.Edited+=Calculate;
+        else grid=new ExcelGrid(controller.Fields.Where(f=>name!="form"||f.Key!="F1").ToArray(),controller.Rows,promote:row=>{controller.Add(row);if(name=="form"&&string.IsNullOrWhiteSpace(row["F1"]))row["F1"]=controller.PartyName;Watch(row);MarkDirty();UpdateRecords();});grid.Table.RowHeight=28;grid.Edited+=Calculate;
         grid.Table.SelectedCellsChanged+=(_,_)=>UpdateRecords();
-        sheetArea.Children.Clear();sheetArea.Children.Add(grid);UpdateRecords();notification.Visibility=Visibility.Collapsed;dirty=false;saveButton.IsEnabled=false;openingGroup.IsEnabled=!generatedView;
+        sheetArea.Children.Clear();sheetArea.Children.Add(grid);UpdateRecords();notification.Visibility=Visibility.Collapsed;dirty=false;SetSaveState(false);openingGroup.IsEnabled=!generatedView;
         status.Text=name=="form"&&workflow.Mapping(selected)==null?"Select a named party and complete Report setup to calculate Difference Amount.":"All changes saved";status.Foreground=Ui.Color("#64748B");revision.Text=$"Revision {controller.Revision} · Local storage";
         assignButton.Visibility=controller.PartyId==Guid.Empty?Visibility.Visible:Visibility.Collapsed;
         assignButton.IsEnabled=controller.Rows.Count>0;
-        UpdateCoverage();
-    }
-    private void UpdateCoverage()
-    {
-        var scope=workflow.Coverage(controller.PartyId,controller.AsOf);coverageBanner.Visibility=scope.AfterDate>0?Visibility.Visible:Visibility.Collapsed;
-        coverageText.Text=$"{scope.Saved} invoices saved. {scope.AfterDate} dated after As of {controller.AsOf:dd-MM-yyyy} are excluded from both reports. Latest invoice: {scope.LatestDate:dd-MM-yyyy}.";
-        if(generatedView)count.Text=$"{scope.Included} of {scope.Saved} invoices · read-only";
-    }
-    private void ShowAllSavedInvoices()
-    {
-        RequireSaved();var scope=workflow.Coverage(controller.PartyId,controller.AsOf);if(scope.LatestDate is not {} latest)return;
-        var target=latest>controller.AsOf?latest:controller.AsOf;workflow.SetReportDate(controller.PartyId,target);controller.AsOf=target;Open(controller.Name);
     }
     private void UpdateRecords(){count.Text=generatedView?"Generated · read-only":$"{controller.Rows.Count} record{(controller.Rows.Count==1?"":"s")}";deleteButton.IsEnabled=!generatedView&&grid?.Table.CurrentItem is GridRow row&&controller.Rows.Contains(row);assignButton.IsEnabled=controller.PartyId==Guid.Empty&&controller.Rows.Count>0&&!dirty;}
-    private void Add(){if(grid==null||generatedView)return;var row=controller.Add();Watch(row);MarkDirty();UpdateRecords();grid.Table.ScrollIntoView(row);grid.Table.CurrentCell=new DataGridCellInfo(row,grid.Table.Columns.First(c=>!c.IsReadOnly));grid.Table.Focus();grid.Table.BeginEdit();}
-    private void Delete(){if(grid?.Table.CurrentItem is GridRow row&&controller.Rows.Contains(row)&&MessageBox.Show(this,"Remove the selected record? Save changes to confirm the deletion.","Delete record",MessageBoxButton.YesNo,MessageBoxImage.Warning)==MessageBoxResult.Yes){controller.Rows.Remove(row);MarkDirty();UpdateRecords();Calculate();}}
-    private void Options(){if(!decimal.TryParse(opening.Text,NumberStyles.Number,CultureInfo.InvariantCulture,out var value)||decimal.Round(value,2)!=value)throw new ArgumentException("Opening balance: enter USD with at most two decimals.");if(!int.TryParse(terms.Text,out var days)||days<0||days>3650)throw new ArgumentException("Payment terms must be 0–3650 days.");controller.Opening=value;controller.Terms=days;if(!DateOnly.TryParseExact(DateCellConverter.Normalize(asOf.Text),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var reportDate))throw new ArgumentException("As of: enter a valid date (dd-MM-yyyy).");controller.AsOf=reportDate;}
-    private void Calculate(){if(grid==null)return;try{Options();if(generatedView){var report=workflow.Build(controller.PartyId,controller.AsOf,true);grid=WorkflowWindows.ReportGrid(report.Tables[controller.Name=="details"?0:1]);sheetArea.Children.Clear();sheetArea.Children.Add(grid);status.Text="Generated report refreshed · "+controller.AsOf.ToString("dd-MM-yyyy");UpdateCoverage();return;}refreshing=true;controller.Calculate();controller.Validate(false);notification.Visibility=Visibility.Collapsed;status.Text=dirty?"● Unsaved changes":"All changes saved";status.Foreground=Ui.Color(dirty?"#9A6700":"#64748B");}catch(Exception ex){Error(ex.Message);}finally{refreshing=false;}}
+    private void Add(){if(grid==null||generatedView)return;var row=controller.Add();if(controller.Name=="form"&&string.IsNullOrWhiteSpace(row["F1"]))row["F1"]=controller.PartyName;Watch(row);MarkDirty();UpdateRecords();grid.Table.ScrollIntoView(row);grid.Table.CurrentCell=new DataGridCellInfo(row,grid.Table.Columns.First(c=>!c.IsReadOnly));grid.Table.Focus();grid.Table.BeginEdit();}
+    private void Delete()
+    {
+        if(grid==null)return;if(grid.WholeSelectedRecord==null){grid.ClearSelectedCells();return;}DeleteRecord(false);
+    }
+    private void CutSelection()
+    {
+        if(grid==null)return;if(grid.WholeSelectedRecord==null){grid.CutSelectedCells();return;}DeleteRecord(true);
+    }
+    private void DeleteRecord(bool cut)
+    {
+        if(generatedView)throw new ArgumentException("This report is read-only. Select an invoice in Invoice register to delete a record.");
+        if(grid?.WholeSelectedRecord is not GridRow row||!controller.Rows.Contains(row))throw new ArgumentException("Select a record in the worksheet first.");
+        if(controller.Name=="form")workflow.EnsureInvoiceCanDelete(controller.PartyId,row.Snapshot());
+        var reference=controller.Name=="form"?row["F9"]:row["B"];if(string.IsNullOrWhiteSpace(reference))reference="the selected draft row";
+        var text=$"Delete {reference} for {controller.PartyName}?\n\nThis record will be deleted and saved immediately. Other unsaved edits will not be saved.";
+        var confirmed=ConfirmRecordDeletion?.Invoke(text)??ConfirmDeleteWindow.Confirm(this,reference,controller.PartyName,cut);
+        if(!confirmed)return;if(cut)grid.CopyRecordForCut(row);grid.Table.CancelEdit();grid.Table.CancelEdit(DataGridEditingUnit.Row);
+        refreshing=true;try{dirty=controller.DeleteImmediately(row);}finally{refreshing=false;}
+        SetSaveState(dirty);UpdateRecords();revision.Text=$"Revision {controller.Revision} · Local storage";notification.Visibility=Visibility.Collapsed;status.Text=(cut?"Record cut to clipboard and removed":"Record deleted and saved")+(dirty?" · other edits remain unsaved":"");status.Foreground=Ui.Color("#247653");
+    }
+    private void Options(){if(!decimal.TryParse(opening.Text,NumberStyles.Number,CultureInfo.InvariantCulture,out var value)||decimal.Round(value,2)!=value)throw new ArgumentException("Opening balance: enter USD with at most two decimals.");if(!int.TryParse(terms.Text,out var days)||days<0||days>3650)throw new ArgumentException("Payment terms must be 0–3650 days.");controller.Opening=value;controller.Terms=days;controller.AsOf=DateOnly.FromDateTime(DateTime.Today); }
+    private void Calculate(){if(grid==null)return;try{Options();if(generatedView){var report=workflow.BuildCurrent(controller.PartyId);grid=WorkflowWindows.ReportGrid(report.Tables[controller.Name=="details"?0:1]);sheetArea.Children.Clear();sheetArea.Children.Add(grid);status.Text="Generated report refreshed · "+controller.AsOf.ToString("dd-MM-yyyy");return;}refreshing=true;controller.Calculate();controller.Validate(false);notification.Visibility=Visibility.Collapsed;status.Text=dirty?"● Unsaved changes":"All changes saved";status.Foreground=Ui.Color(dirty?"#9A6700":"#64748B");}catch(Exception ex){Error(ex.Message);}finally{refreshing=false;}}
     private void Save()
     {
         if(grid==null||generatedView)return;
@@ -214,17 +249,8 @@ public sealed class MainWindow : Window
         Options();refreshing=true;
         try
         {
-            controller.Save();dirty=false;saveButton.IsEnabled=false;notification.Visibility=Visibility.Collapsed;
-            if(controller.Name=="form")
-            {
-                var scope=workflow.Coverage(controller.PartyId,controller.AsOf);
-                if(scope.AfterDate>0&&scope.LatestDate is {} latest)
-                {
-                    var advance=ConfirmReportDateChange?.Invoke(controller.AsOf,latest)??(MessageBox.Show(this,$"Saved successfully. {scope.AfterDate} invoice(s) are dated after the report date {controller.AsOf:dd-MM-yyyy}. They will not appear in either report at that date.\n\nChange As of to {latest:dd-MM-yyyy} so all saved invoices appear?","Include later-dated invoices?",MessageBoxButton.YesNo,MessageBoxImage.Information)==MessageBoxResult.Yes);
-                    if(advance){controller.AsOf=latest;asOf.Value=latest.ToString("yyyy-MM-dd");controller.Save();}
-                }
-            }
-            status.Foreground=Ui.Color("#247653");status.Text="Changes saved";revision.Text=$"Revision {controller.Revision} · Local storage";UpdateRecords();UpdateCoverage();
+            controller.Save();dirty=false;SetSaveState(false);notification.Visibility=Visibility.Collapsed;
+            status.Foreground=Ui.Color("#247653");status.Text="Changes saved";revision.Text=$"Revision {controller.Revision} · Local storage";UpdateRecords();
         }
         finally{refreshing=false;}
     }
@@ -237,27 +263,18 @@ public sealed class MainWindow : Window
         PreviewParty("details",party.Id);
         if(!generatedView||grid?.Table.IsReadOnly!=true||((GridRow)grid.Table.Items[0])["F"]!="10000.00")throw new InvalidOperationException("Generated report UI did not use register source.");
         Save();if(store.Load(session,"details",party.Id).Rows.Count!=0)throw new InvalidOperationException("Generated view overwrote legacy worksheet.");
-        asOf.Value="2026-05-01";Calculate();if(grid.Table.Items.Count!=0)throw new InvalidOperationException("Generated historical view did not refresh.");
-        Open("ledger");if(controller.AsOf!=new DateOnly(2026,5,1)||grid!.Table.Items.Cast<GridRow>().Any(r=>r["B"].Contains("WF-UI-1")))throw new InvalidOperationException("Switching generated tabs lost the reporting cutoff.");
-        Open("details");if(controller.AsOf!=new DateOnly(2026,5,1))throw new InvalidOperationException("Returning to details lost the cutoff.");
-        asOf.Value="2026-10-28";Calculate();
-        cutoffPopup!.IsOpen=true;cutoffCalendar!.SelectedDate=new DateTime(2026,8,15);
-        if(controller.AsOf!=new DateOnly(2026,8,15)||cutoffPopup.IsOpen)throw new InvalidOperationException("Calendar selection did not apply the reporting cutoff and close the popup.");
-        asOf.Value="2026-10-28";Calculate();
-        PreviewParty("form",party.Id);controller.Rows[0]["F5"]="16000";Navigate("details");
+        PreviewParty("form",party.Id);controller.Rows[0]["F5"]="16000";Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        if(controller.Rows[0]["F8"]!="6000.00")throw new InvalidOperationException("Automatic calculation did not refresh without a Recalculate button.");Navigate("details");
         if(((GridRow)grid!.Table.Items[0])["C"]!="16000.00")throw new InvalidOperationException("Invoice edits did not save when opening Account details.");
         Navigate("ledger");if(grid!.Table.Items.Cast<GridRow>().Last()["E"]!="12200.00")throw new InvalidOperationException("Invoice edit did not reach debit/credit.");
         Navigate("form");controller.Rows[0]["F5"]="15000";Navigate("details");
         var payments=new PaymentsWindow(this,workflow,party.Id);payments.CheckForAcceptance();payments.Close();
         workflow.RecordReceipt(party.Id,new(2026,7,1),5000,"UI workflow test",[new(ReportWorkflow.InvoiceKey(party.Id,row.Snapshot()),"Bank",5000)]);
         PreviewParty("details",party.Id);if(((GridRow)grid.Table.Items[0])["F"]!="5000.00")throw new InvalidOperationException("Generated UI did not reflect dated receipt.");
-        PreviewParty("form",party.Id);ConfirmReportDateChange=(_,_)=>false;var future=controller.Add();Watch(future);future["F9"]="WF-FUTURE";future["F10"]="2026-11-20";future["F5"]="15000";future["F6"]="10000";Save();
-        Navigate("details");if(grid!.Table.Items.Count!=1||coverageBanner.Visibility!=Visibility.Visible)throw new InvalidOperationException("Later invoice was hidden without a reporting-date warning.");
-        ShowAllSavedInvoices();if(grid!.Table.Items.Count!=2||controller.AsOf!=new DateOnly(2026,11,20))throw new InvalidOperationException("Show all saved invoices did not include the future invoice.");
-        Navigate("ledger");if(!grid!.Table.Items.Cast<GridRow>().Any(r=>r["B"].Contains("WF-FUTURE")))throw new InvalidOperationException("Later invoice did not reach Debit/Credit.");
-        Navigate("form");if(controller.AsOf!=new DateOnly(2026,11,20)||workflow.Coverage(party.Id,new(2026,11,20)).AfterDate!=0)throw new InvalidOperationException("Report date was lost when returning to register.");
-        ConfirmReportDateChange=(_,_)=>true;future=controller.Add();Watch(future);future["F9"]="WF-FUTURE-2";future["F10"]="2026-12-01";future["F5"]="15000";future["F6"]="10000";Save();Navigate("details");
-        if(grid!.Table.Items.Count!=3||controller.AsOf!=new DateOnly(2026,12,1))throw new InvalidOperationException("Accepted report-date advance did not display the new invoice.");ConfirmReportDateChange=null;
+        PreviewParty("form",party.Id);var future=controller.Add();Watch(future);future["F9"]="WF-FUTURE";future["F10"]="2026-11-20";future["F5"]="15000";future["F6"]="10000";Save();
+        Navigate("details");if(grid!.Table.Items.Count!=2)throw new InvalidOperationException("All-records Account Details excluded a saved future invoice.");
+        Navigate("ledger");if(!grid!.Table.Items.Cast<GridRow>().Any(r=>r["B"].Contains("WF-FUTURE")))throw new InvalidOperationException("All-records ledger excluded a saved invoice.");
+        Navigate("form");if(grid!.Table.Columns.Count!=controller.Fields.Count-1||grid.Table.Columns.Any(c=>c.Header?.ToString()==controller.Fields.Single(f=>f.Key=="F1").Label)||!title.Text.Contains(party.Name))throw new InvalidOperationException("Party heading/hidden party column failed.");
         PreviewParty("form",Guid.Empty);
     }
     private void RefreshParties(Guid selected)
@@ -300,6 +317,33 @@ public sealed class MainWindow : Window
         if(controller.Rows.Count!=before+1||saveButton.IsEnabled)throw new InvalidOperationException("UI save/reload failed.");
         foreach(var name in new[]{"details","ledger","form"}){Open(name);Measure(new Size(1000,600));Arrange(new Rect(0,0,1000,600));UpdateLayout();}
     }
+    internal void CheckShortcutInteractions()
+    {
+        var party=store.CreateParty(session,"Shortcut UI TEST");workflow.Configure(party.Id,new("F6","F22",false,new(2026,1,1)));PreviewParty("form",party.Id);
+        if(shortcuts.Count!=15||shortcuts.Select(s=>(s.Key,s.Modifiers)).Distinct().Count()!=shortcuts.Count)throw new InvalidOperationException("Shortcut registration is missing or duplicated.");
+        TryShortcut(Key.N,ModifierKeys.Control);var row=controller.Rows.Last();row["F9"]="SHORTCUT-TEST";row["F10"]="2026-06-01";row["F5"]="1000";row["F6"]="800";TryShortcut(Key.S,ModifierKeys.Control);
+        if(dirty||saveButton.IsEnabled||System.Windows.Automation.AutomationProperties.GetName(saveButton)!="All changes saved")throw new InvalidOperationException("Ctrl+S did not save and update button state.");
+        int cellConfirmations=0;ConfirmRecordDeletion=_=>{cellConfirmations++;return false;};grid!.Table.SelectedCells.Clear();grid.Table.CurrentCell=new(row,grid.Table.Columns[0]);grid.Table.SelectedCells.Add(grid.Table.CurrentCell);row["F2"]="CLEAR ME";TryShortcut(Key.Delete,ModifierKeys.None);
+        if(cellConfirmations!=0||row["F2"]!=""||controller.Rows.Count!=1)throw new InvalidOperationException("Cell Delete requested row confirmation or removed a record.");
+        string clipboard="";grid.ClipboardWriter=text=>clipboard=text;row["F2"]="CELL CUT";TryShortcut(Key.X,ModifierKeys.Control);if(clipboard!="CELL CUT"||row["F2"]!=""||cellConfirmations!=0)throw new InvalidOperationException($"Ctrl+X cell cut failed: clipboard={clipboard}; value={row["F2"]}; confirmations={cellConfirmations}; error={message.Text}");TryShortcut(Key.S,ModifierKeys.Control);
+        int confirmations=0;ConfirmRecordDeletion=_=>{confirmations++;return false;};grid!.SelectRecordRow(row);TryShortcut(Key.Delete,ModifierKeys.None);
+        if(confirmations!=1||controller.Rows.Count!=1||dirty)throw new InvalidOperationException("Cancelled deletion changed records.");
+        ConfirmRecordDeletion=_=>{confirmations++;return true;};TryShortcut(Key.Delete,ModifierKeys.None);
+        if(confirmations!=2||controller.Rows.Count!=0||dirty||saveButton.IsEnabled||store.Load(session,"form",party.Id).Rows.Any(r=>!r.ContainsKey("_metadata")))throw new InvalidOperationException("Confirmed deletion was not saved immediately.");
+        ReloadSaved();if(controller.Rows.Count!=0)throw new InvalidOperationException("Reload restored a deleted record.");
+        var first=controller.Add();Watch(first);first["F9"]="DELETE-ONLY";first["F10"]="2026-06-01";first["F5"]="1000";first["F6"]="800";
+        var second=controller.Add();Watch(second);second["F9"]="KEEP-DRAFT";second["F10"]="2026-06-01";second["F5"]="1000";second["F6"]="800";Save();
+        second["F5"]="1200";grid!.SelectRecordRow(first);TryShortcut(Key.Delete,ModifierKeys.None);
+        var persisted=store.Load(session,"form",party.Id).Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
+        if(persisted.Count!=1||persisted[0]["F9"]!="KEEP-DRAFT"||persisted[0]["F5"]!="1000"||second["F5"]!="1200"||!dirty)throw new InvalidOperationException("Deleting a record saved or discarded unrelated draft edits.");
+        Save();grid.SelectRecordRow(second);TryShortcut(Key.Delete,ModifierKeys.None);ReloadSaved();
+        TryShortcut(Key.S,ModifierKeys.Control);if(store.Load(session,"form",party.Id).Rows.Any(r=>!r.ContainsKey("_metadata")))throw new InvalidOperationException("Deletion was not saved.");
+        var cut=controller.Add();Watch(cut);cut["F9"]="CUT-RECORD";cut["F10"]="2026-06-01";cut["F5"]="1000";cut["F6"]="800";Save();grid!.ClipboardWriter=text=>clipboard=text;grid.SelectRecordRow(cut);clipboard="UNCHANGED";ConfirmRecordDeletion=_=>false;TryShortcut(Key.X,ModifierKeys.Control);
+        if(clipboard!="UNCHANGED"||controller.Rows.Count!=1)throw new InvalidOperationException("Cancelled record cut changed data or clipboard.");ConfirmRecordDeletion=_=>true;TryShortcut(Key.X,ModifierKeys.Control);
+        if(!clipboard.Contains("CUT-RECORD")||controller.Rows.Count!=0||store.Load(session,"form",party.Id).Rows.Any(r=>!r.ContainsKey("_metadata")))throw new InvalidOperationException("Whole-record cut was not copied and persisted.");
+        grid.ClipboardWriter=null;ConfirmRecordDeletion=null;TryShortcut(Key.D2,ModifierKeys.Control);if(controller.Name!="details")throw new InvalidOperationException("Ctrl+2 navigation failed.");TryShortcut(Key.D3,ModifierKeys.Control);if(controller.Name!="ledger")throw new InvalidOperationException("Ctrl+3 navigation failed.");TryShortcut(Key.D1,ModifierKeys.Control);if(controller.Name!="form")throw new InvalidOperationException("Ctrl+1 navigation failed.");
+        PreviewParty("form",Guid.Empty);
+    }
     internal double SheetTop=>grid?.TranslatePoint(new Point(0,0),(UIElement)Content).Y??999;
     internal void CheckPartyInteractions()
     {
@@ -313,11 +357,11 @@ public sealed class MainWindow : Window
         if(controller.PartyId!=a.Id||opening.Text!="100.00"||controller.Rows.Single()["B"]!="UI A invoice")throw new InvalidOperationException("Party switching failed to restore isolated records.");
         Open("form",a.Id);var row=controller.Add();
         if(row["F1"]!=a.Name)throw new InvalidOperationException("Selected party was not defaulted.");
-        row["F9"]="UI-PARTY-A";terms.Text="60";asOf.Value="2026-10-01";Save();
+        row["F9"]="UI-PARTY-A";terms.Text="60";Save();
         Open("form",b.Id);if(controller.Rows.Count!=0)throw new InvalidOperationException("Invoice register leaked across parties.");
         if(terms.Text!="90")throw new InvalidOperationException("Party terms leaked.");
         var reopenedController=new WorksheetController(store,session);reopenedController.Load("form",a.Id);
-        if(reopenedController.Terms!=60||reopenedController.AsOf!=new DateOnly(2026,10,1))throw new InvalidOperationException("Party settings were not persisted.");
+        if(reopenedController.Terms!=60||reopenedController.AsOf!=DateOnly.FromDateTime(DateTime.Today))throw new InvalidOperationException("Party settings were not persisted.");
         RefreshParties(Guid.Empty);Open("form",Guid.Empty);
     }
     private sealed class ActionCommand(Action execute):ICommand{public event EventHandler? CanExecuteChanged{add{}remove{}}public bool CanExecute(object? parameter)=>true;public void Execute(object? parameter)=>execute();}

@@ -2,6 +2,22 @@
 
 Build: UI 2026.10.28.1. All amounts are USD.
 
+## Confirmed deletion and save state
+
+Delete or the Delete toolbar button clears selected editable cells without a modal. Select a whole record by clicking its row number to request record deletion; only whole-record removal shows the selected record and party for confirmation. Keep record/Escape/closing the dialog cancels. Delete record now saves that record's removal immediately; Reload or reopening will not bring it back. Payment-history records remain protected. Stale-revision/validation failures leave the record in place. Other unsaved edits remain unsaved, so Save changes still applies to ordinary edits. Saved has a checkmark; pending edits show the blue Save changes button. Shortcuts is removed from the navbar, but keyboard shortcuts and F1 help remain. The main and login branding no longer shows Offline/USD mode badges. Currency units remain on amount fields and reports.
+
+## Cutting cells and records
+
+Ctrl+X cuts a selected editable cell or rectangular range: clipboard data is written before values are cleared. These are ordinary draft edits until Save. Clipboard failure leaves the values unchanged. Calculated cells and read-only reports cannot be cut/cleared. When a text editor has focus, native text Delete/Ctrl+X behavior is retained.
+
+Select a whole record using its row number, then Ctrl+X to cut the record. Confirmation is required because its removal is saved immediately, like whole-row deletion. Cancel does not change the record or clipboard. The record is copied before storage removal; protected payment-history records cannot be removed. Ctrl+V pastes its visible fields into the matching worksheet and the app retains invoice terms via its own clipboard metadata. Destination party identity is inherited from the destination workspace; calculated values are recalculated. Only one whole record is removed at a time. Ordinary external text pastes continue to work.
+
+## Simplified main screen
+
+The main screen no longer has Recalculate, As of or Comfortable rows. Calculations refresh automatically while editing and on save. Reports, preview, print and main-screen Excel export include all saved invoices and recorded payments, including future-dated entries, without a manual cutoff. Prepared date is today's date; it does not claim to be a historical balance. Overdue arithmetic and reminders still use today's date. Receipt entry retains its actual payment/correction date. Historical reporting services remain available internally and existing submitted snapshots are unchanged.
+
+The selected party appears beside the worksheet heading. Invoice Register hides the repeated party-name column; it retains party identity in each saved record and automatically sets it for new rows. Party selection still isolates records, balances and settings. The restyled selector supports keyboard selection and type-to-select. Unassigned records remain a temporary workspace for later assignment.
+
 ## Start safely
 
 - Development: close any old running copy, then run dotnet run --no-restore --project Src/TradeVault.Desktop/TradeVault.Desktop.csproj.
@@ -51,7 +67,7 @@ Open Payments / unpaid invoices for the selected customer. One row per invoice s
 
 Saving valid register edits or switching from the register to either report saves the register first and rebuilds the generated view from it. Invalid edits keep the user in place with an error. Customers without calculation settings are prompted to choose explicit sources before opening generated reports. Existing manual worksheets remain preserved. Invoice amount/date fields linked to receipt history remain protected; the change does not bypass historical safeguards.
 
-Historical receipts/corrections are included at their effective dates. Both report tabs use the selected report cutoff. Changing source invoice values does not reconstruct every previous invoice version; existing exported/imported snapshots stay frozen.
+Historical receipts/corrections are included at their effective dates. Both main report tabs now include all saved entries, with no selected reporting cutoff. Changing source invoice values does not reconstruct every previous invoice version; existing exported/imported snapshots stay frozen.
 
 ## Report preview, export and print
 

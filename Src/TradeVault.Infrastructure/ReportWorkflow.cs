@@ -41,6 +41,11 @@ public sealed partial class ReportWorkflow(WorkbookStore store,LoginSession sess
     public static string InvoiceKey(Guid party,Dictionary<string,string> row)=>row.GetValueOrDefault("_id")??Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(party+"|"+row.GetValueOrDefault("F9","").Trim().ToUpperInvariant())));
     public List<Dictionary<string,string>> Invoices(Guid party)=>store.Load(session,"form",party).Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
     public List<PartyReceipt> Receipts(Guid party)=>store.Document<ReceiptBook>(session,"receipts",party.ToString())?.Receipts??[];
+    public void EnsureInvoiceCanDelete(Guid party,Dictionary<string,string> row)
+    {
+        Party(party);var key=InvoiceKey(party,row);
+        if(Receipts(party).Any(r=>r.Allocations.Any(a=>a.InvoiceId==key)))throw new BusinessRuleException("This invoice has payment history and cannot be deleted. Keep it for the account history; use the payment correction workflow when needed.");
+    }
     public ReportCoverage Coverage(Guid party,DateOnly asOf)
     {
         var rows=Invoices(party);var dates=rows.Select(r=>DateOnly.TryParseExact(r.GetValueOrDefault("F10",""),"yyyy-MM-dd",Culture,DateTimeStyles.None,out var date)?(DateOnly?)date:null).ToList();
@@ -116,6 +121,13 @@ public sealed partial class ReportWorkflow(WorkbookStore store,LoginSession sess
     public ReportBundle Build(Guid party,DateOnly asOf,bool generated)
     {
         Party(party);return generated?BuildGenerated(party,asOf,Receipts(party),false):BuildLegacy(party,asOf);
+    }
+    public ReportBundle BuildCurrent(Guid party,bool generated=true)
+    {
+        Party(party);var today=DateOnly.FromDateTime(DateTime.Today);
+        if(!generated)return BuildLegacy(party,today);
+        var all=BuildGenerated(party,DateOnly.MaxValue,Receipts(party),false);
+        return Bundle(party,today,"All saved records",all.Tables,["Includes all saved invoices and recorded payments, including future-dated entries. Prepared on "+today.ToString("yyyy-MM-dd",Culture)+"; no manual reporting-date filter.",..all.Notes]);
     }
     private ReportBundle Bundle(Guid party,DateOnly asOf,string mode,List<ReportTable> tables,List<string> notes)
     {

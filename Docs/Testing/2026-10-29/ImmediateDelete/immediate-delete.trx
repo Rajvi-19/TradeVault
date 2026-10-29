@@ -1,0 +1,71 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="3bf9aa2a-08df-49ae-b953-ea9e0b14c89a" name="Rii@DESKTOP-6RKBQ7P 2026-10-29 01:49:48" runUser="DESKTOP-6RKBQ7P\CodexSandboxOffline" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-29T01:49:48.7766984-07:00" queuing="2026-10-29T01:49:48.7766989-07:00" start="2026-10-29T01:49:41.4619301-07:00" finish="2026-10-29T01:49:48.7953780-07:00" />
+  <TestSettings name="default" id="ad540c78-e051-4325-b4da-4edb29cab27a">
+    <Deployment runDeploymentRoot="Rii_DESKTOP-6RKBQ7P_2026-10-29_01_49_48" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="5b0115ef-a555-496c-aa4a-8ec8c44e33ad" testId="4ff8c78e-401b-66cc-e447-8b4da723c6e3" testName="TradeVault.Tests.WorkflowTests.ImmediateRecordDeletionPersistsAndRejectsStaleOrProtectedChanges" computerName="DESKTOP-6RKBQ7P" duration="00:00:04.9317930" startTime="2026-10-29T01:49:43.5651762-07:00" endTime="2026-10-29T01:49:48.5453842-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5b0115ef-a555-496c-aa4a-8ec8c44e33ad">
+      <Output>
+        <ErrorInfo>
+          <Message>System.IO.IOException : TradeVault is already open from this application folder. Close its other window before opening it again.&#xD;
+---- System.IO.IOException : The process cannot access the file 'C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\WorkflowVerification\WorkflowData\f3f1becbf3ad4220a82ec7429a5e6f34\Data\.instance.lock' because it is being used by another process.</Message>
+          <StackTrace>   at TradeVault.Infrastructure.PortableDatabase..ctor(PortablePaths paths) in C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Src\TradeVault.Infrastructure\PortableDatabase.cs:line 20&#xD;
+   at TradeVault.Tests.WorkflowTests.ImmediateRecordDeletionPersistsAndRejectsStaleOrProtectedChanges() in C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\WorkflowTests.cs:line 17&#xD;
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)&#xD;
+----- Inner Stack Trace -----&#xD;
+   at Microsoft.Win32.SafeHandles.SafeFileHandle.CreateFile(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options)&#xD;
+   at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)&#xD;
+   at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)&#xD;
+   at System.IO.Strategies.FileStreamHelpers.ChooseStrategyCore(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)&#xD;
+   at System.IO.FileStream..ctor(String path, FileMode mode, FileAccess access, FileShare share)&#xD;
+   at TradeVault.Infrastructure.PortableDatabase..ctor(PortablePaths paths) in C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Src\TradeVault.Infrastructure\PortableDatabase.cs:line 17</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="TradeVault.Tests.WorkflowTests.ImmediateRecordDeletionPersistsAndRejectsStaleOrProtectedChanges" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\workflowverification\tradevault.tests.dll" id="4ff8c78e-401b-66cc-e447-8b4da723c6e3">
+      <Execution id="5b0115ef-a555-496c-aa4a-8ec8c44e33ad" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\WorkflowVerification\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.WorkflowTests" name="ImmediateRecordDeletionPersistsAndRejectsStaleOrProtectedChanges" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="4ff8c78e-401b-66cc-e447-8b4da723c6e3" executionId="5b0115ef-a555-496c-aa4a-8ec8c44e33ad" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="1" executed="1" passed="0" failed="1" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v4.0.1+0f7d528729 (64-bit .NET 10.0.14)&#xD;
+[xUnit.net 00:00:00.30]   Discovering: TradeVault.Tests&#xD;
+[xUnit.net 00:00:00.49]   Discovered:  TradeVault.Tests&#xD;
+[xUnit.net 00:00:00.55]   Starting:    TradeVault.Tests&#xD;
+[xUnit.net 00:00:05.60]       System.IO.IOException : TradeVault is already open from this application folder. Close its other window before opening it again.&#xD;
+[xUnit.net 00:00:05.60]       ---- System.IO.IOException : The process cannot access the file 'C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\WorkflowVerification\WorkflowData\f3f1becbf3ad4220a82ec7429a5e6f34\Data\.instance.lock' because it is being used by another process.&#xD;
+[xUnit.net 00:00:05.60]       Stack Trace:&#xD;
+[xUnit.net 00:00:05.60]         C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Src\TradeVault.Infrastructure\PortableDatabase.cs(20,0): at TradeVault.Infrastructure.PortableDatabase..ctor(PortablePaths paths)&#xD;
+[xUnit.net 00:00:05.60]         C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\WorkflowTests.cs(17,0): at TradeVault.Tests.WorkflowTests.ImmediateRecordDeletionPersistsAndRejectsStaleOrProtectedChanges()&#xD;
+[xUnit.net 00:00:05.60]            at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)&#xD;
+[xUnit.net 00:00:05.60]            at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)&#xD;
+[xUnit.net 00:00:05.60]         ----- Inner Stack Trace -----&#xD;
+[xUnit.net 00:00:05.60]            at Microsoft.Win32.SafeHandles.SafeFileHandle.CreateFile(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options)&#xD;
+[xUnit.net 00:00:05.60]            at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)&#xD;
+[xUnit.net 00:00:05.60]            at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)&#xD;
+[xUnit.net 00:00:05.60]            at System.IO.Strategies.FileStreamHelpers.ChooseStrategyCore(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)&#xD;
+[xUnit.net 00:00:05.60]            at System.IO.FileStream..ctor(String path, FileMode mode, FileAccess access, FileShare share)&#xD;
+[xUnit.net 00:00:05.60]         C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Src\TradeVault.Infrastructure\PortableDatabase.cs(17,0): at TradeVault.Infrastructure.PortableDatabase..ctor(PortablePaths paths)&#xD;
+[xUnit.net 00:00:05.63]   Finished:    TradeVault.Tests&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="DESKTOP-6RKBQ7P" outcome="Error" timestamp="2026-10-29T01:49:48.5518036-07:00">
+        <Text>[xUnit.net 00:00:05.59]     TradeVault.Tests.WorkflowTests.ImmediateRecordDeletionPersistsAndRejectsStaleOrProtectedChanges [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

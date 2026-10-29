@@ -113,6 +113,15 @@ internal static class AcceptanceChecks
                 Check("U14","Invalid pasted date is atomic",()=>{
                     var row=sheet.Rows[0];var before=row["F3"];grid.Table.CurrentCell=new(row,grid.Table.Columns[2]);grid.Paste("SHOULD-NOT-CHANGE\t54-04-2007");Assert(row["F3"]==before,"Invalid date paste partially changed data");
                 },"A range containing an impossible date is rejected before changing any input.");
+                Check("U15","Row header selects the entire visible record",()=>{
+                    var row=sheet.Rows[0];Assert(grid.SelectRecordRow(row),"Row selection failed");Assert(grid.Table.SelectedCells.Count==grid.Table.Columns.Count(c=>c.Visibility==Visibility.Visible)&&grid.Table.SelectedCells.All(c=>ReferenceEquals(c.Item,row)),"Not all record cells selected");
+                },"Row-header handler selects every visible column of one record, including calculated cells.");
+                Check("U16","Cell cut clears only selected editable values",()=>{
+                    var row=sheet.Rows[0];var original=row["F2"];var count=sheet.Rows.Count;string copied="";grid.Table.SelectedCells.Clear();grid.Table.CurrentCell=new(row,grid.Table.Columns[1]);grid.Table.SelectedCells.Add(grid.Table.CurrentCell);row["F2"]="CUT-CELL";grid.ClipboardWriter=text=>copied=text;
+                    Assert(grid.WholeSelectedRecord==null,"Single cell classified as a whole record");grid.CutSelectedCells();Assert(copied=="CUT-CELL"&&row["F2"]==""&&sheet.Rows.Count==count,"Cell cut removed a record or lost clipboard text");
+                    row["F2"]="KEEP-CELL";grid.ClipboardWriter=_=>throw new InvalidOperationException("Clipboard busy");try{grid.CutSelectedCells();throw new Exception("Clipboard failure ignored");}catch(InvalidOperationException){}Assert(row["F2"]=="KEEP-CELL","Clipboard failure cleared data");
+                    grid.Table.SelectedCells.Clear();grid.Table.CurrentCell=new(row,grid.Table.Columns[7]);grid.Table.SelectedCells.Add(grid.Table.CurrentCell);try{grid.ClearSelectedCells();throw new Exception("Calculated cell cleared");}catch(ArgumentException){}grid.ClipboardWriter=null;row["F2"]=original;
+                },"Ctrl+X path copies before clearing; cells do not remove rows, clipboard failure is non-destructive, and formulas stay locked.");
                 var login=new LoginWindow(store);var main=new MainWindow(store,owner,db.Paths.Database);
                 Check("W04","Workspace fits a 1366 by 768 desktop",()=>{var area=new Rect(0,0,1366,728);var size=Ui.WorkspaceSize(area);Assert(size.Width<=area.Width&&size.Height<=area.Height,"Startup window extends outside work area");},"Startup size accounts for taskbar space so caption and report navigation remain on screen.");
                 Check("W05","All three worksheet tabs remain visible",main.CheckNavigationLayout,"Invoice register, Account details and Debit & credit button bounds are inside the 1366 by 728 workspace.");

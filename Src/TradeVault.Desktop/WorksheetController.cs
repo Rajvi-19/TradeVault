@@ -133,4 +133,14 @@ public sealed class WorksheetController(WorkbookStore store, LoginSession sessio
         data.AddRange(Rows.Select(row => {var data=Fields.ToDictionary(f=>f.Key,f=>row[f.Key]);if(Name=="form"){data["_id"]=row["_id"];data["_terms"]=row["_terms"];}return data;}));
         Revision = store.Save(session,Name,Revision,data,PartyId);
     }
+    public bool DeleteImmediately(GridRow row)
+    {
+        var index=Rows.IndexOf(row);if(index<0)throw new BusinessRuleException("Select a stored record or draft row first.");
+        Revision=store.DeleteWorksheetRecord(session,Name,PartyId,Revision,index,Name=="form"?ReportWorkflow.InvoiceKey(PartyId,row.Snapshot()):null);
+        Rows.Remove(row);Calculate();
+        var saved=new WorksheetController(store,session);saved.Load(Name,PartyId);
+        if(Rows.Count!=saved.Rows.Count||Opening!=saved.Opening||Terms!=saved.Terms)return true;
+        var inputs=Fields.Where(f=>!f.Calculated).Select(f=>f.Key).Concat(Name=="form"?new[]{"_terms"}:Array.Empty<string>()).ToArray();
+        return Rows.Zip(saved.Rows).Any(pair=>inputs.Any(key=>pair.First[key]!=pair.Second[key]));
+    }
 }

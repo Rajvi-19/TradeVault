@@ -14,6 +14,7 @@ internal static class LiveChecks
             var session=store.Login("owner","Owner@123");AcceptanceChecks.Seed(store,session);var window=new MainWindow(store,session,database.Paths.Database);
             foreach(var name in new[]{"form","details","ledger"}){window.PreviewSheet(name);Capture(window,System.IO.Path.Combine(directory,name+".png"),1480,920);if(name=="form")Capture(window,System.IO.Path.Combine(directory,"form-minimum.png"),1100,720);}
             Capture(window,System.IO.Path.Combine(directory,"compact-window.png"),1000,600);
+            var deleteDialog=new ConfirmDeleteWindow(window,"TEST-INV-006","[TEST] Sample party");var deleteSurface=(System.Windows.FrameworkElement)deleteDialog.Content;deleteSurface.Measure(new(560,double.PositiveInfinity));Capture(deleteDialog,System.IO.Path.Combine(directory,"delete-confirmation.png"),560,(int)Math.Ceiling(deleteSurface.DesiredSize.Height));deleteDialog.Close();
             var inbox=new ImportedReportsWindow(window,new ReportWorkflow(store,session));Capture(inbox,System.IO.Path.Combine(directory,"operator-reports.png"),1180,750);inbox.Close();window.Close();
             var party=store.CreateParty(session,"QA generated reports");var controller=new WorksheetController(store,session);controller.Load("form",party.Id);var row=controller.Add();row["F9"]="QA-GENERATED-001";row["F10"]="2026-06-01";row["F5"]="15000";row["F6"]="10000";row["F17"]="2026-06-17";controller.Save();
             new ReportWorkflow(store,session).Configure(party.Id,new("F6","F22",true,new(2026,1,1)));var generated=new MainWindow(store,session,database.Paths.Database);generated.PreviewParty("details",party.Id);Capture(generated,System.IO.Path.Combine(directory,"generated-details.png"),1440,880);generated.PreviewParty("ledger",party.Id);Capture(generated,System.IO.Path.Combine(directory,"generated-ledger.png"),1440,880);generated.Close();
@@ -72,7 +73,7 @@ internal static class LiveChecks
                 draft["F17"]=DateCellConverter.Normalize("17/6/2026");sheet.Save();
                 Require(draft["F19"]=="2026-09-15","Derived due remains calculated");
                 Require(store.Load(owner,"form").Rows.Count==3,"Only two entered rows and metadata persisted");
-                var window=new MainWindow(store,owner,db.Paths.Database);window.Measure(new System.Windows.Size(1440,880));window.Arrange(new System.Windows.Rect(0,0,1440,880));window.UpdateLayout();window.CheckInteractions();window.CheckPartyInteractions();window.CheckWorkflowInteractions();window.Close();
+                var window=new MainWindow(store,owner,db.Paths.Database);window.Measure(new System.Windows.Size(1440,880));window.Arrange(new System.Windows.Rect(0,0,1440,880));window.UpdateLayout();window.CheckInteractions();window.CheckPartyInteractions();window.CheckWorkflowInteractions();window.CheckShortcutInteractions();window.Close();
                 store.Logout(owner);try{store.Load(owner,"form");throw new Exception("Expired session accepted");}catch(BusinessRuleException){}
             }
             using var reopened=new PortableDatabase(new(root));var s=new WorkbookStore(reopened);var session=s.Login("owner","Owner@123");Require(s.Load(session,"details").Rows.Count==2,"Persistence after reopen");

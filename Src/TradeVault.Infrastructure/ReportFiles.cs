@@ -16,9 +16,9 @@ public sealed partial class ReportWorkflow
     private static byte[] ReadFile(string path)
     {using var file=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read);if(file.Length>MaximumPackage)throw new BusinessRuleException("Package exceeds 32 MB.");var bytes=new byte[(int)file.Length];file.ReadExactly(bytes);return bytes;}
     public string Export(Guid party,DateOnly asOf,bool generated)=>ExportExcel(party,asOf,generated);
-    public string ExportExcel(Guid party,DateOnly asOf,bool generated)
+    public string ExportExcel(Guid party,DateOnly asOf,bool generated,bool includeAll=false)
     {
-        var snapshot=Build(party,asOf,generated);
+        var snapshot=includeAll?BuildCurrent(party,generated):Build(party,asOf,generated);
         var report=store.Mutate<ReportBundle>(session,"export",snapshot.SubmissionId.ToString(),old=>snapshot with{Revision=(old?.Revision??0)+1});
         var safe=new string(report.PartyName.Select(c=>Path.GetInvalidFileNameChars().Contains(c)?'_':c).ToArray()).Trim().TrimEnd('.');
         if(string.IsNullOrWhiteSpace(safe))safe="Party";
@@ -75,7 +75,7 @@ public sealed partial class ReportWorkflow
                 if(type=="number"&&decimal.TryParse(text,NumberStyles.Number,CultureInfo.InvariantCulture,out var amount)){cell.Add(new XAttribute("s",1),new XElement(ns+"v",amount.ToString(CultureInfo.InvariantCulture)));}
                 else if(type=="date"&&DateOnly.TryParseExact(text,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var date)&&date.Year>=1900){cell.Add(new XAttribute("s",2),new XElement(ns+"v",date.ToDateTime(TimeOnly.MinValue).ToOADate().ToString(CultureInfo.InvariantCulture)));}
                 else{cell.Add(new XAttribute("t","inlineStr"),new XAttribute("s",heading?3:0),new XElement(ns+"is",new XElement(ns+"t",new XAttribute(XNamespace.Xml+"space","preserve"),text)));}r.Add(cell);}data.Add(r);}
-            Row([(report.PartyName+" · "+table.Name,"text")]);Row([($"USD · As of {report.AsOf:dd-MM-yyyy} · {report.Mode}","text")]);Row([($"Submission {report.SubmissionId} · revision {report.Revision} · {report.CalculationVersion}","text")]);Row([("Generated "+report.CreatedAt.ToString("O"),"text")]);Row(table.Columns.Select(c=>(c.Label,"text")),true);
+            Row([(report.PartyName+" · "+table.Name,"text")]);Row([($"USD · {(report.Mode=="All saved records"?"Prepared":"As of")} {report.AsOf:dd-MM-yyyy} · {report.Mode}","text")]);Row([($"Submission {report.SubmissionId} · revision {report.Revision} · {report.CalculationVersion}","text")]);Row([("Generated "+report.CreatedAt.ToString("O"),"text")]);Row(table.Columns.Select(c=>(c.Label,"text")),true);
             foreach(var row in table.Rows)Row(table.Columns.Select(c=>(row.GetValueOrDefault(c.Key,""),c.Type)));
             Row(table.Columns.Select((c,i)=>(i==0?"TOTAL / CLOSING":table.Totals.TryGetValue(c.Key,out var total)?total.ToString("0.00",CultureInfo.InvariantCulture):"",i==0?"text":"number")));
 

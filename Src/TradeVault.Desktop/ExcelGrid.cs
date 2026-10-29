@@ -19,6 +19,13 @@ public sealed class ExcelGrid : UserControl
     private readonly HashSet<GridRow> blanks=[];
     private readonly Action<GridRow>? promote;
     public event Action? Edited;
+    internal Action<string>? ClipboardWriter{get;set;}
+    private const string RecordFormat="TradeVault.Record.v1";
+    private sealed record RecordClipboard(string[] Fields,string Terms);
+    internal GridRow? WholeSelectedRecord
+    {
+        get{var cells=Table.SelectedCells;var selected=cells.Select(c=>c.Item).Distinct().ToArray();return selected.Length==1&&selected[0] is GridRow row&&rows.Contains(row)&&Table.Columns.Where(c=>c.Visibility==Visibility.Visible).All(c=>cells.Any(cell=>ReferenceEquals(cell.Item,row)&&cell.Column==c))?row:null;}
+    }
     public ExcelGrid(IReadOnlyList<Field> fields, ObservableCollection<GridRow> rows, bool readOnly = false,Action<GridRow>? promote=null)
     {
         this.fields = fields; this.rows = rows;this.promote=promote;
@@ -32,36 +39,26 @@ public sealed class ExcelGrid : UserControl
         var search = new TextBox { Width=200,MinHeight=28, Padding = new(8,3,8,3), ToolTip = "Filter visible rows across all columns" };
         System.Windows.Automation.AutomationProperties.SetName(search, "Filter rows");
         var tools=new DockPanel {Margin=new(8,4,8,4)};
-        var legend=new TextBlock {Text=readOnly?"Read-only worksheet":"Shaded columns are calculated",FontSize=11,Foreground=Ui.Color("#64748B"),VerticalAlignment=VerticalAlignment.Center};
-        DockPanel.SetDock(legend,Dock.Right);tools.Children.Add(legend);
+        if(readOnly){var legend=new TextBlock {Text="Read-only worksheet",FontSize=11,Foreground=Ui.Color("#64748B"),VerticalAlignment=VerticalAlignment.Center};DockPanel.SetDock(legend,Dock.Right);tools.Children.Add(legend);}
         var filter=new StackPanel {Orientation=Orientation.Horizontal};
         filter.Children.Add(new TextBlock {Text="Search records",VerticalAlignment=VerticalAlignment.Center,Margin=new(0,0,10,0),FontSize=12,Foreground=Ui.Color("#64748B")});filter.Children.Add(search);tools.Children.Add(filter);
         DockPanel.SetDock(tools,Dock.Top);root.Children.Add(tools);
-        var formula=new DockPanel {Height=28,Margin=new(0,0,0,1),Background=Ui.Color("#FAFBFD")};
-        var address=new TextBlock {Text="A1",Width=76,TextAlignment=TextAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
-        DockPanel.SetDock(address,Dock.Left);formula.Children.Add(address);
-        var fx=new TextBlock {Text="│   fx",Foreground=Brushes.Gray,Width=50,VerticalAlignment=VerticalAlignment.Center,FontStyle=FontStyles.Italic};
-        DockPanel.SetDock(fx,Dock.Left);formula.Children.Add(fx);
-        var value=new TextBox {IsReadOnly=true,MinHeight=0,Padding=new(6,2,6,2),BorderThickness=new(0),ToolTip="Selected cell value. Edit inputs directly in the worksheet."};
-        System.Windows.Automation.AutomationProperties.SetName(value,"Selected cell value");formula.Children.Add(value);
-        DockPanel.SetDock(formula,Dock.Top);root.Children.Add(formula);
-        Table.CurrentCellChanged+=(_,_)=> {
-            if(Table.CurrentItem is GridRow row && Table.CurrentColumn is DataGridColumn column) {
-                int index=column.DisplayIndex;string letters="";for(int n=index+1;n>0;n=(n-1)/26)letters=(char)('A'+(n-1)%26)+letters;
-                address.Text=$"{letters}{Table.Items.IndexOf(row)+1}";
-                value.SetBinding(TextBox.TextProperty,new Binding($"[{fields[Table.Columns.IndexOf(column)].Key}]"){Source=row,Mode=BindingMode.OneWay,ValidatesOnNotifyDataErrors=false});
-            }
-        };
         DockPanel.SetDock(feedback,Dock.Top); root.Children.Add(feedback);
         source = new CollectionViewSource { Source = displayRows };
         source.Filter += (_,e) => e.Accepted = e.Item is GridRow r && fields.Any(f => r[f.Key].Contains(search.Text,StringComparison.OrdinalIgnoreCase));
         search.TextChanged += (_,_) => { Table.CommitEdit(); Table.CommitEdit(DataGridEditingUnit.Row,true); source.View.Refresh(); };
+        Table.FontFamily=new("Segoe UI Variable Text, Segoe UI");
         Table.AutoGenerateColumns = false; Table.CanUserAddRows = false; Table.CanUserDeleteRows = false;
         Table.IsReadOnly = readOnly; Table.SelectionUnit = DataGridSelectionUnit.Cell;
         Table.SelectionMode = DataGridSelectionMode.Extended;
         Table.HeadersVisibility = DataGridHeadersVisibility.All; Table.RowHeaderWidth = 42;
         Table.ClipboardCopyMode = DataGridClipboardCopyMode.ExcludeHeader;
         Table.LoadingRow += (_,e) => e.Row.Header = (e.Row.GetIndex()+1).ToString();
+        Table.PreviewMouseLeftButtonDown+=(_,e)=>{
+            if(e.OriginalSource is not DependencyObject source)return;
+            var header=Ancestor<System.Windows.Controls.Primitives.DataGridRowHeader>(source);
+            if(header!=null&&Ancestor<DataGridRow>(header)?.Item is GridRow row){e.Handled=true;SelectRecordRow(row);}
+        };
         foreach (var field in fields)
         {
             var cellStyle=new Style(typeof(DataGridCell),(Style)FindResource(typeof(DataGridCell)));
@@ -78,7 +75,7 @@ public sealed class ExcelGrid : UserControl
                 continue;
             }
             var style = new Style(typeof(TextBlock)); style.Setters.Add(new Setter(TextBlock.PaddingProperty,new Thickness(8,3,8,3)));
-            if (field.Calculated) style.Setters.Add(new Setter(TextBlock.BackgroundProperty,Ui.Color("#F0F5FF")));
+            if (field.Calculated){style.Setters.Add(new Setter(TextBlock.BackgroundProperty,Ui.Color("#F0F5FF")));var selected=new DataTrigger{Binding=new Binding("IsSelected"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGridCell),1)},Value=true};selected.Setters.Add(new Setter(TextBlock.BackgroundProperty,Brushes.Transparent));style.Triggers.Add(selected);}
             Table.Columns.Add(new DataGridTextColumn {
                 Header = field.Label, Width = field.Width==240?CompactWidth(field):field.Width, IsReadOnly = field.Calculated,
                 SortMemberPath = $"[{field.Key}]", ElementStyle = style, CellStyle=cellStyle,
@@ -118,6 +115,17 @@ public sealed class ExcelGrid : UserControl
         for(int i=0;i<VisualTreeHelper.GetChildrenCount(root);i++)if(FindInput(VisualTreeHelper.GetChild(root,i)) is {} found)return found;
         return null;
     }
+    private static T? Ancestor<T>(DependencyObject? source)where T:DependencyObject
+    {
+        while(source!=null){if(source is T result)return result;source=source is Visual||source is System.Windows.Media.Media3D.Visual3D?VisualTreeHelper.GetParent(source):LogicalTreeHelper.GetParent(source);}return null;
+    }
+    internal bool SelectRecordRow(GridRow row)
+    {
+        if(!Table.Items.Contains(row))return false;
+        if(!Table.CommitEdit()||!Table.CommitEdit(DataGridEditingUnit.Row,true))return false;
+        var columns=Table.Columns.Where(c=>c.Visibility==Visibility.Visible).OrderBy(c=>c.DisplayIndex).ToArray();if(columns.Length==0)return false;
+        Table.CurrentCell=new(row,columns[0]);Table.SelectedCells.Clear();foreach(var column in columns)Table.SelectedCells.Add(new(row,column));Table.ScrollIntoView(row);Table.Focus();return true;
+    }
     internal bool MoveByTab(bool backwards)
     {
         if(Table.IsReadOnly||Table.CurrentItem is not GridRow row||Table.CurrentColumn is not {} column)return false;
@@ -138,6 +146,39 @@ public sealed class ExcelGrid : UserControl
     internal void FilterForCheck(string text)
     {
         if(FindTextBox(this,"Filter rows") is {} input)input.Text=text;
+    }
+    internal void FocusSearch(){if(FindTextBox(this,"Filter rows") is {} input){input.Focus();Keyboard.Focus(input);input.SelectAll();}}
+    private List<DataGridCellInfo> EditableSelection()
+    {
+        if(Table.IsReadOnly)throw new ArgumentException("This report is read-only. Edit the invoice register instead.");
+        var cells=Table.SelectedCells.ToList();if(cells.Count==0&&Table.CurrentCell.IsValid)cells.Add(Table.CurrentCell);
+        if(cells.Count==0)throw new ArgumentException("Select an editable cell first.");
+        if(cells.Any(c=>c.Column.IsReadOnly))throw new ArgumentException("Calculated cells are locked. Select only editable cells.");
+        return cells;
+    }
+    internal void ClearSelectedCells()
+    {
+        var cells=EditableSelection();Table.CancelEdit();Table.CancelEdit(DataGridEditingUnit.Row);
+        foreach(var cell in cells)if(cell.Item is GridRow row)row[fields[Table.Columns.IndexOf(cell.Column)].Key]="";
+        Feedback="";Edited?.Invoke();
+    }
+    private static string Tsv(IEnumerable<IEnumerable<string>> rows)=>string.Join("\n",rows.Select(row=>string.Join("\t",row.Select(value=>value.Contains('\t')||value.Contains('\n')||value.Contains('\r')?throw new ArgumentException("Cut ranges cannot contain embedded tabs or line breaks."):value))));
+    private void WriteClipboard(string text,RecordClipboard? record=null)
+    {
+        if(ClipboardWriter!=null){ClipboardWriter(text);return;}
+        var data=new DataObject();data.SetText(text,TextDataFormat.UnicodeText);if(record!=null)data.SetData(RecordFormat,System.Text.Json.JsonSerializer.Serialize(record));Clipboard.SetDataObject(data,true);
+    }
+    internal void CopyRecordForCut(GridRow row)
+    {
+        var ordered=Table.Columns.Where(c=>c.Visibility==Visibility.Visible).OrderBy(c=>c.DisplayIndex).Select(c=>fields[Table.Columns.IndexOf(c)]).ToArray();
+        WriteClipboard(Tsv(new[]{ordered.Select(f=>row[f.Key])}),new(ordered.Select(f=>f.Key).ToArray(),row["_terms"]));
+    }
+    internal void CutSelectedCells()
+    {
+        var cells=EditableSelection();var items=Table.Items.Cast<GridRow>().Where(r=>cells.Any(c=>ReferenceEquals(c.Item,r))).ToArray();var columns=cells.Select(c=>c.Column).Distinct().OrderBy(c=>c.DisplayIndex).ToArray();
+        if(cells.Count!=items.Length*columns.Length||Table.Items.IndexOf(items[^1])-Table.Items.IndexOf(items[0])+1!=items.Length||columns[^1].DisplayIndex-columns[0].DisplayIndex+1!=columns.Length||items.Any(r=>columns.Any(c=>!cells.Any(cell=>ReferenceEquals(cell.Item,r)&&cell.Column==c))))throw new ArgumentException("Select a rectangular range to cut.");
+        var text=Tsv(items.Select(r=>columns.Select(c=>r[fields[Table.Columns.IndexOf(c)].Key])));
+        WriteClipboard(text);ClearSelectedCells(); // Do not clear anything if clipboard access fails.
     }
     private static TextBox? FindTextBox(DependencyObject root,string name)
     {
@@ -191,17 +232,23 @@ public sealed class ExcelGrid : UserControl
     public void PasteClipboard()
     {
         if(Table.IsReadOnly)return;
-        try {if(Clipboard.ContainsText())Paste(Clipboard.GetText());else Feedback="Copy a range of cells before pasting.";}
+        try {
+            if(Clipboard.ContainsText()){
+                var target=Table.CurrentItem as GridRow;RecordClipboard? record=null;
+                if(Clipboard.GetData(RecordFormat) is string metadata&&metadata.Length<16000){try{record=System.Text.Json.JsonSerializer.Deserialize<RecordClipboard>(metadata);}catch(System.Text.Json.JsonException){}}
+                if(Paste(Clipboard.GetText())&&record?.Fields is {} keys&&target!=null&&keys.SequenceEqual(Table.Columns.OrderBy(c=>c.DisplayIndex).Select(c=>fields[Table.Columns.IndexOf(c)].Key))&&keys.Contains("F9")&&int.TryParse(record.Terms,out var days)&&days>=0&&days<=3650){target["_terms"]=record.Terms;Edited?.Invoke();}
+            }else Feedback="Copy a range of cells before pasting.";
+        }
         catch(System.Runtime.InteropServices.ExternalException) {Feedback="Clipboard is busy. Retry paste.";}
     }
-    public void Paste(string text)
+    public bool Paste(string text)
     {
-        if (Table.IsReadOnly) { Feedback = "This service snapshot is read-only."; return; }
+        if (Table.IsReadOnly) { Feedback = "This service snapshot is read-only."; return false; }
         Table.CommitEdit(); Table.CommitEdit(DataGridEditingUnit.Row,true);
         var visible = source.View.Cast<GridRow>().ToList();
         int row = visible.IndexOf(Table.CurrentItem as GridRow ?? visible.FirstOrDefault()!);
         int col = Table.CurrentColumn?.DisplayIndex ?? 0;
-        if (row < 0) { Feedback = "Clear the filter or add a row before pasting."; return; }
+        if (row < 0) { Feedback = "Clear the filter or add a row before pasting."; return false; }
         var ordered = Table.Columns.OrderBy(c => c.DisplayIndex).Select(c => fields[Table.Columns.IndexOf(c)]).ToArray();
         try {
             var changes = PastePlan.Create(text,row,col,visible.Count,ordered);
@@ -212,7 +259,8 @@ public sealed class ExcelGrid : UserControl
             }
             Feedback = $"Pasted {changes.Count} input cells — click Save to persist changes.";
             Edited?.Invoke();
-        } catch (ArgumentException ex) { Feedback = ex.Message; }
+            return true;
+        } catch (ArgumentException ex) { Feedback = ex.Message;return false; }
     }
 }
 

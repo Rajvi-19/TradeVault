@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="4510a688-9dec-45c1-9614-3ac0c621b79b" name="Rii@DESKTOP-6RKBQ7P 2026-10-28 22:53:59" runUser="DESKTOP-6RKBQ7P\CodexSandboxOffline" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-28T22:53:59.9370053-07:00" queuing="2026-10-28T22:53:59.9370057-07:00" start="2026-10-28T22:53:52.9361169-07:00" finish="2026-10-28T22:53:59.9458392-07:00" />
+  <TestSettings name="default" id="87d37ae6-94c6-4f53-b6f2-7e8b1c5f42f5">
+    <Deployment runDeploymentRoot="Rii_DESKTOP-6RKBQ7P_2026-10-28_22_53_59" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="14cbb043-c2b5-46a7-9150-aa0efce440cc" testId="294c9895-d47a-fe33-3679-1e723aeb55e7" testName="TradeVault.Tests.WorkflowTests.CurrentReportsIncludeAllSavedInvoicesAndExportSameSnapshot" computerName="DESKTOP-6RKBQ7P" duration="00:00:04.6026134" startTime="2026-10-28T22:53:55.1750010-07:00" endTime="2026-10-28T22:53:59.7930130-07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="14cbb043-c2b5-46a7-9150-aa0efce440cc" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="TradeVault.Tests.WorkflowTests.CurrentReportsIncludeAllSavedInvoicesAndExportSameSnapshot" storage="c:\users\rii\onedrive\desktop\sinuvera\tradevault\test\tradevault.tests\bin\workflowverification\tradevault.tests.dll" id="294c9895-d47a-fe33-3679-1e723aeb55e7">
+      <Execution id="14cbb043-c2b5-46a7-9150-aa0efce440cc" />
+      <TestMethod codeBase="C:\Users\Rii\OneDrive\Desktop\Sinuvera\TradeVault\Test\TradeVault.Tests\bin\WorkflowVerification\TradeVault.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="TradeVault.Tests.WorkflowTests" name="CurrentReportsIncludeAllSavedInvoicesAndExportSameSnapshot" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="294c9895-d47a-fe33-3679-1e723aeb55e7" executionId="14cbb043-c2b5-46a7-9150-aa0efce440cc" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="1" executed="1" passed="1" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.01] xUnit.net VSTest Adapter v4.0.1+0f7d528729 (64-bit .NET 10.0.14)&#xD;
+[xUnit.net 00:00:00.39]   Discovering: TradeVault.Tests&#xD;
+[xUnit.net 00:00:00.66]   Discovered:  TradeVault.Tests&#xD;
+[xUnit.net 00:00:00.75]   Starting:    TradeVault.Tests&#xD;
+[xUnit.net 00:00:05.46]   Finished:    TradeVault.Tests&#xD;
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

@@ -10,6 +10,28 @@ namespace TradeVault.Tests;
 
 public sealed class WorkflowTests
 {
+    [Fact]public void ImmediateRecordDeletionPersistsAndRejectsStaleOrProtectedChanges()
+    {
+        using var f=new Fixture();var snapshot=f.Store.Load(f.Owner,"form",f.Party);var revision=f.Store.DeleteWorksheetRecord(f.Owner,"form",f.Party,snapshot.Revision,1,"two");
+        Assert.Equal(snapshot.Revision+1,revision);Assert.Single(f.Workflow.Invoices(f.Party));Assert.Equal("one",f.Workflow.Invoices(f.Party)[0]["_id"]);
+        Assert.Throws<BusinessRuleException>(()=>f.Store.DeleteWorksheetRecord(f.Owner,"form",f.Party,snapshot.Revision,0,"one"));Assert.Single(f.Workflow.Invoices(f.Party));
+        f.Workflow.RecordReceipt(f.Party,new(2026,7,1),100,"PROTECT",[new("one","Bank",100)]);
+        Assert.Throws<BusinessRuleException>(()=>f.Store.DeleteWorksheetRecord(f.Owner,"form",f.Party,revision,0,"one"));Assert.Single(f.Workflow.Invoices(f.Party));
+        f.Database.Dispose();using var reopened=new PortableDatabase(new(f.Root));var store=new WorkbookStore(reopened);var owner=store.Login("owner","Owner@123");Assert.Single(new ReportWorkflow(store,owner).Invoices(f.Party));
+    }
+    [Fact]public void DeletionPreflightProtectsInvoicesWithRecordedPaymentHistory()
+    {
+        using var f=new Fixture();var invoices=f.Workflow.Invoices(f.Party);f.Workflow.EnsureInvoiceCanDelete(f.Party,invoices[0]);
+        f.Workflow.RecordReceipt(f.Party,new(2026,7,1),100,"DELETE GUARD",[new("one","Bank",100)]);
+        Assert.Throws<BusinessRuleException>(()=>f.Workflow.EnsureInvoiceCanDelete(f.Party,invoices[0]));f.Workflow.EnsureInvoiceCanDelete(f.Party,invoices[1]);
+    }
+    [Fact]public void CurrentReportsIncludeAllSavedInvoicesAndExportSameSnapshot()
+    {
+        using var f=new Fixture();var snapshot=f.Store.Load(f.Owner,"form",f.Party);var future=Fixture.Invoice("FUTURE","future");future["F10"]="2090-11-20";future["F17"]="2090-12-01";snapshot.Rows.Add(future);f.Store.Save(f.Owner,"form",snapshot.Revision,snapshot.Rows,f.Party);
+        Assert.Equal(2,f.Workflow.Build(f.Party,new(2026,10,28),true).Tables[0].Rows.Count);
+        var current=f.Workflow.BuildCurrent(f.Party);Assert.Equal(3,current.Tables[0].Rows.Count);Assert.Equal(DateOnly.FromDateTime(DateTime.Today),current.AsOf);Assert.Equal("All saved records",current.Mode);Assert.Contains(current.Tables[1].Rows,r=>r["B"].Contains("FUTURE"));
+        var exported=f.Workflow.ExportExcel(f.Party,current.AsOf,true,true);var preview=new ReportWorkflow(f.Store,f.Owner).Preview(exported);Assert.Equal(3,preview.Tables[0].Rows.Count);Assert.Equal(current.Mode,preview.Mode);
+    }
     [Fact]public void FutureInvoiceCoverageAndExplicitCutoffAdvancePreserveInvoiceInputs()
     {
         using var f=new Fixture();var before=f.Workflow.Invoices(f.Party);var scope=f.Workflow.Coverage(f.Party,new(2026,5,31));

@@ -5,7 +5,7 @@ using System.Windows.Shell;
 namespace TradeVault.Desktop;
 internal static class Ui
 {
-    public const string BuildLabel="UI 2026.10.28.10";
+    public const string BuildLabel="UI 2026.10.29.3";
     internal static Size WorkspaceSize(Rect workArea)=>new(Math.Min(1440,workArea.Width),Math.Min(880,workArea.Height));
     public static void WindowFrame(Window window,UIElement body,string title,bool embeddedControls=false)
     {
@@ -26,7 +26,7 @@ internal static class Ui
             System.Windows.Automation.AutomationProperties.SetName(button,label);WindowChrome.SetIsHitTestVisibleInChrome(button,true);controls.Children.Add(button);
         }
         DockPanel.SetDock(controls,Dock.Right);caption.Children.Add(controls);
-        caption.Children.Add(new TextBlock{Text=title+"   |   "+BuildLabel,Foreground=Color("#D9E4F4"),FontSize=11,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(14,0,0,0)});
+        caption.Children.Add(new TextBlock{Text=title,Foreground=Color("#D9E4F4"),FontSize=11,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(14,0,0,0)});
         DockPanel.SetDock(caption,Dock.Top);frame.Children.Add(caption);frame.Children.Add(new Border{Background=Color("#F4F6FA"),Child=body});window.Content=frame;
     }
     public static Brush Color(string hex)=>new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
@@ -51,6 +51,18 @@ internal static class Ui
         var text=new TextBlock{Text=label,VerticalAlignment=VerticalAlignment.Center};text.SetBinding(TextBlock.ForegroundProperty,new System.Windows.Data.Binding("Foreground"){Source=button});content.Children.Add(text);button.Content=content;
         System.Windows.Automation.AutomationProperties.SetName(button,label);
         button.Click+=(_,_)=>action();return button;
+    }
+    public static Button LineIconButton(string label,Action action,string icon,string style="QuietButton")
+    {
+        var button=Button(label,action,style);button.FontFamily=new("Segoe UI Variable Text, Segoe UI");button.FontSize=12;button.FontWeight=FontWeights.SemiBold;
+        var geometry=icon switch{
+            "invoice"=>"M2,2 H14 V14 H2 Z M2,6 H14 M6,6 V14",
+            "details"=>"M4,1.5 H10 L14,5.5 V14.5 H4 Z M10,1.5 V5.5 H14 M7,8 H11 M7,11 H11",
+            "ledger"=>"M2,5 H14 M11,2 L14,5 L11,8 M14,11 H2 M5,8 L2,11 L5,14",
+            "reports"=>"M2,9 V14 H14 V9 M8,1 V10 M4.5,6.5 L8,10 L11.5,6.5",
+            _=>"M6,7 A2.5,2.5 0 1 0 6,2 A2.5,2.5 0 1 0 6,7 M1.5,14 V12 A4.5,4.5 0 0 1 10.5,12 M13,7 V13 M10,10 H16"};
+        var panel=new StackPanel{Orientation=Orientation.Horizontal};var path=new System.Windows.Shapes.Path{Data=Geometry.Parse(geometry),Width=16,Height=16,Stretch=Stretch.Uniform,StrokeThickness=1.5,StrokeStartLineCap=PenLineCap.Round,StrokeEndLineCap=PenLineCap.Round,StrokeLineJoin=PenLineJoin.Round,Margin=new(0,0,8,0),VerticalAlignment=VerticalAlignment.Center};path.SetBinding(System.Windows.Shapes.Shape.StrokeProperty,new System.Windows.Data.Binding("Foreground"){Source=button});panel.Children.Add(path);
+        var text=new TextBlock{Text=label,VerticalAlignment=VerticalAlignment.Center};text.SetBinding(TextBlock.ForegroundProperty,new System.Windows.Data.Binding("Foreground"){Source=button});panel.Children.Add(text);button.Content=panel;return button;
     }
     public static Border Card(UIElement child,Thickness? padding=null)=>new(){Background=Brushes.White,BorderBrush=Color("#E2E8F0"),BorderThickness=new(1),CornerRadius=new(8),Padding=padding??new(0),Child=child};
     public static Border Badge(string text,string background="#EDF3FF",string foreground="#2458D3")=>new(){Background=Color(background),CornerRadius=new(4),Padding=new(8,4,8,4),Child=Text(text,11,foreground,true),VerticalAlignment=VerticalAlignment.Center};

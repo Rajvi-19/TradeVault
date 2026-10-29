@@ -41,7 +41,7 @@ internal sealed class ReportPaginator : DocumentPaginator
         }
         Text("TRADEVAULT",left,18,width,25,12,true);
         Text(report.PartyName+"  /  "+page.Table.Name,left,44,width,30,18,true);
-        Text($"All amounts USD  •  As of {report.AsOf:dd-MM-yyyy}",left,76,width,24,10);
+        Text($"All amounts USD  •  {(report.Mode=="All saved records"?"Prepared":"As of")} {report.AsOf:dd-MM-yyyy}",left,76,width,24,10);
         void Row(IEnumerable<string> values,double y,double height,bool header=false,bool total=false)
         {
             int index=0;foreach(var value in values){double x=left+index*cw;

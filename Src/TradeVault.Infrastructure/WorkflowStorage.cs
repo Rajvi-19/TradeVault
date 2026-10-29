@@ -28,6 +28,15 @@ public sealed partial class WorkbookStore
         }
     }
     internal PortableDatabase Database=>database;
+    public int DeleteWorksheetRecord(LoginSession session,string name,Guid party,int expectedRevision,int rowIndex,string? invoiceId)
+    {
+        CheckSession(session);var snapshot=Load(session,name,party);
+        if(snapshot.Revision!=expectedRevision)throw new TradeVault.Domain.BusinessRuleException("Records changed. Reload before deleting; nothing was deleted.");
+        var records=snapshot.Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
+        var target=name=="form"?records.SingleOrDefault(r=>ReportWorkflow.InvoiceKey(party,r)==invoiceId):records.ElementAtOrDefault(rowIndex);
+        if(target==null)return snapshot.Revision; // Unsaved draft: there is no stored record to delete.
+        snapshot.Rows.Remove(target);return Save(session,name,snapshot.Revision,snapshot.Rows,party);
+    }
     internal void CheckSession(LoginSession session,bool owner=false)=>Authorize(session,owner?"operator-reports":"form");
     internal T? Document<T>(LoginSession session,string kind,string id)
     {

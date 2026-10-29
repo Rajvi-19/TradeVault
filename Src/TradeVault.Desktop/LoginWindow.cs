@@ -11,9 +11,9 @@ public sealed class LoginWindow:Window
     {
         Width=540;Height=520;MinWidth=500;MinHeight=520;WindowStartupLocation=WindowStartupLocation.CenterScreen;
         var form=new StackPanel{Margin=new(30,24,30,22)};
-        var brand=new DockPanel{Margin=new(0,0,0,22)};var badge=Ui.Badge("OFFLINE","#EAF6F0","#247653");DockPanel.SetDock(badge,Dock.Right);brand.Children.Add(badge);
+        var brand=new DockPanel{Margin=new(0,0,0,22)};
         var identity=new StackPanel{Orientation=Orientation.Horizontal};var logo=Ui.BrandIcon(40);logo.Margin=new(0,0,12,0);identity.Children.Add(logo);identity.Children.Add(Ui.Text("TradeVault",24,"#18243B",true));brand.Children.Add(identity);form.Children.Add(brand);
-        form.Children.Add(Ui.Text("Sign in to your workspace",24,"#18243B",true));var hint=Ui.Text("Manage export records and party accounts, securely offline.",12,"#64748B");hint.Margin=new(0,7,0,20);form.Children.Add(hint);
+        form.Children.Add(Ui.Text("Sign in to your workspace",24,"#18243B",true));var hint=Ui.Text("Manage your invoices, shipments and party accounts.",12,"#64748B");hint.Margin=new(0,7,0,20);form.Children.Add(hint);
         form.Children.Add(new TextBlock{Text="Username",FontWeight=FontWeights.SemiBold,Margin=new(0,0,0,6)});
         var username=new TextBox{Height=40,ToolTip="Case-sensitive: owner or operator",Margin=new(0,0,0,6)};usernameInput=username;form.Children.Add(username);
         var caseNote=Ui.Text("Usernames and passwords are case-sensitive.",11,"#64748B");caseNote.Margin=new(0,0,0,16);form.Children.Add(caseNote);
