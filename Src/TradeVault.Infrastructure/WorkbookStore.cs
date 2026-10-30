@@ -1,72 +1,32 @@
-using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using TradeVault.Domain;
 
 namespace TradeVault.Infrastructure;
 
-public sealed record LoginSession(string Username, string Role, Guid Token);
 public sealed record WorksheetSnapshot(int Revision, List<Dictionary<string, string>> Rows);
 public sealed record WorksheetParty(Guid Id,string Name,bool IsUnassigned)
 {
     public override string ToString()=>Name;
 }
 
-/// <summary>Authenticated persistence for independent Excel-shaped worksheets.</summary>
+/// <summary>Persistence for independent Excel-shaped worksheets, without authentication.</summary>
 public sealed partial class WorkbookStore
 {
     private readonly PortableDatabase database;
-    private readonly Dictionary<Guid, LoginSession> sessions = new();
-    private int failedAttempts;
-    private DateTimeOffset blockedUntil;
-    public WorkbookStore(PortableDatabase database)
+    public WorkbookStore(PortableDatabase database) => this.database = database;
+    public IReadOnlyList<WorksheetParty> GetParties()
     {
-        this.database = database;
-        using var c = database.Open();
-        using var t = c.BeginTransaction();
-        foreach (var (user, role, password) in new[] { ("owner", "Owner", "Owner@123"), ("operator", "Operator", "Operator@123") })
-        {
-            var salt = RandomNumberGenerator.GetBytes(16);
-            var hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, 600000, HashAlgorithmName.SHA256, 32);
-            using var cmd = c.CreateCommand(); cmd.Transaction = t;
-            cmd.CommandText = "INSERT OR IGNORE INTO credentials VALUES($user,$role,$salt,$hash)";
-            cmd.Parameters.AddWithValue("$user", user); cmd.Parameters.AddWithValue("$role", role);
-            cmd.Parameters.AddWithValue("$salt", salt); cmd.Parameters.AddWithValue("$hash", hash); cmd.ExecuteNonQuery();
-        }
-        t.Commit();
-    }
-    public LoginSession Login(string username, string password)
-    {
-        if (DateTimeOffset.UtcNow < blockedUntil) throw new BusinessRuleException("Too many attempts. Try again in 30 seconds.");
-        using var c = database.Open(); using var cmd = c.CreateCommand();
-        cmd.CommandText = "SELECT username,role,salt,hash FROM credentials WHERE username=$name COLLATE BINARY";
-        cmd.Parameters.AddWithValue("$name", username.Trim());
-        using var reader = cmd.ExecuteReader();
-        var found = reader.Read();
-        var salt = found ? (byte[])reader[2] : new byte[16];
-        var candidate = Rfc2898DeriveBytes.Pbkdf2(password, salt, 600000, HashAlgorithmName.SHA256, 32);
-        if (!found || !CryptographicOperations.FixedTimeEquals(candidate, (byte[])reader[3]))
-        {
-            if (++failedAttempts >= 5) { blockedUntil = DateTimeOffset.UtcNow.AddSeconds(30); failedAttempts = 0; }
-            throw new BusinessRuleException("Invalid username or password.");
-        }
-        failedAttempts = 0;
-        var session = new LoginSession(reader.GetString(0), reader.GetString(1), Guid.NewGuid());
-        sessions.Add(session.Token, session); return session;
-    }
-    public void Logout(LoginSession session) => sessions.Remove(session.Token);
-    public IReadOnlyList<WorksheetParty> GetParties(LoginSession session)
-    {
-        Authorize(session,"form");
+        ValidateSheet("form");
         using var c=database.Open();using var cmd=c.CreateCommand();
         cmd.CommandText="SELECT id,name,is_unassigned FROM worksheet_parties ORDER BY is_unassigned DESC,name COLLATE NOCASE";
         using var reader=cmd.ExecuteReader();var parties=new List<WorksheetParty>();
         while(reader.Read())parties.Add(new(Guid.Parse(reader.GetString(0)),reader.GetString(1),reader.GetInt32(2)==1));
         return parties;
     }
-    public WorksheetParty CreateParty(LoginSession session,string name)
+    public WorksheetParty CreateParty(string name)
     {
-        Authorize(session,"form");
+        ValidateSheet("form");
         name=string.Join(" ",(name??"").Split((char[]?)null,StringSplitOptions.RemoveEmptyEntries));
         if(name.Length is <1 or >200)throw new BusinessRuleException("Party name must contain 1–200 characters.");
         var key=name.Normalize(System.Text.NormalizationForm.FormKC).ToUpperInvariant();
@@ -75,7 +35,7 @@ public sealed partial class WorkbookStore
         if(Convert.ToInt32(cmd.ExecuteScalar())>0)throw new BusinessRuleException("A party with this name already exists.");
         var id=Guid.NewGuid();cmd.CommandText="INSERT INTO worksheet_parties VALUES($id,$name,$key,0)";
         cmd.Parameters.AddWithValue("$id",id.ToString());cmd.Parameters.AddWithValue("$name",name);cmd.ExecuteNonQuery();
-        Log(c,transaction,id.ToString(),$"PartyCreated:{session.Username}");transaction.Commit();return new(id,name,false);
+        Log(c,transaction,id.ToString(),$"PartyCreated:{"Local workspace"}");transaction.Commit();return new(id,name,false);
     }
     private static void EnsureParty(SqliteConnection c,SqliteTransaction? transaction,Guid partyId)
     {
@@ -88,27 +48,23 @@ public sealed partial class WorkbookStore
         using var cmd=c.CreateCommand();cmd.Transaction=transaction;cmd.CommandText="INSERT INTO audit_events VALUES($id,$entity,$action,$now)";
         cmd.Parameters.AddWithValue("$id",Guid.NewGuid().ToString());cmd.Parameters.AddWithValue("$entity",entity);cmd.Parameters.AddWithValue("$action",action);cmd.Parameters.AddWithValue("$now",DateTimeOffset.UtcNow.ToString("O"));cmd.ExecuteNonQuery();
     }
-    private void Authorize(LoginSession session, string name)
+    private static void ValidateSheet(string name)
     {
-        if (!sessions.TryGetValue(session.Token, out var actual) || actual != session)
-            throw new BusinessRuleException("Sign in before accessing records.");
-        if (name is not ("form" or "details" or "ledger" or "operator-reports")) throw new BusinessRuleException("Unknown worksheet.");
-        if (name == "operator-reports" && actual.Role != "Owner") throw new BusinessRuleException("Owner access required.");
+        if(name is not ("form" or "details" or "ledger"))throw new BusinessRuleException("Unknown worksheet.");
     }
-    public WorksheetSnapshot Load(LoginSession session, string name,Guid? partyId=null)
+    public WorksheetSnapshot Load(string name,Guid? partyId=null)
     {
-        Authorize(session, name);
+        ValidateSheet(name);
         using var c = database.Open(); using var cmd = c.CreateCommand();
         var party=partyId??Guid.Empty;EnsureParty(c,null,party);
         cmd.CommandText = "SELECT revision,data FROM party_worksheets WHERE name=$name AND party_id=$party"; cmd.Parameters.AddWithValue("$name", name);cmd.Parameters.AddWithValue("$party",party.ToString());
         using var reader = cmd.ExecuteReader();
         return reader.Read() ? new(reader.GetInt32(0), JsonSerializer.Deserialize<List<Dictionary<string,string>>>(reader.GetString(1))!) : new(0, []);
     }
-    public int Save(LoginSession session, string name, int expectedRevision, List<Dictionary<string,string>> rows,Guid? partyId=null)
+    public int Save(string name, int expectedRevision, List<Dictionary<string,string>> rows,Guid? partyId=null)
     {
-        Authorize(session, name);
-        if (name == "operator-reports") throw new BusinessRuleException("Submitted reports cannot be edited.");
-        if(name=="form")GuardRegister(session,partyId??Guid.Empty,rows);
+        ValidateSheet(name);
+        if(name=="form")GuardRegister(partyId??Guid.Empty,rows);
         using var c = database.Open(); using var t = c.BeginTransaction();
         var party=partyId??Guid.Empty;EnsureParty(c,t,party);
         using var cmd = c.CreateCommand(); cmd.Transaction = t;
@@ -121,16 +77,16 @@ public sealed partial class WorkbookStore
         cmd.Parameters.AddWithValue("$revision", checked(expectedRevision + 1)); cmd.Parameters.AddWithValue("$data", after); cmd.ExecuteNonQuery();
         cmd.Parameters.Clear(); cmd.CommandText = "INSERT INTO audit_events VALUES($id,$entity,$action,$now)";
         cmd.Parameters.AddWithValue("$id", Guid.NewGuid().ToString()); cmd.Parameters.AddWithValue("$entity", party+":"+name);
-        cmd.Parameters.AddWithValue("$action", $"WorksheetSaved:{session.Username}"); cmd.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O")); cmd.ExecuteNonQuery();
+        cmd.Parameters.AddWithValue("$action", $"WorksheetSaved:{"Local workspace"}"); cmd.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O")); cmd.ExecuteNonQuery();
         cmd.Parameters.Clear();cmd.CommandText="INSERT INTO workflow_audit VALUES($id,$actor,'WorksheetSaved',$entity,$before,$after,$time)";
-        cmd.Parameters.AddWithValue("$id",Guid.NewGuid().ToString());cmd.Parameters.AddWithValue("$actor",session.Username);cmd.Parameters.AddWithValue("$entity",party+":"+name);cmd.Parameters.AddWithValue("$before",(object?)before??DBNull.Value);cmd.Parameters.AddWithValue("$after",after);cmd.Parameters.AddWithValue("$time",DateTimeOffset.UtcNow.ToString("O"));cmd.ExecuteNonQuery();
+        cmd.Parameters.AddWithValue("$id",Guid.NewGuid().ToString());cmd.Parameters.AddWithValue("$actor","Local workspace");cmd.Parameters.AddWithValue("$entity",party+":"+name);cmd.Parameters.AddWithValue("$before",(object?)before??DBNull.Value);cmd.Parameters.AddWithValue("$after",after);cmd.Parameters.AddWithValue("$time",DateTimeOffset.UtcNow.ToString("O"));cmd.ExecuteNonQuery();
         t.Commit(); return expectedRevision + 1;
     }
     /// <summary>Move a whole legacy sheet only to an empty destination; never infer row ownership.</summary>
-    public void AssignUnassigned(LoginSession session,string name,Guid destination,int expectedRevision)
+    public void AssignUnassigned(string name,Guid destination,int expectedRevision)
     {
-        Authorize(session,name);
-        if(name=="operator-reports"||destination==Guid.Empty)throw new BusinessRuleException("Choose a named destination party.");
+        ValidateSheet(name);
+        if(destination==Guid.Empty)throw new BusinessRuleException("Choose a named destination party.");
         using var c=database.Open();using var t=c.BeginTransaction();EnsureParty(c,t,destination);
         using var cmd=c.CreateCommand();cmd.Transaction=t;
         cmd.CommandText="SELECT revision FROM party_worksheets WHERE party_id=$empty AND name=$name";
@@ -152,6 +108,6 @@ public sealed partial class WorkbookStore
             INSERT INTO party_worksheets SELECT $target,name,revision,data FROM party_worksheets WHERE party_id=$empty AND name=$name;
             UPDATE party_worksheets SET revision=revision+1,data='[]' WHERE party_id=$empty AND name=$name;
             """;
-        cmd.ExecuteNonQuery();Log(c,t,destination+":"+name,$"LegacyWorksheetAssigned:{session.Username}");t.Commit();
+        cmd.ExecuteNonQuery();Log(c,t,destination+":"+name,$"LegacyWorksheetAssigned:{"Local workspace"}");t.Commit();
     }
 }

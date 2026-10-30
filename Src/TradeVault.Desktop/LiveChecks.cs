@@ -10,17 +10,15 @@ internal static class LiveChecks
         try
         {
             using var database=new PortableDatabase(new(root));var store=new WorkbookStore(database);
-            var login=new LoginWindow(store);login.PreviewUsername("operator");Capture(login,System.IO.Path.Combine(directory,"login.png"),480,490);Capture(login,System.IO.Path.Combine(directory,"login-minimum.png"),400,460);login.Close();
-            var session=store.Login("owner","Owner@123");AcceptanceChecks.Seed(store,session);var window=new MainWindow(store,session,database.Paths.Database);
+            AcceptanceChecks.Seed(store);var window=new MainWindow(store,database.Paths.Database);
             foreach(var name in new[]{"form","details","ledger"}){window.PreviewSheet(name);Capture(window,System.IO.Path.Combine(directory,name+".png"),1480,920);if(name=="form")Capture(window,System.IO.Path.Combine(directory,"form-minimum.png"),1100,720);}
             Capture(window,System.IO.Path.Combine(directory,"compact-window.png"),1000,600);
-            var partyDialog=new PartyDialog(store,session);var partySurface=(System.Windows.FrameworkElement)partyDialog.Content;partySurface.Measure(new(440,double.PositiveInfinity));Capture(partyDialog,System.IO.Path.Combine(directory,"new-party.png"),440,(int)Math.Ceiling(partySurface.DesiredSize.Height));partyDialog.Close();
+            var partyDialog=new PartyDialog(store);var partySurface=(System.Windows.FrameworkElement)partyDialog.Content;partySurface.Measure(new(440,double.PositiveInfinity));Capture(partyDialog,System.IO.Path.Combine(directory,"new-party.png"),440,(int)Math.Ceiling(partySurface.DesiredSize.Height));partyDialog.Close();
             var deleteDialog=new ConfirmDeleteWindow(window,"TEST-INV-006","[TEST] Sample party");var deleteSurface=(System.Windows.FrameworkElement)deleteDialog.Content;deleteSurface.Measure(new(560,double.PositiveInfinity));Capture(deleteDialog,System.IO.Path.Combine(directory,"delete-confirmation.png"),560,(int)Math.Ceiling(deleteSurface.DesiredSize.Height));deleteDialog.Close();
-            var inbox=new ImportedReportsWindow(window,new ReportWorkflow(store,session));Capture(inbox,System.IO.Path.Combine(directory,"operator-reports.png"),1180,750);inbox.Close();window.Close();
-            var party=store.CreateParty(session,"QA generated reports");var controller=new WorksheetController(store,session);controller.Load("form",party.Id);var row=controller.Add();row["F9"]="QA-GENERATED-001";row["F10"]="2026-06-01";row["F5"]="15000";row["F6"]="10000";row["F17"]="2026-06-17";controller.Save();
-            new ReportWorkflow(store,session).Configure(party.Id,new("F6","F22",true,new(2026,1,1)));var generated=new MainWindow(store,session,database.Paths.Database);generated.PreviewParty("details",party.Id);Capture(generated,System.IO.Path.Combine(directory,"generated-details.png"),1440,880);generated.PreviewParty("ledger",party.Id);Capture(generated,System.IO.Path.Combine(directory,"generated-ledger.png"),1440,880);generated.Close();
-            var paymentView=new PaymentsWindow(window,new ReportWorkflow(store,session),party.Id);Capture(paymentView,System.IO.Path.Combine(directory,"payments.png"),1180,700);Capture(paymentView,System.IO.Path.Combine(directory,"payments-small.png"),1000,600);paymentView.Close();
-            var op=store.Login("operator","Operator@123");var operatorWindow=new MainWindow(store,op,database.Paths.Database);Capture(operatorWindow,System.IO.Path.Combine(directory,"operator.png"),1440,880);operatorWindow.Close();
+            window.Close();
+            var party=store.CreateParty("QA generated reports");var controller=new WorksheetController(store);controller.Load("form",party.Id);var row=controller.Add();row["F9"]="QA-GENERATED-001";row["F10"]="2026-06-01";row["F5"]="15000";row["F6"]="10000";row["F17"]="2026-06-17";controller.Save();
+            new ReportWorkflow(store).Configure(party.Id,new("F6","F22",true,new(2026,1,1)));var generated=new MainWindow(store,database.Paths.Database);generated.PreviewParty("details",party.Id);Capture(generated,System.IO.Path.Combine(directory,"generated-details.png"),1440,880);generated.PreviewParty("ledger",party.Id);Capture(generated,System.IO.Path.Combine(directory,"generated-ledger.png"),1440,880);generated.Close();
+            var paymentView=new PaymentsWindow(window,new ReportWorkflow(store),party.Id);Capture(paymentView,System.IO.Path.Combine(directory,"payments.png"),1180,700);Capture(paymentView,System.IO.Path.Combine(directory,"payments-small.png"),1000,600);paymentView.Close();
         }
         finally{System.IO.Directory.Delete(root,true);}
     }
@@ -42,15 +40,11 @@ internal static class LiveChecks
             using(var db=new PortableDatabase(new(root)))
             {
                 var store=new WorkbookStore(db);
-                AuthUiChecks.Run(store);
-                try{store.Login("owner","wrong");throw new Exception("Bad password accepted");}catch(BusinessRuleException){}
-                var owner=store.Login("owner","Owner@123");var op=store.Login("operator","Operator@123");
-                FixRegressionChecks.Run(store,owner);
-                try{store.Load(op,"operator-reports");throw new Exception("Operator access accepted");}catch(BusinessRuleException){}
-                var sheet=new WorksheetController(store,owner);sheet.Load("details");Require(sheet.Rows.Count==0,"No dummy rows");
+                FixRegressionChecks.Run(store);
+                var sheet=new WorksheetController(store);sheet.Load("details");Require(sheet.Rows.Count==0,"No dummy rows");
                 var row=sheet.Add();row["B"]="TEST ONLY";row["C"]="15000";row["D"]="10000";row["E"]="3000";row["J"]="1200";row["L"]="2026-06-17";sheet.Save();
                 Require(row["F"]=="7000.00"&&row["K"]=="0.00"&&row["N"]=="2026-09-15","Details calculations");
-                var stale=new WorksheetController(store,owner);stale.Load("details");row["E"]="4000";sheet.Save();
+                var stale=new WorksheetController(store);stale.Load("details");row["E"]="4000";sheet.Save();
                 try{stale.Save();throw new Exception("Stale save accepted");}catch(BusinessRuleException){}
                 sheet.Load("ledger");row=sheet.Add();row["B"]="TEST ONLY";row["C"]="100";row["D"]="25";row["I"]="2026-06-17";sheet.Opening=10;sheet.Save();Require(row["E"]=="85.00","Ledger calculation");
                 sheet.Load("form");row=sheet.Add();row["F1"]="TEST ONLY";row["F9"]="TEST-1";row["F17"]="2026-06-17";sheet.Save();Require(row["F19"]=="2026-09-15"&&row["F20"]=="2026-08-16","Due and reminder");
@@ -73,11 +67,10 @@ internal static class LiveChecks
                 Require(draft["F4"]=="2026-11-05","Typed dates normalized through WPF binding");
                 draft["F17"]=DateCellConverter.Normalize("17/6/2026");sheet.Save();
                 Require(draft["F19"]=="2026-09-15","Derived due remains calculated");
-                Require(store.Load(owner,"form").Rows.Count==3,"Only two entered rows and metadata persisted");
-                var window=new MainWindow(store,owner,db.Paths.Database);window.Measure(new System.Windows.Size(1440,880));window.Arrange(new System.Windows.Rect(0,0,1440,880));window.UpdateLayout();window.CheckInteractions();window.CheckPartyInteractions();window.CheckWorkflowInteractions();window.CheckShortcutInteractions();window.Close();
-                store.Logout(owner);try{store.Load(owner,"form");throw new Exception("Expired session accepted");}catch(BusinessRuleException){}
+                Require(store.Load("form").Rows.Count==3,"Only two entered rows and metadata persisted");
+                var window=new MainWindow(store,db.Paths.Database);window.Measure(new System.Windows.Size(1440,880));window.Arrange(new System.Windows.Rect(0,0,1440,880));window.UpdateLayout();window.CheckInteractions();window.CheckPartyInteractions();window.CheckWorkflowInteractions();window.CheckShortcutInteractions();window.Close();
             }
-            using var reopened=new PortableDatabase(new(root));var s=new WorkbookStore(reopened);var session=s.Login("owner","Owner@123");Require(s.Load(session,"details").Rows.Count==2,"Persistence after reopen");
+            using var reopened=new PortableDatabase(new(root));var s=new WorkbookStore(reopened);Require(s.Load("details").Rows.Count==2,"Persistence after reopen");
         }
         finally{System.IO.Directory.Delete(root,true);}
     }

@@ -11,7 +11,6 @@ public sealed class MainWindow : Window
 {
     private WorksheetController controller;
     private readonly WorkbookStore store;
-    private readonly LoginSession session;
     private readonly ReportWorkflow workflow;
     private bool generatedView;
     private bool busy;
@@ -37,17 +36,15 @@ public sealed class MainWindow : Window
     private readonly List<(Key Key,ModifierKeys Modifiers,string Gesture,string Description,Action Action)> shortcuts=[];
     internal Func<string,bool>? ConfirmRecordDeletion;
 
-    public MainWindow(WorkbookStore store,LoginSession session,string path)
+    public MainWindow(WorkbookStore store,string path)
     {
-        this.store=store;this.session=session;workflow=new(store,session);controller=new(store,session);var startup=Ui.WorkspaceSize(SystemParameters.WorkArea);Width=startup.Width;Height=startup.Height;MinWidth=Math.Min(1000,startup.Width);MinHeight=Math.Min(600,startup.Height);WindowStartupLocation=WindowStartupLocation.CenterScreen;
+        this.store=store;workflow=new(store);controller=new(store);var startup=Ui.WorkspaceSize(SystemParameters.WorkArea);Width=startup.Width;Height=startup.Height;MinWidth=Math.Min(1000,startup.Width);MinHeight=Math.Min(600,startup.Height);WindowStartupLocation=WindowStartupLocation.CenterScreen;
         var root=new DockPanel{Background=Ui.Color("#F4F6FA")};
         var header=new DockPanel{Background=Ui.Color("#111E35"),Height=42};
         var windowControls=Ui.WindowControls(this);DockPanel.SetDock(windowControls,Dock.Right);header.Children.Add(windowControls);
         var account=new StackPanel{Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center,Margin=new(0,0,8,0)};
         System.Windows.Shell.WindowChrome.SetIsHitTestVisibleInChrome(account,true);
-        account.Children.Add(new Border{Background=Ui.Color("#20324D"),CornerRadius=new(12),Padding=new(10,4,10,4),Margin=new(0,0,10,0),Child=Ui.Text(session.Role,12,"#E2E8F0")});
-        var backup=CompactButton("Backups",()=>Run(()=>{RequireSaved();WorkflowWindows.Backups(this,store,session);}),"\uE74E");backup.Foreground=Brushes.White;account.Children.Add(backup);
-        var logout=Ui.Button("Sign out",()=>Run(()=>{if(Discard()){dirty=false;Close();}}),"QuietButton","\uE8AC");logout.Foreground=Ui.Color("#FFFFFF");logout.Margin=new(12,0,0,0);logout.MinHeight=28;logout.Padding=new(10,4,10,4);account.Children.Add(logout);
+        var backup=CompactButton("Backups",()=>Run(()=>{RequireSaved();WorkflowWindows.Backups(this,store);}),"\uE74E");backup.Foreground=Brushes.White;account.Children.Add(backup);
         DockPanel.SetDock(account,Dock.Right);header.Children.Add(account);
         var brand=new StackPanel{Orientation=Orientation.Horizontal,Margin=new(14,0,0,0)};
         var logo=Ui.BrandIcon(26);logo.Margin=new(0,0,9,0);brand.Children.Add(logo);
@@ -61,11 +58,6 @@ public sealed class MainWindow : Window
         {
             var b=Ui.LineIconButton(label,()=>Run(()=>Navigate(name)),icon);b.Padding=new(12,5,12,5);b.MinHeight=32;b.Margin=new(2,3,2,3);nav.Add(name,b);navigation.Children.Add(b);
         }
-        if(session.Role=="Owner")
-        {
-            var imports=Ui.LineIconButton("Operator reports",()=>Run(()=>{RequireSaved();WorkflowWindows.Inbox(this,workflow);}),"reports");imports.MinHeight=32;imports.Padding=new(10,5,10,5);navigation.Children.Add(imports);
-        }
-
         tabs.Children.Add(new ScrollViewer{Content=navigation,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,VerticalScrollBarVisibility=ScrollBarVisibility.Disabled});DockPanel.SetDock(tabs,Dock.Top);root.Children.Add(tabs);
 
         var footer=new DockPanel{Height=24,Margin=new(12,0,12,0)};var build=Ui.Text(Ui.BuildLabel,10,"#64748B");build.Margin=new(16,0,0,0);DockPanel.SetDock(build,Dock.Right);footer.Children.Add(build);DockPanel.SetDock(revision,Dock.Right);footer.Children.Add(revision);footer.Children.Add(status);DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
@@ -96,7 +88,7 @@ public sealed class MainWindow : Window
         var sheet=new Border{Background=Brushes.White,BorderBrush=Ui.Color("#DCE3ED"),BorderThickness=new(1),Margin=new(10,0,10,4),Child=sheetArea};root.Children.Add(sheet);
         opening.TextChanged+=(_,_)=>{if(!refreshing&&!generatedView)MarkDirty();};terms.TextChanged+=(_,_)=>{if(!refreshing&&!generatedView)MarkDirty();};
         System.Windows.Automation.AutomationProperties.SetName(opening,"Opening balance in USD");System.Windows.Automation.AutomationProperties.SetName(terms,"Payment terms in calendar days");
-        Ui.WindowFrame(this,root,"TradeVault · "+session.Role+" workspace",embeddedControls:true);
+        Ui.WindowFrame(this,root,"TradeVault",embeddedControls:true);
         ToolTipService.SetToolTip(revision,"Storage: "+path);Closing+=(_,e)=>{if(busy||(!App.AutomatedRun&&!Discard()))e.Cancel=true;};
         RegisterShortcuts();
         PreviewKeyDown+=(_,e)=>{if((e.Key==Key.Delete||(e.Key==Key.X&&Keyboard.Modifiers==ModifierKeys.Control))&&(grid==null||!grid.Table.IsKeyboardFocusWithin||Keyboard.FocusedElement is TextBox))return;if(e.IsRepeat&&shortcuts.Any(s=>s.Key==e.Key&&s.Modifiers==Keyboard.Modifiers)){e.Handled=true;return;}if(TryShortcut(e.Key,Keyboard.Modifiers))e.Handled=true;};
@@ -161,7 +153,7 @@ public sealed class MainWindow : Window
     private void ShowOpeningReminders()
     {
         int overdue=0,soon=0,unavailable=0,configured=0;
-        foreach(var party in store.GetParties(session).Where(p=>!p.IsUnassigned&&workflow.Mapping(p.Id)!=null))
+        foreach(var party in store.GetParties().Where(p=>!p.IsUnassigned&&workflow.Mapping(p.Id)!=null))
         {
             configured++;try{var reminders=workflow.Reminders(party.Id,DateOnly.FromDateTime(DateTime.Today));overdue+=reminders.Count(r=>r.Status=="Overdue");soon+=reminders.Count(r=>r.Status=="Due within 30 days");}
             catch(TradeVault.Domain.BusinessRuleException){unavailable++;}
@@ -197,7 +189,7 @@ public sealed class MainWindow : Window
     private bool Discard(){grid?.Table.CommitEdit();grid?.Table.CommitEdit(DataGridEditingUnit.Row,true);return !dirty||MessageBox.Show(this,"You have unsaved changes. Discard them and continue?","Unsaved changes",MessageBoxButton.YesNo,MessageBoxImage.Question)==MessageBoxResult.Yes;}
     private void Open(string name,Guid? partyId=null)
     {
-        var selected=partyId??controller.PartyId;var next=new WorksheetController(store,session);next.Load(name,selected);
+        var selected=partyId??controller.PartyId;var next=new WorksheetController(store);next.Load(name,selected);
         var nextGenerated=name!="form"&&workflow.Mapping(selected)!=null;
         next.AsOf=DateOnly.FromDateTime(DateTime.Today);next.Calculate();
         var nextReport=nextGenerated?workflow.BuildCurrent(selected):null;
@@ -257,11 +249,11 @@ public sealed class MainWindow : Window
     internal void PreviewParty(string name,Guid party){RefreshParties(party);Open(name,party);}
     internal void CheckWorkflowInteractions()
     {
-        var party=store.CreateParty(session,"Workflow UI test");var input=new WorksheetController(store,session);input.Load("form",party.Id);var row=input.Add();row["F9"]="WF-UI-1";row["F10"]="2026-06-01";row["F5"]="15000";row["F6"]="10000";row["F17"]="2026-06-17";input.Save();
+        var party=store.CreateParty("Workflow UI test");var input=new WorksheetController(store);input.Load("form",party.Id);var row=input.Add();row["F9"]="WF-UI-1";row["F10"]="2026-06-01";row["F5"]="15000";row["F6"]="10000";row["F17"]="2026-06-17";input.Save();
         workflow.Configure(party.Id,new("F6","F22",true,new(2026,1,1)));
         PreviewParty("details",party.Id);
         if(!generatedView||grid?.Table.IsReadOnly!=true||((GridRow)grid.Table.Items[0])["F"]!="10000.00")throw new InvalidOperationException("Generated report UI did not use register source.");
-        Save();if(store.Load(session,"details",party.Id).Rows.Count!=0)throw new InvalidOperationException("Generated view overwrote legacy worksheet.");
+        Save();if(store.Load("details",party.Id).Rows.Count!=0)throw new InvalidOperationException("Generated view overwrote legacy worksheet.");
         PreviewParty("form",party.Id);controller.Rows[0]["F5"]="16000";Dispatcher.Invoke(()=>{},System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         if(controller.Rows[0]["F8"]!="6000.00")throw new InvalidOperationException("Automatic calculation did not refresh without a Recalculate button.");Navigate("details");
         if(((GridRow)grid!.Table.Items[0])["C"]!="16000.00")throw new InvalidOperationException("Invoice edits did not save when opening Account details.");
@@ -279,7 +271,7 @@ public sealed class MainWindow : Window
     private void RefreshParties(Guid selected)
     {
         changingParty=true;
-        try{var parties=store.GetParties(session);partySelector.ItemsSource=parties;partySelector.SelectedItem=parties.Single(p=>p.Id==selected);}
+        try{var parties=store.GetParties();partySelector.ItemsSource=parties;partySelector.SelectedItem=parties.Single(p=>p.Id==selected);}
         finally{changingParty=false;}
     }
     private void SwitchParty()
@@ -293,7 +285,7 @@ public sealed class MainWindow : Window
     private void CreateParty()
     {
         if(!Discard())return;
-        var dialog=new PartyDialog(store,session){Owner=this};
+        var dialog=new PartyDialog(store){Owner=this};
         if(dialog.ShowDialog()!=true)return;
         RefreshParties(dialog.Result!.Id);Open(controller.Name,dialog.Result.Id);
     }
@@ -301,10 +293,10 @@ public sealed class MainWindow : Window
     {
         if(controller.PartyId!=Guid.Empty||controller.Rows.Count==0)return;
         if(dirty)throw new ArgumentException("Save or reload your unassigned changes before assigning this worksheet.");
-        var dialog=new PartyDialog(store,session,true){Owner=this};
+        var dialog=new PartyDialog(store,true){Owner=this};
         if(dialog.ShowDialog()!=true)return;
         if(MessageBox.Show(this,$"Move this entire worksheet and its opening balance to {dialog.Result!.Name}? Only do this if every row belongs to that party.","Assign worksheet",MessageBoxButton.YesNo,MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
-        store.AssignUnassigned(session,controller.Name,dialog.Result.Id,controller.Revision);
+        store.AssignUnassigned(controller.Name,dialog.Result.Id,controller.Revision);
         RefreshParties(dialog.Result.Id);Open(controller.Name,dialog.Result.Id);
     }
     internal void CheckInteractions()
@@ -318,7 +310,7 @@ public sealed class MainWindow : Window
     }
     internal void CheckShortcutInteractions()
     {
-        var party=store.CreateParty(session,"Shortcut UI TEST");workflow.Configure(party.Id,new("F6","F22",false,new(2026,1,1)));PreviewParty("form",party.Id);
+        var party=store.CreateParty("Shortcut UI TEST");workflow.Configure(party.Id,new("F6","F22",false,new(2026,1,1)));PreviewParty("form",party.Id);
         if(shortcuts.Count!=15||shortcuts.Select(s=>(s.Key,s.Modifiers)).Distinct().Count()!=shortcuts.Count)throw new InvalidOperationException("Shortcut registration is missing or duplicated.");
         TryShortcut(Key.N,ModifierKeys.Control);var row=controller.Rows.Last();row["F9"]="SHORTCUT-TEST";row["F10"]="2026-06-01";row["F5"]="1000";row["F6"]="800";TryShortcut(Key.S,ModifierKeys.Control);
         if(dirty||saveButton.IsEnabled||System.Windows.Automation.AutomationProperties.GetName(saveButton)!="All changes saved")throw new InvalidOperationException("Ctrl+S did not save and update button state.");
@@ -328,25 +320,25 @@ public sealed class MainWindow : Window
         int confirmations=0;ConfirmRecordDeletion=_=>{confirmations++;return false;};grid!.SelectRecordRow(row);TryShortcut(Key.Delete,ModifierKeys.None);
         if(confirmations!=1||controller.Rows.Count!=1||dirty)throw new InvalidOperationException("Cancelled deletion changed records.");
         ConfirmRecordDeletion=_=>{confirmations++;return true;};TryShortcut(Key.Delete,ModifierKeys.None);
-        if(confirmations!=2||controller.Rows.Count!=0||dirty||saveButton.IsEnabled||store.Load(session,"form",party.Id).Rows.Any(r=>!r.ContainsKey("_metadata")))throw new InvalidOperationException("Confirmed deletion was not saved immediately.");
+        if(confirmations!=2||controller.Rows.Count!=0||dirty||saveButton.IsEnabled||store.Load("form",party.Id).Rows.Any(r=>!r.ContainsKey("_metadata")))throw new InvalidOperationException("Confirmed deletion was not saved immediately.");
         ReloadSaved();if(controller.Rows.Count!=0)throw new InvalidOperationException("Reload restored a deleted record.");
         var first=controller.Add();Watch(first);first["F9"]="DELETE-ONLY";first["F10"]="2026-06-01";first["F5"]="1000";first["F6"]="800";
         var second=controller.Add();Watch(second);second["F9"]="KEEP-DRAFT";second["F10"]="2026-06-01";second["F5"]="1000";second["F6"]="800";Save();
         second["F5"]="1200";grid!.SelectRecordRow(first);TryShortcut(Key.Delete,ModifierKeys.None);
-        var persisted=store.Load(session,"form",party.Id).Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
+        var persisted=store.Load("form",party.Id).Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
         if(persisted.Count!=1||persisted[0]["F9"]!="KEEP-DRAFT"||persisted[0]["F5"]!="1000"||second["F5"]!="1200"||!dirty)throw new InvalidOperationException("Deleting a record saved or discarded unrelated draft edits.");
         Save();grid.SelectRecordRow(second);TryShortcut(Key.Delete,ModifierKeys.None);ReloadSaved();
-        TryShortcut(Key.S,ModifierKeys.Control);if(store.Load(session,"form",party.Id).Rows.Any(r=>!r.ContainsKey("_metadata")))throw new InvalidOperationException("Deletion was not saved.");
+        TryShortcut(Key.S,ModifierKeys.Control);if(store.Load("form",party.Id).Rows.Any(r=>!r.ContainsKey("_metadata")))throw new InvalidOperationException("Deletion was not saved.");
         var cut=controller.Add();Watch(cut);cut["F9"]="CUT-RECORD";cut["F10"]="2026-06-01";cut["F5"]="1000";cut["F6"]="800";Save();grid!.ClipboardWriter=text=>clipboard=text;grid.SelectRecordRow(cut);clipboard="UNCHANGED";ConfirmRecordDeletion=_=>false;TryShortcut(Key.X,ModifierKeys.Control);
         if(clipboard!="UNCHANGED"||controller.Rows.Count!=1)throw new InvalidOperationException("Cancelled record cut changed data or clipboard.");ConfirmRecordDeletion=_=>true;TryShortcut(Key.X,ModifierKeys.Control);
-        if(!clipboard.Contains("CUT-RECORD")||controller.Rows.Count!=0||store.Load(session,"form",party.Id).Rows.Any(r=>!r.ContainsKey("_metadata")))throw new InvalidOperationException("Whole-record cut was not copied and persisted.");
+        if(!clipboard.Contains("CUT-RECORD")||controller.Rows.Count!=0||store.Load("form",party.Id).Rows.Any(r=>!r.ContainsKey("_metadata")))throw new InvalidOperationException("Whole-record cut was not copied and persisted.");
         grid.ClipboardWriter=null;ConfirmRecordDeletion=null;TryShortcut(Key.D2,ModifierKeys.Control);if(controller.Name!="details")throw new InvalidOperationException("Ctrl+2 navigation failed.");TryShortcut(Key.D3,ModifierKeys.Control);if(controller.Name!="ledger")throw new InvalidOperationException("Ctrl+3 navigation failed.");TryShortcut(Key.D1,ModifierKeys.Control);if(controller.Name!="form")throw new InvalidOperationException("Ctrl+1 navigation failed.");
         PreviewParty("form",Guid.Empty);
     }
     internal double SheetTop=>grid?.TranslatePoint(new Point(0,0),(UIElement)Content).Y??999;
     internal void CheckPartyInteractions()
     {
-        var a=store.CreateParty(session,"UI Party A");var b=store.CreateParty(session,"UI Party B");
+        var a=store.CreateParty("UI Party A");var b=store.CreateParty("UI Party B");
         RefreshParties(a.Id);Open("ledger",a.Id);opening.Text="100";
         var first=controller.Add();first["B"]="UI A invoice";first["C"]="50";Save();
         RefreshParties(b.Id);Open("ledger",b.Id);
@@ -359,7 +351,7 @@ public sealed class MainWindow : Window
         row["F9"]="UI-PARTY-A";terms.Text="60";Save();
         Open("form",b.Id);if(controller.Rows.Count!=0)throw new InvalidOperationException("Invoice register leaked across parties.");
         if(terms.Text!="90")throw new InvalidOperationException("Party terms leaked.");
-        var reopenedController=new WorksheetController(store,session);reopenedController.Load("form",a.Id);
+        var reopenedController=new WorksheetController(store);reopenedController.Load("form",a.Id);
         if(reopenedController.Terms!=60||reopenedController.AsOf!=DateOnly.FromDateTime(DateTime.Today))throw new InvalidOperationException("Party settings were not persisted.");
         RefreshParties(Guid.Empty);Open("form",Guid.Empty);
     }

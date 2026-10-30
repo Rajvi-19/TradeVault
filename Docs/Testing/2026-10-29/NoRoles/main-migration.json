@@ -1,0 +1,8 @@
+{
+  "working_business_data_unchanged": true,
+  "verified_table_count": 11,
+  "schema": 7,
+  "role_and_account_tables_absent": true,
+  "imported_reports_removed": true,
+  "integrity": "ok"
+}

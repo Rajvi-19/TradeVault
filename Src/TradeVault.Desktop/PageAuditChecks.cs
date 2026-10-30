@@ -13,13 +13,12 @@ internal static class PageAuditChecks
     {
         output=Path.GetFullPath(output);Directory.CreateDirectory(output);
         var root=Path.Combine(output,"SyntheticWorkspace",Guid.NewGuid().ToString("N"));
-        using var db=new PortableDatabase(new(root));var store=new WorkbookStore(db);var ownerSession=store.Login("owner","Owner@123");var op=store.Login("operator","Operator@123");
-        var party=store.CreateParty(ownerSession,"SYNTHETIC Client Audit");var wf=new ReportWorkflow(store,op);
-        var sheet=new WorksheetController(store,op);sheet.Load("form",party.Id);
+        using var db=new PortableDatabase(new(root));var store=new WorkbookStore(db);
+        var party=store.CreateParty("SYNTHETIC Client Audit");var wf=new ReportWorkflow(store);
+        var sheet=new WorksheetController(store);sheet.Load("form",party.Id);
         for(int i=1;i<=35;i++){var row=sheet.Add();row["F9"]="AUDIT-2026-"+i.ToString("D3");row["F10"]="2026-06-01";row["F5"]="15000";row["F6"]="10000";row["F17"]="2026-06-17";}
         sheet.Save();wf.Configure(party.Id,new("F6","F22",true,new(2026,1,1)));wf.RecordReceipt(party.Id,new(2026,8,1),5000,"SYNTHETIC receipt",[new(sheet.Rows[0]["_id"],"Bank",5000)]);
-        var export=wf.ExportExcel(party.Id,new(2026,10,28),true);var inbox=new ReportWorkflow(store,ownerSession);inbox.Import(export);
-        var owner=new MainWindow(store,ownerSession,db.Paths.Database);owner.Show();
+        var owner=new MainWindow(store,db.Paths.Database);owner.Show();
         void Capture(Window window,string name)
         {
             var size=Ui.WorkspaceSize(new Rect(0,0,1366,728));
@@ -37,10 +36,9 @@ internal static class PageAuditChecks
         }
         try
         {
-            foreach(var name in new[]{"form","details","ledger"}){owner.PreviewParty(name,party.Id);Capture(owner,"owner-"+name);}
-            var login=new LoginWindow(store);Capture(login,"login");Descendants(login).OfType<Button>().First(b=>System.Windows.Automation.AutomationProperties.GetName(b)=="Sign in").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Capture(login,"login-required-fields");login.Close();
-            Modal("create-party",()=>new PartyDialog(store,ownerSession){Owner=owner}.ShowDialog());
-            Modal("assign-party",()=>new PartyDialog(store,ownerSession,true){Owner=owner}.ShowDialog());
+            foreach(var name in new[]{"form","details","ledger"}){owner.PreviewParty(name,party.Id);Capture(owner,"worksheet-"+name);}
+            Modal("create-party",()=>new PartyDialog(store){Owner=owner}.ShowDialog());
+            Modal("assign-party",()=>new PartyDialog(store,true){Owner=owner}.ShowDialog());
             Modal("report-setup",()=>WorkflowWindows.Configure(owner,wf,party.Id));
             Modal("receipts",()=>WorkflowWindows.Receipts(owner,wf,party.Id));
             Modal("receipt-reversal",()=>
@@ -63,14 +61,8 @@ internal static class PageAuditChecks
                 }));WorkflowWindows.Receipts(owner,wf,party.Id);
             });
             Modal("reminders",()=>WorkflowWindows.Reminders(owner,wf,party.Id,new(2026,10,28)));
-            Modal("backups",()=>WorkflowWindows.Backups(owner,store,ownerSession));
-            Modal("operator-reports",()=>WorkflowWindows.Inbox(owner,inbox));
-            Modal("review-submission",()=>{var view=new ImportedReportsWindow(owner,inbox);try{view.Show();view.PreviewReview();}finally{view.Close();}});
+            Modal("backups",()=>WorkflowWindows.Backups(owner,store));
             Modal("report-preview",()=>WorkflowWindows.ReportView(owner,wf.Build(party.Id,new(2026,10,28),true)).ShowDialog());
-            Modal("recovery-setup",()=>RecoveryUi.Setup(owner,store,ownerSession));
-            Modal("forgot-password",()=>RecoveryUi.Forgot(owner,store,"owner"));
-            Modal("verify-password",()=>RecoveryUi.KnownPassword(owner,store,"owner"));
-            var operatorWindow=new MainWindow(store,op,db.Paths.Database);foreach(var name in new[]{"form","details","ledger"}){operatorWindow.PreviewParty(name,party.Id);Capture(operatorWindow,"operator-"+name);}operatorWindow.Close();
             ReportPdf.Save(wf.Build(party.Id,new(2026,10,28),true),Path.Combine(output,"full-width-reports.pdf"));
             File.WriteAllText(Path.Combine(output,"page-audit.txt"),"PASS: page construction, modal open/close and screenshot rendering; synthetic data only. OS file dialogs, physical printing and real USB ejection require manual acceptance.");
         }

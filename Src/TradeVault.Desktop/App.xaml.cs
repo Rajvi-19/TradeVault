@@ -18,7 +18,7 @@ public partial class App : System.Windows.Application
 #endif
             if(e.Args.Length>=2&&e.Args[0]=="--qa-report"){Shutdown(AcceptanceChecks.Run(e.Args[1])?0:1);return;}
             if(e.Args.Length>=2 && e.Args[0]=="--render-ui"){LiveChecks.Render(e.Args[1]);Shutdown(0);return;}
-            if(e.Args.Contains("--self-test")){LiveChecks.Run();Console.WriteLine("PASS: live persistence/authentication/worksheet checks");Shutdown(0);return;}
+            if(e.Args.Contains("--self-test")){LiveChecks.Run();Console.WriteLine("PASS: live persistence/workspace/worksheet checks");Shutdown(0);return;}
             var paths=PortablePaths.FromApplicationDirectory();
             if(e.Args.Contains("--seed-excel-demo")&&System.IO.File.Exists(paths.Database))throw new InvalidOperationException("Demo creation requires a new application folder without a database. Existing data is never overwritten.");
             using var database=new PortableDatabase(paths);
@@ -31,11 +31,7 @@ public partial class App : System.Windows.Application
             if(e.Args.Contains("--seed-test-data"))throw new InvalidOperationException("Sample seeding is disabled in release builds.");
 #endif
             if(e.Args.Contains("--initialize-db")){Console.WriteLine($"Initialized empty company worksheets: {database.Paths.Database}");Shutdown(0);return;}
-            while(true)
-            {
-                var login=new LoginWindow(store);if(login.ShowDialog()!=true)break;
-                var session=login.Session!;new MainWindow(store,session,database.Paths.Database).ShowDialog();store.Logout(session);
-            }
+            new MainWindow(store,database.Paths.Database).ShowDialog();
             Shutdown(0);
         }
         catch(Exception ex){Console.Error.WriteLine(ex);if(!e.Args.Any(a=>a is "--audit-pages" or "--self-test" or "--qa-report" or "--render-ui" or "--seed-test-data" or "--seed-workflow-data"))MessageBox.Show(ex.Message,"TradeVault startup failed");Shutdown(1);}

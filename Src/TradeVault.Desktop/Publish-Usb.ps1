@@ -10,10 +10,10 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot '../../Docs/Workflow-Guide.md') 
 TradeVault portable application
 Copy this ENTIRE folder onto the USB. Open TradeVault.Desktop.exe.
 Data/, Reports/ and Backups/ are created beside the application on that USB.
-Keep separate Owner/Operator folders/drives; do not synchronize live databases.
+Do not synchronize or share a database while TradeVault is open.
 Save and close before ejecting. A USB backup on the same drive does not protect against loss.
 Do not distribute test/QA databases or copy development Data folders into this package.
-Login does not encrypt the SQLite database. Confirm confidentiality policy before company use.
+TradeVault opens directly to Invoice Register without roles. The database is not encrypted.
 Before updating a working USB, close the app and make a verified backup. Preserve its Data and Backups folders.
 '@ | Set-Content -LiteralPath (Join-Path $output 'USB-READ-ME.txt') -Encoding utf8
 Write-Output "Published runtime-contained folder: $output"

@@ -1,4 +1,6 @@
-# TradeVault — report handover, receipts and portable workflow
+> Current behavior (2026-10-29): TradeVault opens directly to Invoice Register. There are no accounts, roles, role selector or Operator Reports page.
+
+# TradeVault — invoices, accounts and payments
 
 Build: UI 2026.10.28.1. All amounts are USD.
 
@@ -22,7 +24,7 @@ The selected party appears beside the worksheet heading. Invoice Register hides 
 
 - Development: close any old running copy, then run dotnet run --no-restore --project Src/TradeVault.Desktop/TradeVault.Desktop.csproj.
 - Portable: copy the ENTIRE Src/TradeVault.Desktop/bin/Portable/win-x64 folder onto each USB. Open TradeVault.Desktop.exe. Do not copy only the executable.
-- Keep separate Owner and Operator application folders/drives. Data, Reports and Backups live beside each application's executable; no online synchronization is introduced.
+- Data, Reports and Backups stay beside the executable. Do not synchronize a live database.
 - For an existing installation, close it and keep a separate verified backup before replacing application binaries. Preserve its Data/ and Backups/ folders. First startup upgrades older supported databases to schema 5 after an automatic pre-upgrade backup.
 - A published application contains its Windows .NET runtime and native dependencies. Physical clean-PC and USB-ejection acceptance is still required.
 - No company database was created or upgraded as part of this implementation's tests.
@@ -67,41 +69,15 @@ Open Payments / unpaid invoices for the selected customer. One row per invoice s
 
 Saving valid register edits or switching from the register to either report saves the register first and rebuilds the generated view from it. Invalid edits keep the user in place with an error. Customers without calculation settings are prompted to choose explicit sources before opening generated reports. Existing manual worksheets remain preserved. Invoice amount/date fields linked to receipt history remain protected; the change does not bypass historical safeguards.
 
-Historical receipts/corrections are included at their effective dates. Both main report tabs now include all saved entries, with no selected reporting cutoff. Changing source invoice values does not reconstruct every previous invoice version; existing exported/imported snapshots stay frozen.
+Historical receipts/corrections are included at their effective dates. Both main report tabs now include all saved entries, with no selected reporting cutoff. Changing source invoice values does not reconstruct every previous invoice version; existing exported reports stay frozen.
 
 ## Report preview, export and print
 
-1. Save working edits.
-2. Select a named party and the As of date.
-3. Use Preview / Print for both reports with metadata, totals and notes.
-4. Print both reports opens the standard Windows printer dialog. Physical printing/driver acceptance remains a manual check.
-5. Export reports creates a unique folder under Reports/ with:
-   - AccountDetails.xlsx
-   - DebitCredit.xlsx
-   - Print.html — offline landscape print layout, usable without Excel
-   - Submission.tvreport — versioned handover package
-6. Export runs off the UI thread; editing/closing is guarded while the export is in progress.
-
-Excel exports contain numeric amounts and dates, frozen report headers, totals, print titles and landscape page setup. They contain snapshot values, not live links or editable financial formulas.
-
-Generated mode filters invoices and dated receipts by As of. It uses current saved invoice values. It does NOT reconstruct invoice values before later edits, and cannot reconstruct payments that predate an imported cumulative baseline. Notes identify these boundaries.
-
-Manual snapshot mode exports saved independent report values. Its report date is metadata, not a historical-filter guarantee. Do not present it as an automatically reconciled report.
-
-Exports of the same party/date/mode reuse a submission lineage and increment its revision. Changing the date or mode creates a separate lineage.
-
-## Owner import and review
-
-1. Transfer Submission.tvreport manually or connect the source USB.
-2. Owner opens Operator reports > Import report and selects the package.
-3. Preview party, As of, revision, source ID, both reports, totals and calculation notes.
-4. Close the preview and explicitly confirm import.
-5. The Owner database stores the original package and frozen report separately from working parties/invoices.
-6. Duplicate revisions are rejected. Conflicting content for an existing revision is rejected. Corrected revisions preserve previous revisions.
-7. Open selected displays a read-only snapshot. Review status / note stores Owner annotations separately from report contents.
-8. Restarting the Owner app or disconnecting the source does not remove imported reports.
-
-Packages have bounded size, strict known-entry/schema validation and checksums; archive paths are never extracted. Changed files must be previewed again. Checksums establish integrity, NOT sender identity. Confirm the sender through the physical handover process; this version does not digitally authenticate or encrypt packages.
+1. Select a party and save working edits.
+2. Use Preview / Print to inspect Account Details and Debit & Credit with totals.
+3. Save PDF or print through Windows. Printer/driver acceptance remains manual.
+4. Export Excel creates one .xlsx report with both report worksheets in Reports beside the application. Exports retain snapshot values, numeric amounts/dates, frozen headers, totals and landscape print setup.
+5. The main views and exports include all saved records. Effective receipt dates still control payment history and reminders. Exported report revisions remain available as ordinary files; there is no report-import or review inbox.
 
 ## Reminders and balances
 
@@ -112,18 +88,18 @@ Unallocated advances reduce the party-ledger balance but do not automatically se
 ## Backup and restore
 
 - Backups > Create verified backup uses SQLite's consistent backup API and integrity checking.
-- Owner can restore a selected file from the application's Backups folder.
-- Restore checks integrity, supported version, required tables, credentials and foreign-key relationships.
+- Restore a selected file from the application's Backups folder.
+- Restore checks integrity, supported version, required business tables and foreign-key relationships.
 - A safety backup is made first. Schema-2/3 backups are upgraded after restoration; failed upgrades roll back to the safety copy.
-- Successful restore signs out all sessions. Credentials and imported submissions also come from the backup; know the credentials valid in that backup.
+- Successful restore closes the workspace. Reopen TradeVault to view the restored records. Older backups are upgraded and obsolete account tables removed.
 - Keep a copy on a DIFFERENT USB for lost-drive recovery.
-- The login password does not encrypt the SQLite database. Confidentiality/key-recovery policy must be agreed before sensitive deployment.
+- The SQLite database is not encrypted. Keep the application and backup drives physically secure.
 
-## Passwords and audit
+## Local data and audit
 
-Workspace Password buttons have been removed. Use Forgot password on the sign-in page with the single-use recovery code explicitly created after authenticating. A setup link is available for users who still know their current password. Both usernames and passwords are case-sensitive. Recovery invalidates affected sessions and consumes the code; generate a new one after signing in. See [Offline account recovery](Offline-Account-Recovery.md) for setup, backup and lost-code limits. There is no hidden master-password or Owner-password bypass.
+No sign-in or role system is present. Schema 7 removes obsolete role settings and imported-report submissions/reviews. Invoices, parties, receipts, report settings and normal exports remain. A verified pre-upgrade backup is retained. Restoring an older backup migrates its working copy to the current schema.
 
-Worksheet saves and workflow operations have actor/time/before/after audit records. Import review audit entries retain metadata/hash references rather than duplicating the entire original package.
+New audit entries identify Local workspace rather than a person or role. Historical business audit entries remain intact. Prior backups and testing records are historical evidence, not active application features.
 
 ## Verification and release boundaries
 

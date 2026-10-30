@@ -6,18 +6,17 @@ internal static class TestDataSeeder
 {
     internal static void RunWorkflow(WorkbookStore store,PortableDatabase database)
     {
-        var session=store.Login("owner","Owner@123");
-        try
+
         {
             var names=new[]{"[TEST] Indigo Textile Imports — Workflow","[TEST] Crescent Dye Traders — Workflow","[TEST] Ocean Colour Distributors — Workflow"};
-            var existing=store.GetParties(session).Select(p=>p.Name).ToHashSet();
+            var existing=store.GetParties().Select(p=>p.Name).ToHashSet();
             if(names.All(existing.Contains)){Console.WriteLine("Workflow sample parties already exist. No records changed.");return;}
-            var backup=store.CreateBackup(session);Console.WriteLine("Pre-seed backup: "+backup);
+            var backup=store.CreateBackup();Console.WriteLine("Pre-seed backup: "+backup);
             for(int p=0;p<names.Length;p++)
             {
                 if(existing.Contains(names[p]))continue;
-                var party=store.CreateParty(session,names[p]);var workflow=new ReportWorkflow(store,session);workflow.Configure(party.Id,new("F6","F22",true,new(2026,1,1)));
-                var c=new WorksheetController(store,session);c.Load("form",party.Id);c.AsOf=new(2026,10,27);
+                var party=store.CreateParty(names[p]);var workflow=new ReportWorkflow(store);workflow.Configure(party.Id,new("F6","F22",true,new(2026,1,1)));
+                var c=new WorksheetController(store);c.Load("form",party.Id);c.AsOf=new(2026,10,27);
                 decimal factor=1+p*.2m;
                 var samples=new[]{
                     new Sample("001",new(2026,6,1),new DateOnly(2026,6,17),15000*factor,10000*factor,0,0,3800,null),
@@ -40,19 +39,17 @@ internal static class TestDataSeeder
                 Console.WriteLine($"Added {names[p]}: 4 invoices, 3 receipts, USD 100 unallocated; closing balance {report.Tables[1].Totals["E"]:0.00}.");
             }
         }
-        finally{store.Logout(session);}
     }
     internal static void Run(WorkbookStore store,PortableDatabase database)
     {
-        var session=store.Login("owner","Owner@123");
+
         var parties=new[]{("[TEST] Meridian Textile Trading","Malaysia"),("[TEST] Bengal Colour Mills","Bangladesh"),("[TEST] Gulf Fabric Industries","United Arab Emirates")};
-        try
         {
-            if(store.GetParties(session).Any(p=>parties.Any(sample=>sample.Item1==p.Name)))throw new InvalidOperationException("Test parties already exist. Nothing was inserted; this prevents duplicate test records.");
+            if(store.GetParties().Any(p=>parties.Any(sample=>sample.Item1==p.Name)))throw new InvalidOperationException("Test parties already exist. Nothing was inserted; this prevents duplicate test records.");
             var backup=database.CreateBackup();
             for(int p=0;p<parties.Length;p++)
             {
-                var party=store.CreateParty(session,parties[p].Item1);
+                var party=store.CreateParty(parties[p].Item1);
                 var factor=1+p*0.15m;
                 var samples=new[]{
                     new Sample("001",new(2026,5,13),new DateOnly(2026,6,17),51680m*factor,40800m*factor,40800m*factor,(51680m-40800m)*factor-3800m,3800m,new DateOnly(2026,9,10)),
@@ -60,7 +57,7 @@ internal static class TestDataSeeder
                     new Sample("003",new(2026,7,29),new DateOnly(2026,10,7),61200m*factor,40800m*factor,0m,0m,3800m,null),
                     new Sample("004",new(2026,10,20),null,88957.50m*factor,52391.25m*factor,0m,0m,4200m,null)
                 };
-                var sheet=new WorksheetController(store,session);sheet.Load("form",party.Id);sheet.AsOf=new(2026,10,27);
+                var sheet=new WorksheetController(store);sheet.Load("form",party.Id);sheet.AsOf=new(2026,10,27);
                 foreach(var sample in samples)
                 {
                     var row=sheet.Add();var reference=$"TEST-EXP-{p+1}-{sample.Number}/26-27";
@@ -94,7 +91,6 @@ internal static class TestDataSeeder
             }
             Console.WriteLine($"Inserted 3 TEST parties, 12 invoices, 12 detail rows and 39 ledger rows. Existing parties untouched. Backup: {backup}");
         }
-        finally{store.Logout(session);}
     }
     private static string Money(decimal value)=>decimal.Round(value,2,MidpointRounding.AwayFromZero).ToString("0.00",System.Globalization.CultureInfo.InvariantCulture);
     private sealed record Sample(string Number,DateOnly InvoiceDate,DateOnly? BlDate,decimal Original,decimal Contract,decimal BankReceived,decimal DifferenceReceived,decimal Shipping,DateOnly? PaymentDate);

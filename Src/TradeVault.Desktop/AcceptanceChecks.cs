@@ -11,9 +11,9 @@ namespace TradeVault.Desktop;
 internal static class AcceptanceChecks
 {
     private sealed record Result(string Id,string Feature,string Status,string Evidence);
-    internal static void Seed(WorkbookStore store,LoginSession session)
+    internal static void Seed(WorkbookStore store)
     {
-        var sheet=new WorksheetController(store,session){AsOf=new(2026,10,26)};
+        var sheet=new WorksheetController(store){AsOf=new(2026,10,26)};
         sheet.Load("form");
         for(int i=1;i<=12;i++)
         {
@@ -36,9 +36,9 @@ internal static class AcceptanceChecks
     internal static void LaunchWorkspace()
     {
         var root=System.IO.Path.Combine(AppContext.BaseDirectory,"TestData",Guid.NewGuid().ToString("N"));
-        var db=new PortableDatabase(new(root));var store=new WorkbookStore(db);var owner=store.Login("owner","Owner@123");Seed(store,owner);
-        var window=new MainWindow(store,owner,db.Paths.Database);window.Title="TradeVault QA — SYNTHETIC DATA ONLY | "+Ui.BuildLabel;
-        window.Closed+=(_,_)=>{store.Logout(owner);db.Dispose();Clean(root);System.Windows.Application.Current.Shutdown();};window.Show();
+        var db=new PortableDatabase(new(root));var store=new WorkbookStore(db);Seed(store);
+        var window=new MainWindow(store,db.Paths.Database);window.Title="TradeVault QA — SYNTHETIC DATA ONLY | "+Ui.BuildLabel;
+        window.Closed+=(_,_)=>{db.Dispose();Clean(root);System.Windows.Application.Current.Shutdown();};window.Show();
     }
     private static void Clean(string root)
     {
@@ -60,13 +60,9 @@ internal static class AcceptanceChecks
         {
             using(var db=new PortableDatabase(new(root)))
             {
-                var store=new WorkbookStore(db);LoginSession owner=store.Login("owner","Owner@123"),op=store.Login("operator","Operator@123");
-                Check("A01","Owner authentication",()=>Assert(owner.Role=="Owner","Wrong role"),"Assigned Owner role returned.");
-                Check("A02","Operator authentication",()=>Assert(op.Role=="Operator","Wrong role"),"Assigned Operator role returned.");
-                Check("A03","Incorrect password rejected",()=>Reject(()=>store.Login("owner","qa-invalid-password")),"Wrong credentials rejected by real password verifier.");
-                Check("A04","Owner-only access enforcement",()=>Reject(()=>store.Load(op,"operator-reports")),"Operator denied owner report scope.");
-                Check("D01","Fresh datasets empty",()=>Assert(store.Load(owner,"form").Rows.Count==0,"Unexpected business rows"),"Fresh isolated SQLite database contains no company rows.");
-                Seed(store,owner);var sheet=new WorksheetController(store,owner);sheet.Load("form");
+                var store=new WorkbookStore(db);
+                Check("D01","Fresh datasets empty",()=>Assert(store.Load("form").Rows.Count==0,"Unexpected business rows"),"Fresh isolated SQLite database contains no company rows.");
+                Seed(store);var sheet=new WorksheetController(store);sheet.Load("form");
                 Check("D02","Synthetic 12-invoice save/reload",()=>Assert(sheet.Rows.Count==12&&sheet.Rows[0]["F9"]=="QA-INV-001","Reload mismatch"),"12 invoices with 26 source fields persisted/reloaded.");
                 Check("D03","Shipping default",()=>Assert(sheet.Rows.All(r=>r["F18"]=="3800.00"),"Default differs"),"All 12 invoice shipping inputs start at USD 3,800.");
                 Check("D04","BL + terms due date",()=>Assert(sheet.Rows.All(r=>r["F19"]=="2026-09-15"),"Due date mismatch"),"17-Jun-2026 + 90 days = 15-Sep-2026.");
@@ -78,7 +74,7 @@ internal static class AcceptanceChecks
                 Check("D10","Required party/invoice validation",()=>{sheet.Rows[0]["F1"]="";Reject(sheet.Save);sheet.Load("form");},"Missing party blocks save and valid persisted data remains.");
                 Check("D11","Invalid date blocked",()=>{sheet.Rows[0]["F4"]="2026-02-31";Reject(sheet.Save);sheet.Load("form");},"Invalid calendar day rejected.");
                 Check("D12","Unknown dates remain blank",()=>{sheet.Rows[0]["F17"]="";sheet.Calculate();Assert(sheet.Rows[0]["F19"]==""&&sheet.Rows[0]["F20"]=="","Invented due date");sheet.Load("form");},"No BL date produces no due/reminder date.");
-                Check("D13","Stale update rejected",()=>{var other=new WorksheetController(store,owner);other.Load("form");sheet.Save();Reject(other.Save);},"Revision conflict rejected instead of overwriting changes.");
+                Check("D13","Stale update rejected",()=>{var other=new WorksheetController(store);other.Load("form");sheet.Save();Reject(other.Save);},"Revision conflict rejected instead of overwriting changes.");
                 Check("D14","Deletion saved and reloaded",()=>{sheet.Rows.RemoveAt(11);sheet.Save();sheet.Load("form");Assert(sheet.Rows.Count==11,"Deleted row returned");},"Delete underlying record, save and reload retains 11 records.");
                 Check("C01","Details formula results",()=>{sheet.Load("details");Assert(sheet.Rows.Count==12&&sheet.Rows.All(r=>r["F"]=="7000.00"&&r["I"]=="1200.00"&&r["K"]=="0.00"),"Details mismatch");},"Per row: pending bank 7,000; net difference 1,200; received difference 1,200; running pending 0.");
                 Check("C02","Cumulative receipt input recalculates",()=>{sheet.Rows[0]["E"]="5000";sheet.Calculate();Assert(sheet.Rows[0]["F"]=="5000.00","Receipt not reflected");sheet.Load("details");},"Changing manual bank-received input 3,000 to 5,000 reduces pending to 5,000. This is not receipt-allocation UI.");
@@ -122,23 +118,22 @@ internal static class AcceptanceChecks
                     row["F2"]="KEEP-CELL";grid.ClipboardWriter=_=>throw new InvalidOperationException("Clipboard busy");try{grid.CutSelectedCells();throw new Exception("Clipboard failure ignored");}catch(InvalidOperationException){}Assert(row["F2"]=="KEEP-CELL","Clipboard failure cleared data");
                     grid.Table.SelectedCells.Clear();grid.Table.CurrentCell=new(row,grid.Table.Columns[7]);grid.Table.SelectedCells.Add(grid.Table.CurrentCell);try{grid.ClearSelectedCells();throw new Exception("Calculated cell cleared");}catch(ArgumentException){}grid.ClipboardWriter=null;row["F2"]=original;
                 },"Ctrl+X path copies before clearing; cells do not remove rows, clipboard failure is non-destructive, and formulas stay locked.");
-                var login=new LoginWindow(store);var main=new MainWindow(store,owner,db.Paths.Database);
+                var main=new MainWindow(store,db.Paths.Database);
                 Check("W04","Workspace fits a 1366 by 768 desktop",()=>{var area=new Rect(0,0,1366,728);var size=Ui.WorkspaceSize(area);Assert(size.Width<=area.Width&&size.Height<=area.Height,"Startup window extends outside work area");},"Startup size accounts for taskbar space so caption and report navigation remain on screen.");
                 Check("W05","All three worksheet tabs remain visible",main.CheckNavigationLayout,"Invoice register, Account details and Debit & credit button bounds are inside the 1366 by 728 workspace.");
-                Check("W01","Visible caption controls on login and workspace",()=>Assert(new Window[]{login,main}.All(w=>w.WindowStyle==WindowStyle.None&&w.ResizeMode==ResizeMode.CanResize&&System.Windows.Shell.WindowChrome.GetWindowChrome(w)!=null),"Custom caption missing"),"Both top-level windows have explicit minimize/maximize/close controls and resize chrome; OS click acceptance is separate.");
+                Check("W01","Visible caption controls on workspace",()=>Assert(new Window[]{main}.All(w=>w.WindowStyle==WindowStyle.None&&w.ResizeMode==ResizeMode.CanResize&&System.Windows.Shell.WindowChrome.GetWindowChrome(w)!=null),"Custom caption missing"),"The workspace window have explicit minimize/maximize/close controls and resize chrome; OS click acceptance is separate.");
                 Check("W02","All sheet layouts stay compact",()=>{foreach(var name in new[]{"form","details","ledger"}){main.PreviewSheet(name);var content=(FrameworkElement)main.Content;content.Measure(new(1000,600));content.Arrange(new(0,0,1000,600));content.UpdateLayout();Assert(main.SheetTop<290,"Worksheet starts too low");}},"Worksheet component begins above 290px including the explicit 36px caption at 1000×600 content size.");
                 Check("W03","UI Save/reload handlers",main.CheckInteractions,"Real MainWindow input → Save → reload round trip; Save disabled after success.");
                 Check("C06","Register difference is calculated and protected",()=>{
-                    var party=store.CreateParty(owner,"[TEST] Calculated difference");var wf=new ReportWorkflow(store,owner);wf.Configure(party.Id,new("F6","F22",true,new(2026,1,1)));
-                    var c=new WorksheetController(store,owner);c.Load("form",party.Id);var row=c.Add();row["F9"]="AUTO-DIFF";row["F5"]="15000";row["F6"]="10000";row["F8"]="999";c.Calculate();Assert(row["F8"]=="5000.00"&&c.Fields.Single(f=>f.Key=="F8").Calculated,"Difference not calculated/locked");
+                    var party=store.CreateParty("[TEST] Calculated difference");var wf=new ReportWorkflow(store);wf.Configure(party.Id,new("F6","F22",true,new(2026,1,1)));
+                    var c=new WorksheetController(store);c.Load("form",party.Id);var row=c.Add();row["F9"]="AUTO-DIFF";row["F5"]="15000";row["F6"]="10000";row["F8"]="999";c.Calculate();Assert(row["F8"]=="5000.00"&&c.Fields.Single(f=>f.Key=="F8").Calculated,"Difference not calculated/locked");
                     row["F5"]="16000";c.Save();c.Load("form",party.Id);Assert(c.Rows[0]["F8"]=="6000.00","Difference did not refresh/persist");
                     c.Load("ledger",party.Id);var movement=c.Add();movement["B"]="TEST DUE";movement["I"]="2026-06-17";c.Calculate();Assert(movement["G"]=="2026-09-15"&&movement["G"]==movement["K"],"Due columns differ");
                 },"Calculation follows configured contract, overrides stale input, updates after edit/reload and locks F8. Both legacy ledger due columns follow BL + terms.");
-                main.Close();login.Close();
-                Check("A05","Logout invalidates session",()=>{store.Logout(op);Reject(()=>store.Load(op,"form"));},"Expired session rejected.");
+                main.Close();
             }
-            using var reopened=new PortableDatabase(new(root));var persistedStore=new WorkbookStore(reopened);var persistedSession=persistedStore.Login("owner","Owner@123");
-            Check("D15","Database reopen persistence",()=>Assert(persistedStore.Load(persistedSession,"details").Rows.Count==13,"Missing persisted rows"),"12 detail rows plus metadata survive database disposal/reopen.");
+            using var reopened=new PortableDatabase(new(root));var persistedStore=new WorkbookStore(reopened);
+            Check("D15","Database reopen persistence",()=>Assert(persistedStore.Load("details").Rows.Count==13,"Missing persisted rows"),"12 detail rows plus metadata survive database disposal/reopen.");
         }
         catch(Exception ex){results.Add(new("HARNESS","Acceptance harness","FAIL",ex.Message));}
         finally{Clean(root);}

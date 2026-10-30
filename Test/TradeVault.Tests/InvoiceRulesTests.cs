@@ -28,9 +28,9 @@ public sealed class InvoiceRulesTests
     public void RejectsInvalidUsd(string value)=>Assert.Contains(InvoiceRules.Validate(new Dictionary<string,string>{{"F22",value}}),i=>i.Field=="F22");
     [Fact]public void DatabaseSaveRejectsInvalidPaymentWithoutChangingRevision()
     {
-        var root=Path.Combine(AppContext.BaseDirectory,"RulesTests",Guid.NewGuid().ToString("N"));using var db=new PortableDatabase(new(root));var store=new WorkbookStore(db);var session=store.Login("operator","Operator@123");var party=store.CreateParty(session,"Rules test");
+        var root=Path.Combine(AppContext.BaseDirectory,"RulesTests",Guid.NewGuid().ToString("N"));using var db=new PortableDatabase(new(root));var store=new WorkbookStore(db);var party=store.CreateParty("Rules test");
         var row=new Dictionary<string,string>{{"F9","RULE-1"},{"F10","2026-07-02"},{"F22","100"},{"F24","2026-07-01"}};
-        Assert.Throws<BusinessRuleException>(()=>store.Save(session,"form",0,[row],party.Id));Assert.Equal(0,store.Load(session,"form",party.Id).Revision);
-        row["F24"]="2026-07-02";Assert.Equal(1,store.Save(session,"form",0,[row],party.Id));
+        Assert.Throws<BusinessRuleException>(()=>store.Save("form",0,[row],party.Id));Assert.Equal(0,store.Load("form",party.Id).Revision);
+        row["F24"]="2026-07-02";Assert.Equal(1,store.Save("form",0,[row],party.Id));
     }
 }

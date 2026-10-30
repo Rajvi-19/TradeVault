@@ -13,16 +13,15 @@ internal static class ExcelDemoSeeder
     {
         var entries=JsonSerializer.Deserialize<List<Entry>>(File.ReadAllText(fixture))??throw new InvalidOperationException("Missing fixture.");
         if(entries.Count!=14)throw new InvalidOperationException("Expected 14 workbook invoice rows.");
-        var session=store.Login("owner","Owner@123");
-        try
+
         {
-            if(store.GetParties(session).Count!=1||store.Load(session,"form").Rows.Count!=0)throw new InvalidOperationException("Only a new empty test database can be seeded.");
-            var workflow=new ReportWorkflow(store,session);
+            if(store.GetParties().Count!=1||store.Load("form").Rows.Count!=0)throw new InvalidOperationException("Only a new empty test database can be seeded.");
+            var workflow=new ReportWorkflow(store);
             foreach(var lab in new[]{false,true})
             {
-                var party=store.CreateParty(session,lab?"[TEST] Receipt allocation practice":"[TEST] Account Details workbook sample");
+                var party=store.CreateParty(lab?"[TEST] Receipt allocation practice":"[TEST] Account Details workbook sample");
                 workflow.Configure(party.Id,new("F6","F22",true,new(2026,1,1)));
-                var sheet=new WorksheetController(store,session);sheet.Load("form",party.Id);sheet.AsOf=new(2026,10,27);
+                var sheet=new WorksheetController(store);sheet.Load("form",party.Id);sheet.AsOf=new(2026,10,27);
                 foreach(var entry in lab?entries.Skip(6).Take(2):entries)
                 {
                     var row=sheet.Add();row["F2"]="Malaysia / Pakistan (TEST)";row["F3"]="DEMO-PI-"+entry.SourceRow;
@@ -56,6 +55,5 @@ internal static class ExcelDemoSeeder
             }
             Console.WriteLine("PASS: 14 workbook-derived invoices + 2 practice invoices; generated reports, 2 split receipts and preserved legacy round-off. Dates identified as synthetic in DEMO-READ-ME.md.");
         }
-        finally{store.Logout(session);}
     }
 }

@@ -1,3 +1,5 @@
+> Historical prototype proposal. Current application uses WorkbookStore/ReportWorkflow without authentication or roles. See Docs/Workflow-Guide.md for current behavior.
+
 # Desktop integration proposal — awaiting Developer B agreement
 
 This is a Desktop-local prototype contract, not a change to shared Application types.

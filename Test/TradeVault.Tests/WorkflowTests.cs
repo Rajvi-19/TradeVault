@@ -10,14 +10,21 @@ namespace TradeVault.Tests;
 
 public sealed class WorkflowTests
 {
+    private static ReportBundle ReadExportSnapshot(string path)
+    {
+        using var zip=ZipFile.OpenRead(path);using var input=zip.GetEntry("customXml/tradevault.xml")!.Open();
+        var xml=System.Xml.Linq.XDocument.Load(input);
+        return JsonSerializer.Deserialize<ReportBundle>(Convert.FromBase64String(xml.Root!.Value))!;
+    }
+
     [Fact]public void ImmediateRecordDeletionPersistsAndRejectsStaleOrProtectedChanges()
     {
-        using var f=new Fixture();var snapshot=f.Store.Load(f.Owner,"form",f.Party);var revision=f.Store.DeleteWorksheetRecord(f.Owner,"form",f.Party,snapshot.Revision,1,"two");
+        using var f=new Fixture();var snapshot=f.Store.Load("form",f.Party);var revision=f.Store.DeleteWorksheetRecord("form",f.Party,snapshot.Revision,1,"two");
         Assert.Equal(snapshot.Revision+1,revision);Assert.Single(f.Workflow.Invoices(f.Party));Assert.Equal("one",f.Workflow.Invoices(f.Party)[0]["_id"]);
-        Assert.Throws<BusinessRuleException>(()=>f.Store.DeleteWorksheetRecord(f.Owner,"form",f.Party,snapshot.Revision,0,"one"));Assert.Single(f.Workflow.Invoices(f.Party));
+        Assert.Throws<BusinessRuleException>(()=>f.Store.DeleteWorksheetRecord("form",f.Party,snapshot.Revision,0,"one"));Assert.Single(f.Workflow.Invoices(f.Party));
         f.Workflow.RecordReceipt(f.Party,new(2026,7,1),100,"PROTECT",[new("one","Bank",100)]);
-        Assert.Throws<BusinessRuleException>(()=>f.Store.DeleteWorksheetRecord(f.Owner,"form",f.Party,revision,0,"one"));Assert.Single(f.Workflow.Invoices(f.Party));
-        f.Database.Dispose();using var reopened=new PortableDatabase(new(f.Root));var store=new WorkbookStore(reopened);var owner=store.Login("owner","Owner@123");Assert.Single(new ReportWorkflow(store,owner).Invoices(f.Party));
+        Assert.Throws<BusinessRuleException>(()=>f.Store.DeleteWorksheetRecord("form",f.Party,revision,0,"one"));Assert.Single(f.Workflow.Invoices(f.Party));
+        f.Database.Dispose();using var reopened=new PortableDatabase(new(f.Root));var store=new WorkbookStore(reopened);Assert.Single(new ReportWorkflow(store).Invoices(f.Party));
     }
     [Fact]public void DeletionPreflightProtectsInvoicesWithRecordedPaymentHistory()
     {
@@ -27,10 +34,10 @@ public sealed class WorkflowTests
     }
     [Fact]public void CurrentReportsIncludeAllSavedInvoicesAndExportSameSnapshot()
     {
-        using var f=new Fixture();var snapshot=f.Store.Load(f.Owner,"form",f.Party);var future=Fixture.Invoice("FUTURE","future");future["F10"]="2090-11-20";future["F17"]="2090-12-01";snapshot.Rows.Add(future);f.Store.Save(f.Owner,"form",snapshot.Revision,snapshot.Rows,f.Party);
+        using var f=new Fixture();var snapshot=f.Store.Load("form",f.Party);var future=Fixture.Invoice("FUTURE","future");future["F10"]="2090-11-20";future["F17"]="2090-12-01";snapshot.Rows.Add(future);f.Store.Save("form",snapshot.Revision,snapshot.Rows,f.Party);
         Assert.Equal(2,f.Workflow.Build(f.Party,new(2026,10,28),true).Tables[0].Rows.Count);
         var current=f.Workflow.BuildCurrent(f.Party);Assert.Equal(3,current.Tables[0].Rows.Count);Assert.Equal(DateOnly.FromDateTime(DateTime.Today),current.AsOf);Assert.Equal("All saved records",current.Mode);Assert.Contains(current.Tables[1].Rows,r=>r["B"].Contains("FUTURE"));
-        var exported=f.Workflow.ExportExcel(f.Party,current.AsOf,true,true);var preview=new ReportWorkflow(f.Store,f.Owner).Preview(exported);Assert.Equal(3,preview.Tables[0].Rows.Count);Assert.Equal(current.Mode,preview.Mode);
+        var exported=f.Workflow.ExportExcel(f.Party,current.AsOf,true,true);var preview=ReadExportSnapshot(exported);Assert.Equal(3,preview.Tables[0].Rows.Count);Assert.Equal(current.Mode,preview.Mode);
     }
     [Fact]public void FutureInvoiceCoverageAndExplicitCutoffAdvancePreserveInvoiceInputs()
     {
@@ -39,7 +46,7 @@ public sealed class WorkflowTests
         Assert.Empty(f.Workflow.Build(f.Party,new(2026,5,31),true).Tables[0].Rows);
         f.Workflow.SetReportDate(f.Party,new(2026,6,1));Assert.Equal(2,f.Workflow.Build(f.Party,new(2026,6,1),true).Tables[0].Rows.Count);
         var after=f.Workflow.Invoices(f.Party);Assert.Equal(System.Text.Json.JsonSerializer.Serialize(before),System.Text.Json.JsonSerializer.Serialize(after));
-        Assert.Equal("2026-06-01",f.Store.Load(f.Owner,"form",f.Party).Rows.Single(r=>r.ContainsKey("_metadata"))["asOf"]);
+        Assert.Equal("2026-06-01",f.Store.Load("form",f.Party).Rows.Single(r=>r.ContainsKey("_metadata"))["asOf"]);
     }
     [Fact]public void PaymentScreenBalancesAreDatedAndAllowReplacingOnlyAnActiveReceipt()
     {
@@ -53,7 +60,7 @@ public sealed class WorkflowTests
     }
     [Fact]public void OpeningDifferenceIsVisibleWithoutInvoiceRows()
     {
-        using var f=new Fixture();var party=f.Store.CreateParty(f.Owner,"Opening balance only");
+        using var f=new Fixture();var party=f.Store.CreateParty("Opening balance only");
         f.Workflow.Configure(party.Id,new("F6","F22",true,new(2026,7,1),0,250));
         var after=f.Workflow.Build(party.Id,new(2026,7,1),true);Assert.Empty(after.Tables[0].Rows);Assert.Equal(250,after.Tables[0].Totals["K"]);Assert.Equal(250,after.Tables[1].Totals["E"]);
         Assert.Equal(0,f.Workflow.Build(party.Id,new(2026,6,30),true).Tables[0].Totals["K"]);
@@ -69,22 +76,10 @@ public sealed class WorkflowTests
     }
     [Fact]public void DuplicateStableInvoiceIdsAreRejectedAtomically()
     {
-        using var f=new Fixture();var saved=f.Store.Load(f.Owner,"form",f.Party);var rows=saved.Rows;
+        using var f=new Fixture();var saved=f.Store.Load("form",f.Party);var rows=saved.Rows;
         rows.Single(r=>r.GetValueOrDefault("F9")=="INV-002")["_id"]="one";
-        Assert.Throws<BusinessRuleException>(()=>f.Store.Save(f.Owner,"form",saved.Revision,rows,f.Party));
-        Assert.Equal(saved.Revision,f.Store.Load(f.Owner,"form",f.Party).Revision);
-    }
-    [Fact]public void ExcelVisibleCellChangesAreRejected()
-    {
-        using var f=new Fixture();var path=f.Workflow.ExportExcel(f.Party,new(2026,10,27),true);
-        using(var zip=ZipFile.Open(path,ZipArchiveMode.Update))
-        {
-            var entry=zip.GetEntry("xl/worksheets/sheet1.xml")!;string xml;
-            using(var reader=new StreamReader(entry.Open()))xml=reader.ReadToEnd();entry.Delete();
-            using var writer=new StreamWriter(zip.CreateEntry("xl/worksheets/sheet1.xml").Open());
-            writer.Write(xml.Replace("INV-001","CHANGED-INVOICE"));
-        }
-        Assert.Throws<BusinessRuleException>(()=>new ReportWorkflow(f.Store,f.Owner).Import(path));
+        Assert.Throws<BusinessRuleException>(()=>f.Store.Save("form",saved.Revision,rows,f.Party));
+        Assert.Equal(saved.Revision,f.Store.Load("form",f.Party).Revision);
     }
     [Fact]public void ExcelExportContainsOnlyTwoWorkbooksWithoutTrailingNotes()
     {
@@ -107,17 +102,17 @@ public sealed class WorkflowTests
         f.Workflow.Configure(f.Party,new("F7","F22",false,new(2026,1,1)));
         Assert.Equal(7000m,f.Workflow.RegisterDifference(f.Party,row));
         row.Remove("F7");Assert.Null(f.Workflow.RegisterDifference(f.Party,row));
-        var unconfigured=f.Store.CreateParty(f.Owner,"UNCONFIGURED");Assert.Null(f.Workflow.RegisterDifference(unconfigured.Id,row));
+        var unconfigured=f.Store.CreateParty("UNCONFIGURED");Assert.Null(f.Workflow.RegisterDifference(unconfigured.Id,row));
     }
     private sealed class Fixture:IDisposable
     {
         public string Root{get;}=Path.Combine(AppContext.BaseDirectory,"WorkflowData",Guid.NewGuid().ToString("N"));
-        public PortableDatabase Database{get;} public WorkbookStore Store{get;} public LoginSession Owner{get;} public LoginSession Operator{get;} public Guid Party{get;}
+        public PortableDatabase Database{get;} public WorkbookStore Store{get;} public Guid Party{get;}
         public ReportWorkflow Workflow{get;}
         public Fixture()
         {
-            Database=new(new(Root));Store=new(Database);Owner=Store.Login("owner","Owner@123");Operator=Store.Login("operator","Operator@123");Party=Store.CreateParty(Owner,"SYNTHETIC TEST PARTY").Id;Workflow=new(Store,Operator);
-            Store.Save(Owner,"form",0,[new(){["_metadata"]="1",["terms"]="90",["opening"]="0"},Invoice("INV-001","one"),Invoice("INV-002","two")],Party);
+            Database=new(new(Root));Store=new(Database);Party=Store.CreateParty("SYNTHETIC TEST PARTY").Id;Workflow=new(Store);
+            Store.Save("form",0,[new(){["_metadata"]="1",["terms"]="90",["opening"]="0"},Invoice("INV-001","one"),Invoice("INV-002","two")],Party);
             Workflow.Configure(Party,new("F6","F22",true,new(2026,1,1)));
         }
         public static Dictionary<string,string> Invoice(string number,string id)=>new(){["_id"]=id,["_terms"]="90",["F1"]="SYNTHETIC TEST PARTY",["F9"]=number,["F10"]="2026-06-01",["F5"]="15000",["F6"]="10000",["F7"]="9000",["F18"]="3800",["F17"]="2026-06-17",["F22"]="0",["F23"]="0"};
@@ -157,37 +152,11 @@ public sealed class WorkflowTests
         Assert.Throws<BusinessRuleException>(()=>f.Workflow.RecordReceipt(f.Party,new(2026,7,1),100,"Cross party",[new("unknown","Bank",100)]));
         Assert.Empty(f.Workflow.Receipts(f.Party));
         f.Workflow.RecordReceipt(f.Party,new(2026,7,1),100,"Posted",[new("one","Bank",100)]);
-        var saved=f.Store.Load(f.Owner,"form",f.Party);saved.Rows.RemoveAt(1);Assert.Throws<BusinessRuleException>(()=>f.Store.Save(f.Owner,"form",saved.Revision,saved.Rows,f.Party));
+        var saved=f.Store.Load("form",f.Party);saved.Rows.RemoveAt(1);Assert.Throws<BusinessRuleException>(()=>f.Store.Save("form",saved.Revision,saved.Rows,f.Party));
         Assert.Throws<BusinessRuleException>(()=>f.Workflow.Configure(f.Party,new("F7","F22",true,new(2026,1,1))));
     }
-    [Fact]public void OfflineHandoverRetainsRevisionsReviewAndIsolationAfterReopen()
-    {
-        using var source=new Fixture();var first=source.Workflow.Export(source.Party,new(2026,10,27),true);source.Workflow.RecordReceipt(source.Party,new(2026,7,1),100,"Revision correction",[new("one","Bank",100)]);var second=source.Workflow.Export(source.Party,new(2026,10,27),true);
-        var targetRoot=Path.Combine(source.Root,"OwnerUSB");
-        using(var target=new PortableDatabase(new(targetRoot)))
-        {
-            var store=new WorkbookStore(target);var owner=store.Login("owner","Owner@123");var inbox=new ReportWorkflow(store,owner);
-            var preview=inbox.PreviewPackage(first);Assert.Equal("SYNTHETIC TEST PARTY",preview.Report.PartyName);Assert.Equal(1,preview.Report.Revision);
-            var imported=inbox.Import(first,preview.Hash);Assert.Throws<BusinessRuleException>(()=>inbox.Import(first));
-            inbox.Import(second);Assert.Equal(2,inbox.Imports().Count);Assert.Equal(2,inbox.Imports().Max(i=>i.Report.Revision));
-            Assert.Equal(20000,inbox.Imports().Single(i=>i.Report.Revision==1).Report.Tables[0].Totals["F"]);Assert.Equal(19900,inbox.Imports().Single(i=>i.Report.Revision==2).Report.Tables[0].Totals["F"]);
-            inbox.Review(imported,"Reviewed","Checked in test");Assert.Single(store.GetParties(owner));Assert.Empty(store.Load(owner,"form").Rows);
-            var op=store.Login("operator","Operator@123");Assert.Throws<BusinessRuleException>(()=>new ReportWorkflow(store,op).Imports());
-        }
-        File.Move(first,first+".removed");File.Move(second,second+".removed");
-        using var reopened=new PortableDatabase(new(targetRoot));var finalStore=new WorkbookStore(reopened);var finalInbox=new ReportWorkflow(finalStore,finalStore.Login("owner","Owner@123"));
-        Assert.Equal(2,finalInbox.Imports().Count);Assert.Contains(finalInbox.Imports(),i=>i.Status=="Reviewed"&&i.ReviewNote=="Checked in test");
-        Assert.Equal(2,finalInbox.Imports()[0].Report.Tables.Count);
-    }
-    [Fact]public void TamperedAndUnexpectedPackagesAreRejectedWithoutImport()
-    {
-        using var f=new Fixture();var path=f.Workflow.Export(f.Party,new(2026,10,27),true);var owner=new ReportWorkflow(f.Store,f.Owner);
-        var preview=owner.PreviewPackage(path);
-        using(var zip=ZipFile.Open(path,ZipArchiveMode.Update)){zip.GetEntry("customXml/tradevault.xml")!.Delete();using var writer=new StreamWriter(zip.CreateEntry("customXml/tradevault.xml").Open());writer.Write("{}");}
-        Assert.Throws<BusinessRuleException>(()=>owner.Import(path,preview.Hash));Assert.Empty(owner.Imports());
-        var malicious=Path.Combine(f.Root,"bad.xlsx");using(var zip=ZipFile.Open(malicious,ZipArchiveMode.Create)){using var writer=new StreamWriter(zip.CreateEntry("../escape").Open());writer.Write("bad");}
-        Assert.Throws<BusinessRuleException>(()=>owner.Preview(malicious));Assert.False(File.Exists(Path.Combine(f.Root,"escape")));
-    }
+
+
     [Fact]public void ExportedExcelIsOpenXmlWithMetadataNumbersAndNoFormulaInjection()
     {
         using var f=new Fixture();var package=f.Workflow.Export(f.Party,new(2026,10,27),true);var folder=Path.GetDirectoryName(package)!;
@@ -195,18 +164,15 @@ public sealed class WorkflowTests
         {using var zip=ZipFile.OpenRead(package);Assert.NotNull(zip.GetEntry("[Content_Types].xml"));using var reader=new StreamReader(zip.GetEntry(name)!.Open());var xml=reader.ReadToEnd();Assert.Contains("SYNTHETIC TEST PARTY",xml);Assert.Contains("TOTAL / CLOSING",xml);Assert.Contains("<v>",xml);Assert.DoesNotContain("<f>",xml);}
         Assert.Single(Directory.GetFiles(folder));
     }
-    [Fact]public void DuplicateReferencesRejectedAndPasswordChangeInvalidatesSessions()
+    [Fact]public void DuplicateReferencesRejected()
     {
-        using var f=new Fixture();var saved=f.Store.Load(f.Owner,"form",f.Party);saved.Rows.Add(Fixture.Invoice("INV-001","three"));Assert.Throws<BusinessRuleException>(()=>f.Store.Save(f.Owner,"form",saved.Revision,saved.Rows,f.Party));
-        f.Store.ChangePassword(f.Owner,"Owner@123","Changed-Test-Password-123");Assert.Throws<BusinessRuleException>(()=>f.Store.GetParties(f.Owner));
-        Assert.Throws<BusinessRuleException>(()=>f.Store.Login("owner","Owner@123"));Assert.Equal("Owner",f.Store.Login("owner","Changed-Test-Password-123").Role);
+        using var f=new Fixture();var saved=f.Store.Load("form",f.Party);saved.Rows.Add(Fixture.Invoice("INV-001","three"));Assert.Throws<BusinessRuleException>(()=>f.Store.Save("form",saved.Revision,saved.Rows,f.Party));
     }
-    [Fact]public void VerifiedBackupRestoreRequiresOwnerAndSignsOut()
+    [Fact]public void VerifiedBackupRestorePreservesRecords()
     {
-        using var f=new Fixture();var backup=f.Store.CreateBackup(f.Owner);f.Store.CreateParty(f.Owner,"AFTER BACKUP");
-        Assert.Throws<BusinessRuleException>(()=>f.Store.RestoreBackup(f.Operator,backup));
-        f.Store.RestoreBackup(f.Owner,backup);Assert.Throws<BusinessRuleException>(()=>f.Store.GetParties(f.Owner));
-        var owner=f.Store.Login("owner","Owner@123");Assert.DoesNotContain(f.Store.GetParties(owner),p=>p.Name=="AFTER BACKUP");Assert.Equal(2,f.Store.GetParties(owner).Count);
+        using var f=new Fixture();var backup=f.Store.CreateBackup();f.Store.CreateParty("AFTER BACKUP");
+        f.Store.RestoreBackup(backup);Assert.NotEmpty(f.Store.GetParties());
+        Assert.DoesNotContain(f.Store.GetParties(),p=>p.Name=="AFTER BACKUP");Assert.Equal(2,f.Store.GetParties().Count);
     }
     [Fact]public void AdvanceCanBeAllocatedLaterThroughAtomicCorrection()
     {
@@ -223,25 +189,20 @@ public sealed class WorkflowTests
         Assert.Throws<BusinessRuleException>(()=>f.Workflow.CorrectReceipt(f.Party,posted.Id,new(2026,7,2),20000,"Invalid correction",[new("one","Bank",20000)]));
         Assert.Single(f.Workflow.Receipts(f.Party));Assert.Equal(22300,f.Workflow.Build(f.Party,new(2026,7,2),true).Tables[1].Totals["E"]);
     }
-    [Fact]public void ValidPackageChangedAfterPreviewIsRejected()
-    {
-        using var f=new Fixture();var path=f.Workflow.Export(f.Party,new(2026,10,27),true);var inbox=new ReportWorkflow(f.Store,f.Owner);var preview=inbox.PreviewPackage(path);
-        var next=f.Workflow.Export(f.Party,new(2026,10,27),true);File.Copy(next,path,true);
-        Assert.Throws<BusinessRuleException>(()=>inbox.Import(path,preview.Hash));Assert.Empty(inbox.Imports());
-    }
+
     [Fact]public void PreviousSchemaBackupCanBeRestoredAndUpgraded()
     {
-        using var f=new Fixture();var backup=f.Store.CreateBackup(f.Owner);
+        using var f=new Fixture();var backup=f.Store.CreateBackup();
         using(var c=new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder{DataSource=backup,Pooling=false}.ToString()))
-        {c.Open();using var cmd=c.CreateCommand();cmd.CommandText="DROP TABLE account_recovery;DROP TABLE workflow_documents;DROP TABLE workflow_audit;DELETE FROM schema_migrations WHERE version>=4";cmd.ExecuteNonQuery();}
-        f.Store.RestoreBackup(f.Owner,backup);var owner=f.Store.Login("owner","Owner@123");Assert.NotNull(f.Store.Load(owner,"form",f.Party));
-        new ReportWorkflow(f.Store,owner).Configure(f.Party,new("F6","F22",true,new(2026,1,1)));
-        Assert.Equal(22400,new ReportWorkflow(f.Store,owner).Build(f.Party,new(2026,10,27),true).Tables[1].Totals["E"]);
+        {c.Open();using var cmd=c.CreateCommand();cmd.CommandText="DROP TABLE IF EXISTS account_recovery;DROP TABLE workflow_documents;DROP TABLE workflow_audit;DELETE FROM schema_migrations WHERE version>=4";cmd.ExecuteNonQuery();}
+        f.Store.RestoreBackup(backup);Assert.NotNull(f.Store.Load("form",f.Party));
+        new ReportWorkflow(f.Store).Configure(f.Party,new("F6","F22",true,new(2026,1,1)));
+        Assert.Equal(22400,new ReportWorkflow(f.Store).Build(f.Party,new(2026,10,27),true).Tables[1].Totals["E"]);
     }
     [Fact]public void IncompleteBackupIsRejectedWithoutReplacingWorkingData()
     {
-        using var f=new Fixture();var backup=f.Store.CreateBackup(f.Owner);
+        using var f=new Fixture();var backup=f.Store.CreateBackup();
         using(var c=new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder{DataSource=backup,Pooling=false}.ToString())){c.Open();using var cmd=c.CreateCommand();cmd.CommandText="DROP TABLE workflow_documents";cmd.ExecuteNonQuery();}
-        Assert.Throws<BusinessRuleException>(()=>f.Store.RestoreBackup(f.Owner,backup));Assert.Equal(22400,f.Workflow.Build(f.Party,new(2026,10,27),true).Tables[1].Totals["E"]);
+        Assert.Throws<BusinessRuleException>(()=>f.Store.RestoreBackup(backup));Assert.Equal(22400,f.Workflow.Build(f.Party,new(2026,10,27),true).Tables[1].Totals["E"]);
     }
 }

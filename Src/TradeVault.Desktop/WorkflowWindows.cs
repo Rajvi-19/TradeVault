@@ -85,19 +85,18 @@ internal static class WorkflowWindows
         if(picker.ShowDialog(owner)!=true)return;ReportPdf.Save(report,picker.FileName);
         try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(picker.FileName){UseShellExecute=true});}catch(Exception){MessageBox.Show(owner,"PDF saved:\n"+picker.FileName);}
     }
-    internal static void Inbox(Window owner,ReportWorkflow service) { new ImportedReportsWindow(owner,service).ShowDialog(); }
     internal static void Receipts(Window owner,ReportWorkflow service,Guid party) { if(service.Mapping(party)==null){MessageBox.Show(owner,"Choose report calculation settings for this customer first.");return;}new PaymentsWindow(owner,service,party).ShowDialog(); }
-    internal static void Backups(Window owner,WorkbookStore store,LoginSession session)
+    internal static void Backups(Window owner,WorkbookStore store)
     {
         var (window,form)=Form(owner,"Backup and recovery",760,500);
-        var list=Field(form,"Backups stored beside the application",new ListBox{ItemsSource=store.Backups(session),Height=200});
-        form.Children.Add(Ui.Button("Create verified backup",()=>Safe(window,()=>{store.CreateBackup(session);list.ItemsSource=store.Backups(session);}),"PrimaryButton"));
+        var list=Field(form,"Backups stored beside the application",new ListBox{ItemsSource=store.Backups(),Height=200});
+        form.Children.Add(Ui.Button("Create verified backup",()=>Safe(window,()=>{store.CreateBackup();list.ItemsSource=store.Backups();}),"PrimaryButton"));
         var restore=Ui.Button("Restore selected backup",()=>Safe(window,()=>{
             if(list.SelectedItem is not string path)throw new ArgumentException("Choose a backup.");
-            if(MessageBox.Show(window,"Replace ALL working data and imported submissions with this backup? A safety backup is made first. You will be signed out.","Restore backup",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)return;
-            store.RestoreBackup(session,path);window.Close();owner.Close();
-        }));restore.IsEnabled=session.Role=="Owner";form.Children.Add(restore);
-        form.Children.Add(Ui.Text("For lost-drive recovery, keep a separate copy of a verified backup on another USB. The SQLite database is not encrypted by the login password.",12,"#64748B"));window.ShowDialog();
+            if(MessageBox.Show(window,"Replace ALL working data with this backup? A safety backup is made first. The workspace will close. Reopen TradeVault after restoring.","Restore backup",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)return;
+            store.RestoreBackup(path);window.Close();owner.Close();
+        }));form.Children.Add(restore);
+        form.Children.Add(Ui.Text("For lost-drive recovery, keep a separate copy of a verified backup on another USB. Keep backup drives in a safe place.",12,"#64748B"));window.ShowDialog();
     }
     internal static void Reminders(Window owner,ReportWorkflow service,Guid party,DateOnly asOf)
     {

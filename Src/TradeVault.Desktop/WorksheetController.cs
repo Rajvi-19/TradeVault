@@ -5,7 +5,7 @@ using TradeVault.Infrastructure;
 
 namespace TradeVault.Desktop;
 
-public sealed class WorksheetController(WorkbookStore store, LoginSession session)
+public sealed class WorksheetController(WorkbookStore store)
 {
     public ObservableCollection<GridRow> Rows { get; } = [];
     public string Name { get; private set; } = "form";
@@ -19,8 +19,8 @@ public sealed class WorksheetController(WorkbookStore store, LoginSession sessio
     public void Load(string name,Guid? partyId=null)
     {
         var selected=partyId??PartyId;
-        var saved = store.Load(session, name,selected);
-        var party=store.GetParties(session).Single(p=>p.Id==selected);
+        var saved = store.Load( name,selected);
+        var party=store.GetParties().Single(p=>p.Id==selected);
         PartyId=selected;PartyName=party.Name;Name = name; Revision = saved.Revision; Rows.Clear(); Opening = 0; Terms = 90;AsOf=DateOnly.FromDateTime(DateTime.Today);
         foreach (var data in saved.Rows)
         {
@@ -92,7 +92,7 @@ public sealed class WorksheetController(WorkbookStore store, LoginSession sessio
     {
         Validate(false);
         decimal running = Opening;
-        var workflow=Name=="form"?new ReportWorkflow(store,session):null;
+        var workflow=Name=="form"?new ReportWorkflow(store):null;
         bool runningKnown=true;
         for (int i=0; i<Rows.Count; i++)
         {
@@ -120,7 +120,7 @@ public sealed class WorksheetController(WorkbookStore store, LoginSession sessio
                 Due(row,"F17","_terms","F19",Terms);
                 var due = Date(row,"F19");
                 row["F20"] = due is {} d && d.DayNumber >= 30 ? d.AddDays(-30).ToString("yyyy-MM-dd") : "";
-                row["F21"] = due is {} deadline ? (new ReportWorkflow(store,session).SettlementAwareOverdue(PartyId,row.Snapshot(),AsOf)??Math.Max(0,AsOf.DayNumber-deadline.DayNumber)).ToString() : "";
+                row["F21"] = due is {} deadline ? (new ReportWorkflow(store).SettlementAwareOverdue(PartyId,row.Snapshot(),AsOf)??Math.Max(0,AsOf.DayNumber-deadline.DayNumber)).ToString() : "";
             }
         }
     }
@@ -131,14 +131,14 @@ public sealed class WorksheetController(WorkbookStore store, LoginSession sessio
         Calculate();
         var data = new List<Dictionary<string,string>> { new() { ["_metadata"]="1", ["opening"]=Opening.ToString(CultureInfo.InvariantCulture), ["terms"]=Terms.ToString(CultureInfo.InvariantCulture),["asOf"]=AsOf.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture) } };
         data.AddRange(Rows.Select(row => {var data=Fields.ToDictionary(f=>f.Key,f=>row[f.Key]);if(Name=="form"){data["_id"]=row["_id"];data["_terms"]=row["_terms"];}return data;}));
-        Revision = store.Save(session,Name,Revision,data,PartyId);
+        Revision = store.Save(Name,Revision,data,PartyId);
     }
     public bool DeleteImmediately(GridRow row)
     {
         var index=Rows.IndexOf(row);if(index<0)throw new BusinessRuleException("Select a stored record or draft row first.");
-        Revision=store.DeleteWorksheetRecord(session,Name,PartyId,Revision,index,Name=="form"?ReportWorkflow.InvoiceKey(PartyId,row.Snapshot()):null);
+        Revision=store.DeleteWorksheetRecord(Name,PartyId,Revision,index,Name=="form"?ReportWorkflow.InvoiceKey(PartyId,row.Snapshot()):null);
         Rows.Remove(row);Calculate();
-        var saved=new WorksheetController(store,session);saved.Load(Name,PartyId);
+        var saved=new WorksheetController(store);saved.Load(Name,PartyId);
         if(Rows.Count!=saved.Rows.Count||Opening!=saved.Opening||Terms!=saved.Terms)return true;
         var inputs=Fields.Where(f=>!f.Calculated).Select(f=>f.Key).Concat(Name=="form"?new[]{"_terms"}:Array.Empty<string>()).ToArray();
         return Rows.Zip(saved.Rows).Any(pair=>inputs.Any(key=>pair.First[key]!=pair.Second[key]));

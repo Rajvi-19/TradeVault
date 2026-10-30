@@ -1,8 +1,6 @@
 using System.Globalization;
 using System.IO.Compression;
-using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using System.Xml.Linq;
 using TradeVault.Application;
 using TradeVault.Domain;
@@ -11,15 +9,12 @@ namespace TradeVault.Infrastructure;
 
 public sealed partial class ReportWorkflow
 {
-    private sealed record Manifest(int Version,Dictionary<string,string> Hashes);
     private const int MaximumPackage=32*1024*1024;
-    private static byte[] ReadFile(string path)
-    {using var file=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read);if(file.Length>MaximumPackage)throw new BusinessRuleException("Package exceeds 32 MB.");var bytes=new byte[(int)file.Length];file.ReadExactly(bytes);return bytes;}
     public string Export(Guid party,DateOnly asOf,bool generated)=>ExportExcel(party,asOf,generated);
     public string ExportExcel(Guid party,DateOnly asOf,bool generated,bool includeAll=false)
     {
         var snapshot=includeAll?BuildCurrent(party,generated):Build(party,asOf,generated);
-        var report=store.Mutate<ReportBundle>(session,"export",snapshot.SubmissionId.ToString(),old=>snapshot with{Revision=(old?.Revision??0)+1});
+        var report=store.Mutate<ReportBundle>("export",snapshot.SubmissionId.ToString(),old=>snapshot with{Revision=(old?.Revision??0)+1});
         var safe=new string(report.PartyName.Select(c=>Path.GetInvalidFileNameChars().Contains(c)?'_':c).ToArray()).Trim().TrimEnd('.');
         if(string.IsNullOrWhiteSpace(safe))safe="Party";
         safe=safe[..Math.Min(60,safe.Length)];
@@ -28,36 +23,11 @@ public sealed partial class ReportWorkflow
         var filename=$"{safe} - Account Reports - {asOf:yyyy-MM-dd} - Revision {report.Revision}.xlsx";
         var path=Path.Combine(folder,filename);int copy=2;
         while(File.Exists(path))path=Path.Combine(folder,Path.GetFileNameWithoutExtension(filename)+$" - Copy {copy++}.xlsx");
-        WriteNew(path,TransferWorkbook(report));return path;
+        WriteNew(path,ExportWorkbook(report));return path;
     }
 
     private static void WriteNew(string path,byte[] bytes)
     {var pending=path+".partial";using(var stream=new FileStream(pending,FileMode.CreateNew,FileAccess.Write,FileShare.None)){stream.Write(bytes);stream.Flush(true);}File.Move(pending,path);}
-    public ReportBundle Preview(string path)
-        =>PreviewPackage(path).Report;
-    public PackagePreview PreviewPackage(string path)
-    {
-        store.CheckSession(session,true);var bytes=ReadFile(path);return new(ReadExcel(bytes),Convert.ToHexString(SHA256.HashData(bytes)));
-    }
-    public ImportedSubmission Import(string path,string? expectedHash=null)
-    {
-        store.CheckSession(session,true);var bytes=ReadFile(path);var report=ReadExcel(bytes);var hash=Convert.ToHexString(SHA256.HashData(bytes));
-        if(expectedHash!=null&&hash!=expectedHash)throw new BusinessRuleException("Excel report changed after preview. Preview it again before importing.");
-        var id=$"{report.SourceId:N}:{report.SubmissionId:N}:{report.Revision:D8}";
-        return store.Mutate<ImportedSubmission>(session,"import",id,existing=>{
-            if(existing!=null)throw new BusinessRuleException(existing.PackageHash==hash?"This submission revision was already imported.":"Conflicting content for an existing submission revision.");
-            var related=Imports().Where(i=>i.Report.SubmissionId==report.SubmissionId&&i.Report.SourceId==report.SourceId);
-            if(related.Any(i=>i.Report.PartyId!=report.PartyId||i.Report.AsOf!=report.AsOf))throw new BusinessRuleException("Submission lineage metadata conflicts.");
-            return new(report,hash,Convert.ToBase64String(bytes),"New","",DateTimeOffset.UtcNow);
-        });
-    }
-    public List<ImportedSubmission> Imports()=>store.Documents<ImportedSubmission>(session,"import").OrderByDescending(r=>r.ImportedAt).ToList();
-    public void Review(ImportedSubmission item,string status,string note)
-    {
-        store.CheckSession(session,true);if(status is not("New" or "Reviewed" or "Needs correction")||note.Length>4000)throw new BusinessRuleException("Invalid review status or note too long.");
-        var id=$"{item.Report.SourceId:N}:{item.Report.SubmissionId:N}:{item.Report.Revision:D8}";
-        store.Mutate<ImportedSubmission>(session,"import",id,current=>(current??throw new BusinessRuleException("Submission missing.")) with{Status=status,ReviewNote=note});
-    }
     private static byte[] Workbook(ReportBundle report,ReportTable table)
     {
         XNamespace ns="http://schemas.openxmlformats.org/spreadsheetml/2006/main";XNamespace rel="http://schemas.openxmlformats.org/officeDocument/2006/relationships";

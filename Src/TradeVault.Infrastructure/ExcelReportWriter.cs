@@ -9,7 +9,7 @@ namespace TradeVault.Infrastructure;
 
 public sealed partial class ReportWorkflow
 {
-    private static byte[] TransferWorkbook(ReportBundle report)
+    private static byte[] ExportWorkbook(ReportBundle report)
     {
         using var memory=new MemoryStream();
         using(var zip=new ZipArchive(memory,ZipArchiveMode.Create,true))
@@ -32,24 +32,5 @@ public sealed partial class ReportWorkflow
             Put("customXml/tradevault.xml",new XElement("TradeVaultReport",new XAttribute("version",1),Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(report))).ToString());
         }
         if(memory.Length>MaximumPackage)throw new BusinessRuleException("Excel report exceeds 32 MB.");return memory.ToArray();
-    }
-    private static ReportBundle ReadExcel(byte[] bytes)
-    {
-        try
-        {
-            using var zip=new ZipArchive(new MemoryStream(bytes),ZipArchiveMode.Read);
-            if(zip.Entries.Count>40||zip.Entries.Select(e=>e.FullName).Distinct().Count()!=zip.Entries.Count||zip.Entries.Sum(e=>e.Length)>MaximumPackage||zip.Entries.Any(e=>e.Length>MaximumPackage/2))throw new BusinessRuleException("Oversized or invalid Excel report.");
-            XDocument Read(string name){using var input=(zip.GetEntry(name)??throw new BusinessRuleException("Choose an original TradeVault Excel report containing both report sheets.")).Open();return XDocument.Load(input);}
-            var metadata=Read("customXml/tradevault.xml");var report=JsonSerializer.Deserialize<ReportBundle>(Convert.FromBase64String(metadata.Root!.Value))??throw new BusinessRuleException("Missing report data.");
-            if(report.FormatVersion!=1||report.Revision<1||report.SourceId==Guid.Empty||report.SubmissionId==Guid.Empty||report.PartyName.Length is <1 or >200||report.Tables.Count!=2||report.Tables[0].Name!="Account Details"||report.Tables[1].Name!="Debit Credit"||report.Tables.Any(t=>t.Rows.Count>100000||!t.Columns.SequenceEqual(Columns(t.Name))))throw new BusinessRuleException("Unsupported Excel report schema.");
-            XNamespace ns="http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-            for(int i=0;i<2;i++)
-            {
-                using var expected=new ZipArchive(new MemoryStream(Workbook(report,report.Tables[i])),ZipArchiveMode.Read);using var input=expected.GetEntry("xl/worksheets/sheet1.xml")!.Open();var original=XDocument.Load(input);
-                if(!XNode.DeepEquals(Read($"xl/worksheets/sheet{i+1}.xml").Root!.Element(ns+"sheetData"),original.Root!.Element(ns+"sheetData")))throw new BusinessRuleException("Report cells were changed. Export a fresh report from TradeVault before importing.");
-            }
-            return report;
-        }
-        catch(Exception ex)when(ex is InvalidDataException or JsonException or System.Xml.XmlException or FormatException or NullReferenceException or ArgumentException){throw new BusinessRuleException("Invalid TradeVault Excel report: "+ex.Message);}
     }
 }

@@ -45,7 +45,7 @@ public sealed class PortableDatabase : IDisposable
     private void Initialize()
     {
         using var connection = Open();
-        // Snapshot an existing pre-party database before any migration transaction changes it.
+        // Snapshot an existing database before upgrading its schema.
         using (var inspect = connection.CreateCommand())
         {
             inspect.CommandText="SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='schema_migrations'";
@@ -53,12 +53,12 @@ public sealed class PortableDatabase : IDisposable
             {
                 inspect.CommandText="SELECT COALESCE(MAX(version),0) FROM schema_migrations";
                 var previous=Convert.ToInt32(inspect.ExecuteScalar());
-                if(previous is >0 and <5)CreateBackup();
+                if(previous is >0 and <7)CreateBackup();
             }
         }
         using (var setup = connection.CreateCommand())
         {
-            setup.CommandText = "PRAGMA journal_mode=DELETE;";
+            setup.CommandText = "PRAGMA journal_mode=DELETE; PRAGMA secure_delete=ON;";
             setup.ExecuteScalar();
         }
         using var transaction = connection.BeginTransaction();
@@ -71,7 +71,7 @@ public sealed class PortableDatabase : IDisposable
             SELECT COALESCE(MAX(version), 0) FROM schema_migrations;
             """;
         var version = Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
-        if (version > 5) throw new InvalidOperationException("This database requires a newer TradeVault application.");
+        if (version > 7) throw new InvalidOperationException("This database requires a newer TradeVault application.");
         if (version == 0)
         {
             using var stream = typeof(PortableDatabase).Assembly.GetManifestResourceStream(
@@ -89,7 +89,6 @@ public sealed class PortableDatabase : IDisposable
         {
             command.Parameters.Clear();
             command.CommandText = """
-                CREATE TABLE credentials(username TEXT PRIMARY KEY, role TEXT NOT NULL, salt BLOB NOT NULL, hash BLOB NOT NULL) STRICT;
                 CREATE TABLE worksheets(name TEXT PRIMARY KEY, revision INTEGER NOT NULL, data TEXT NOT NULL) STRICT;
                 INSERT INTO schema_migrations VALUES(2, strftime('%Y-%m-%dT%H:%M:%fZ','now'));
                 """;
@@ -131,8 +130,26 @@ public sealed class PortableDatabase : IDisposable
         if(version<5)
         {
             command.Parameters.Clear();command.CommandText="""
-                CREATE TABLE account_recovery(username TEXT PRIMARY KEY REFERENCES credentials(username),salt BLOB,hash BLOB,failures INTEGER NOT NULL DEFAULT 0,blocked_until TEXT);
                 INSERT INTO schema_migrations VALUES(5,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+                """;command.ExecuteNonQuery();
+        }
+        if(version<6)
+        {
+            command.Parameters.Clear();command.CommandText="""
+                DROP TABLE IF EXISTS account_recovery;
+                DROP TABLE IF EXISTS credentials;
+                INSERT INTO schema_migrations VALUES(6,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+                """;command.ExecuteNonQuery();
+        }
+        if(version<7)
+        {
+            command.Parameters.Clear();command.CommandText="""
+                DROP TABLE IF EXISTS workspace_settings;
+                DELETE FROM workflow_documents WHERE kind='import';
+                DELETE FROM workflow_audit WHERE action='import';
+                DELETE FROM party_worksheets WHERE name='operator-reports';
+                DELETE FROM worksheets WHERE name='operator-reports';
+                INSERT INTO schema_migrations VALUES(7,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
                 """;command.ExecuteNonQuery();
         }
         transaction.Commit();

@@ -7,11 +7,11 @@ using TradeVault.Domain;
 namespace TradeVault.Infrastructure;
 
 /// <summary>Register is the source; legacy independently entered reports are never overwritten.</summary>
-public sealed partial class ReportWorkflow(WorkbookStore store,LoginSession session)
+public sealed partial class ReportWorkflow(WorkbookStore store)
 {
     private static readonly CultureInfo Culture=CultureInfo.InvariantCulture;
     public string Root=>store.Database.Paths.Root;
-    public ReportMapping? Mapping(Guid party)=>store.Document<ReportMapping>(session,"mapping",party.ToString());
+    public ReportMapping? Mapping(Guid party)=>store.Document<ReportMapping>("mapping",party.ToString());
     public decimal? RegisterDifference(Guid party,Dictionary<string,string> row)
     {
         var mapping=Mapping(party);
@@ -24,9 +24,9 @@ public sealed partial class ReportWorkflow(WorkbookStore store,LoginSession sess
         if(mapping.ContractField is not("F6" or "F7")||mapping.BankReceivedField is not("F22" or "F25"))throw new BusinessRuleException("Choose explicit amount sources.");
         Money(mapping.OpeningBank);Money(mapping.OpeningDifference);
         if(Receipts(party).Count>0&&Mapping(party)!=mapping)throw new BusinessRuleException("Mappings cannot change after receipts are recorded. Reverse/migrate them explicitly first.");
-        store.CreateBackup(session);store.Mutate<ReportMapping>(session,"mapping",party.ToString(),_=>mapping);
+        store.CreateBackup();store.Mutate<ReportMapping>("mapping",party.ToString(),_=>mapping);
     }
-    private WorksheetParty Party(Guid id)=>store.GetParties(session).SingleOrDefault(p=>p.Id==id)??throw new BusinessRuleException("Party not found.");
+    private WorksheetParty Party(Guid id)=>store.GetParties().SingleOrDefault(p=>p.Id==id)??throw new BusinessRuleException("Party not found.");
     internal static decimal Money(decimal value){Usd.FromDecimal(value);return value;}
     private static decimal Amount(Dictionary<string,string> row,string key,bool required=false)
     {
@@ -39,8 +39,8 @@ public sealed partial class ReportWorkflow(WorkbookStore store,LoginSession sess
         if(!DateOnly.TryParseExact(text,"yyyy-MM-dd",Culture,DateTimeStyles.None,out var date))throw new BusinessRuleException($"{key}: invalid date.");return date;
     }
     public static string InvoiceKey(Guid party,Dictionary<string,string> row)=>row.GetValueOrDefault("_id")??Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(party+"|"+row.GetValueOrDefault("F9","").Trim().ToUpperInvariant())));
-    public List<Dictionary<string,string>> Invoices(Guid party)=>store.Load(session,"form",party).Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
-    public List<PartyReceipt> Receipts(Guid party)=>store.Document<ReceiptBook>(session,"receipts",party.ToString())?.Receipts??[];
+    public List<Dictionary<string,string>> Invoices(Guid party)=>store.Load("form",party).Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
+    public List<PartyReceipt> Receipts(Guid party)=>store.Document<ReceiptBook>("receipts",party.ToString())?.Receipts??[];
     public void EnsureInvoiceCanDelete(Guid party,Dictionary<string,string> row)
     {
         Party(party);var key=InvoiceKey(party,row);
@@ -53,9 +53,9 @@ public sealed partial class ReportWorkflow(WorkbookStore store,LoginSession sess
     }
     public void SetReportDate(Guid party,DateOnly date)
     {
-        Party(party);var snapshot=store.Load(session,"form",party);var metadata=snapshot.Rows.SingleOrDefault(r=>r.ContainsKey("_metadata"));
+        Party(party);var snapshot=store.Load("form",party);var metadata=snapshot.Rows.SingleOrDefault(r=>r.ContainsKey("_metadata"));
         if(metadata==null){metadata=new(){["_metadata"]="1",["opening"]="0",["terms"]="90"};snapshot.Rows.Insert(0,metadata);}
-        metadata["asOf"]=date.ToString("yyyy-MM-dd",Culture);store.Save(session,"form",snapshot.Revision,snapshot.Rows,party);
+        metadata["asOf"]=date.ToString("yyyy-MM-dd",Culture);store.Save("form",snapshot.Revision,snapshot.Rows,party);
     }
     public List<InvoicePaymentBalance> PaymentBalances(Guid party,DateOnly date,Guid? replacing=null)
     {
@@ -83,14 +83,14 @@ public sealed partial class ReportWorkflow(WorkbookStore store,LoginSession sess
         if(splits.Sum(s=>s.Amount)>amount||reference.Length>200)throw new BusinessRuleException("Allocations exceed the receipt or reference is too long.");
         var invoices=Invoices(party);foreach(var split in splits){var row=invoices.SingleOrDefault(r=>InvoiceKey(party,r)==split.InvoiceId)??throw new BusinessRuleException("Allocated invoice is not in this party.");if(Date(row,"F10",true)>date)throw new BusinessRuleException("Receipt predates invoice. Record an unallocated advance instead.");}
         var receipt=new PartyReceipt(Guid.NewGuid(),date,amount,reference.Trim(),splits);
-        store.Mutate<ReceiptBook>(session,"receipts",party.ToString(),book=>{
+        store.Mutate<ReceiptBook>("receipts",party.ToString(),book=>{
             var next=new List<PartyReceipt>(book?.Receipts??[]){receipt};BuildGenerated(party,DateOnly.MaxValue,next,true);return new(next);
         });return receipt;
     }
     public void ReverseReceipt(Guid party,Guid id,DateOnly date,string reason)
     {
         if(string.IsNullOrWhiteSpace(reason)||reason.Length>200)throw new BusinessRuleException("Enter a correction reason (up to 200 characters).");
-        store.Mutate<ReceiptBook>(session,"receipts",party.ToString(),book=>{
+        store.Mutate<ReceiptBook>("receipts",party.ToString(),book=>{
             var list=new List<PartyReceipt>(book?.Receipts??[]);var original=list.SingleOrDefault(r=>r.Id==id)??throw new BusinessRuleException("Receipt not found.");
             if(original.Reverses!=null||date<original.Date||list.Any(r=>r.Reverses==id))throw new BusinessRuleException("Receipt is already reversed, is itself a reversal, or reversal date is too early.");
             list.Add(new(Guid.NewGuid(),date,-original.Amount,reason,original.Allocations.Select(a=>a with{Amount=-a.Amount}).ToList(),id));return new(list);
@@ -100,7 +100,7 @@ public sealed partial class ReportWorkflow(WorkbookStore store,LoginSession sess
     {
         Party(party);if(Money(amount)<=0||reference.Length>200||splits.Any(a=>a.Amount<=0||a.Component is not("Bank" or "Difference"))||splits.Sum(a=>a.Amount)>amount||splits.GroupBy(a=>(a.InvoiceId,a.Component)).Any(g=>g.Count()>1))throw new BusinessRuleException("Invalid correction amounts or duplicate allocations.");
         var invoices=Invoices(party);foreach(var allocation in splits){Money(allocation.Amount);var row=invoices.SingleOrDefault(r=>InvoiceKey(party,r)==allocation.InvoiceId)??throw new BusinessRuleException("Invoice not in party.");if(Date(row,"F10",true)>effectiveDate)throw new BusinessRuleException("Correction allocation predates invoice.");}
-        store.Mutate<ReceiptBook>(session,"receipts",party.ToString(),book=>{
+        store.Mutate<ReceiptBook>("receipts",party.ToString(),book=>{
             var list=new List<PartyReceipt>(book?.Receipts??[]);var original=list.SingleOrDefault(r=>r.Id==id)??throw new BusinessRuleException("Receipt not found.");
             if(original.Reverses!=null||list.Any(r=>r.Reverses==id)||effectiveDate<original.Date)throw new BusinessRuleException("Receipt already reversed or correction date is too early.");
             list.Add(new(Guid.NewGuid(),effectiveDate,-original.Amount,"Correction reversal: "+reference,original.Allocations.Select(a=>a with{Amount=-a.Amount}).ToList(),id));
@@ -198,7 +198,7 @@ public sealed partial class ReportWorkflow(WorkbookStore store,LoginSession sess
     }
     private ReportBundle BuildLegacy(Guid party,DateOnly asOf)
     {
-        var tables=new List<ReportTable>();foreach(var name in new[]{"details","ledger"})tables.Add(Table(name=="details"?"Account Details":"Debit Credit",store.Load(session,name,party).Rows.Where(r=>!r.ContainsKey("_metadata")).ToList()));
+        var tables=new List<ReportTable>();foreach(var name in new[]{"details","ledger"})tables.Add(Table(name=="details"?"Account Details":"Debit Credit",store.Load(name,party).Rows.Where(r=>!r.ContainsKey("_metadata")).ToList()));
         return Bundle(party,asOf,"Manual snapshot",tables,["Saved independently entered worksheet values. Reporting date is a label, not a historical transaction filter. No automatic reconciliation claimed."]);
     }
     private static string F(decimal value)=>value.ToString("0.00",Culture);

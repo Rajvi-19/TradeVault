@@ -7,12 +7,12 @@ namespace TradeVault.Desktop;
 internal static class FixRegressionChecks
 {
     private static void Check(bool result,string name){if(!result)throw new InvalidOperationException(name);}
-    internal static void Run(WorkbookStore store,LoginSession session)
+    internal static void Run(WorkbookStore store)
     {
         var fields=new[]{new Field("A","Input"),new Field("B","Calculated",true),new Field("C","Input")};
         var pasted=PastePlan.Create("one\t999\tthree",0,0,1,fields);
         Check(pasted.Count==2&&pasted[1].Key=="C"&&pasted[1].Value=="three","Full row paste skips formulas and preserves input positions.");
-        var controller=new WorksheetController(store,session);controller.Load("form");controller.Rows.Clear();
+        var controller=new WorksheetController(store);controller.Load("form");controller.Rows.Clear();
         var first=controller.Add();first["F1"]="REGRESSION ONLY";controller.Calculate();
         Check(!first.HasErrors,"Draft row must not publish missing required fields.");
         try{controller.Save();throw new Exception("Missing invoice saved");}catch(BusinessRuleException){}
@@ -38,9 +38,6 @@ internal static class FixRegressionChecks
         Check(picker.Text=="27-07-2026"&&picker.Value=="2026-07-27","Character-by-character year is not expanded prematurely.");
         var grid=new ExcelGrid(ExcelFields.For("form"),[]);Check(grid.Table.Columns[3] is DataGridTemplateColumn&&grid.Table.Columns[13] is DataGridTemplateColumn,"Editable dates use calendar columns.");
         Check(grid.Table.Columns[18].IsReadOnly,"Calculated dates remain locked.");
-        var window=new LoginWindow(store);var frame=(DockPanel)window.Content;var header=(DockPanel)frame.Children[0];
-        var buttons=((StackPanel)header.Children[0]).Children.OfType<Button>().ToArray();
-        Check(buttons.Length==3&&buttons.All(b=>b.Width>=40),"Visible caption controls exist.");window.Close();
         var printTable=new TradeVault.Application.ReportTable("Print regression",[new("A","INVOICE"),new("B","AMOUNT / USD","number")],Enumerable.Range(1,35).Select(i=>new Dictionary<string,string>{{"A","SYNTHETIC-"+i},{"B","125.50"}}).ToList(),new(){{"B",4392.5m}});
         var report=new TradeVault.Application.ReportBundle(1,"test",Guid.NewGuid(),Guid.NewGuid(),"SYNTHETIC PDF TEST",new(2026,10,28),DateTimeOffset.UtcNow,Guid.NewGuid(),1,"Generated",[printTable],[]);
         var paginator=new ReportPaginator(report,new(1122,793));Check(paginator.PageCount>=3&&paginator.Source.DocumentPaginator==paginator,"Print pagination has a valid source and multiple pages.");
