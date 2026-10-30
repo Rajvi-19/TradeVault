@@ -18,25 +18,7 @@ internal static class WorkflowWindows
         Ui.WindowFrame(window,new ScrollViewer{Content=form,VerticalScrollBarVisibility=ScrollBarVisibility.Auto},title);return(window,form);
     }
     private static T Field<T>(StackPanel form,string label,T control)where T:FrameworkElement
-    {var text=Ui.Text(label,12,"#52627A");text.Margin=new(0,12,0,5);form.Children.Add(text);if(control is DateCellEditor date){date.Background=System.Windows.Media.Brushes.White;date.BorderBrush=Ui.Color("#DCE3ED");date.BorderThickness=new Thickness(1);date.MinHeight=32;}form.Children.Add(control);System.Windows.Automation.AutomationProperties.SetName(control,label);return control;}
-    private static decimal Money(TextBox box)=>decimal.Parse(box.Text,NumberStyles.Number,CultureInfo.InvariantCulture);
-    private static DateOnly Date(DateCellEditor box)=>DateOnly.ParseExact(DateCellConverter.Normalize(box.Text),"yyyy-MM-dd",CultureInfo.InvariantCulture);
-    internal static bool Configure(Window owner,ReportWorkflow service,Guid party)
-    {
-        var existing=service.Mapping(party);var (window,form)=Form(owner,"Report calculation settings",700,650);
-        form.Children.Add(Ui.Text("Choose these rules once per customer so the invoice register feeds both reports correctly. Rules cannot change after payments are recorded.",12,"#64748B"));
-        ComboBox Choice(params KeyValuePair<string,string>[] values)=>new(){ItemsSource=values,DisplayMemberPath="Value",SelectedValuePath="Key",MinHeight=32};
-        var contract=Field(form,"Which invoice amount is the bank-contract portion?",Choice(new("F6","Our customs invoice amount"),new("F7","Pakistan customs invoice amount")));
-        var received=Field(form,"Where were earlier bank payments entered?",Choice(new("F22","Malaysia → Pakistan receipts, using Payment date"),new("F25","Nemichem receipts, using Nemichem receipt date")));
-        if(existing!=null){contract.SelectedValue=existing.ContractField;received.SelectedValue=existing.BankReceivedField;}
-        var shipping=Field(form,"Shipping deduction",new CheckBox{Content="Subtract each invoice's shipping charge from what the customer owes",IsChecked=existing?.DeductRegisteredShipping??false});
-        form.Children.Add(Ui.Text("Checked: deduct the row's shipping charge once on its invoice date. Unchecked: do not deduct shipping. This does not record a shipping payment.",11,"#64748B"));
-        var openingDate=Field(form,"Date earlier outstanding balances start",new DateCellEditor{Value=(existing?.OpeningDate??DateOnly.FromDateTime(DateTime.Today)).ToString("yyyy-MM-dd"),MinHeight=32});
-        var bank=Field(form,"Earlier bank portion still owed (USD)",new TextBox{Text=(existing?.OpeningBank??0).ToString("0.00",CultureInfo.InvariantCulture)});
-        var diff=Field(form,"Earlier difference portion still owed (USD)",new TextBox{Text=(existing?.OpeningDifference??0).ToString("0.00",CultureInfo.InvariantCulture)});
-        var save=Ui.Button("Save calculation settings",()=>Safe(window,()=>{if(contract.SelectedValue is not string c||received.SelectedValue is not string r)throw new ArgumentException("Choose both amount sources.");service.Configure(party,new(c,r,shipping.IsChecked==true,Date(openingDate),Money(bank),Money(diff)));window.DialogResult=true;}),"PrimaryButton");save.Margin=new(0,16,0,0);form.Children.Add(save);
-        return window.ShowDialog()==true;
-    }
+    {var text=Ui.Text(label,12,"#52627A");text.Margin=new(0,12,0,5);form.Children.Add(text);if(control is DateCellEditor date){date.Background=Ui.Color("#FFFFFF");date.BorderBrush=Ui.Color("#DCE3ED");date.BorderThickness=new Thickness(1);date.MinHeight=32;}form.Children.Add(control);System.Windows.Automation.AutomationProperties.SetName(control,label);return control;}
     internal static ExcelGrid ReportGrid(ReportTable table)
     {
         var fields=table.Columns.Select(c=>new Field(c.Key,ExcelFields.For(table.Name=="Account Details"?"details":"ledger").FirstOrDefault(f=>f.Key==c.Key)?.Label??c.Label,true,c.Type=="text"?240:170)).ToArray();
@@ -85,7 +67,7 @@ internal static class WorkflowWindows
         if(picker.ShowDialog(owner)!=true)return;ReportPdf.Save(report,picker.FileName);
         try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(picker.FileName){UseShellExecute=true});}catch(Exception){MessageBox.Show(owner,"PDF saved:\n"+picker.FileName);}
     }
-    internal static void Receipts(Window owner,ReportWorkflow service,Guid party) { if(service.Mapping(party)==null){MessageBox.Show(owner,"Choose report calculation settings for this customer first.");return;}new PaymentsWindow(owner,service,party).ShowDialog(); }
+    internal static void Receipts(Window owner,ReportWorkflow service,Guid party) { new PaymentsWindow(owner,service,party).ShowDialog(); }
     internal static void Backups(Window owner,WorkbookStore store)
     {
         var (window,form)=Form(owner,"Backup and recovery",760,500);

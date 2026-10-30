@@ -15,7 +15,7 @@ internal static class TestDataSeeder
             for(int p=0;p<names.Length;p++)
             {
                 if(existing.Contains(names[p]))continue;
-                var party=store.CreateParty(names[p]);var workflow=new ReportWorkflow(store);workflow.Configure(party.Id,new("F6","F22",true,new(2026,1,1)));
+                var party=store.CreateParty(names[p]);var workflow=new ReportWorkflow(store);
                 var c=new WorksheetController(store);c.Load("form",party.Id);c.AsOf=new(2026,10,27);
                 decimal factor=1+p*.2m;
                 var samples=new[]{

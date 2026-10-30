@@ -8,7 +8,7 @@ public sealed partial class WorkbookStore
 {
     private void GuardRegister(Guid party,List<Dictionary<string,string>> candidate)
     {
-        var rows=candidate.Where(r=>!r.ContainsKey("_metadata")).ToList();
+        var rows=candidate.Where(r=>!r.ContainsKey("_metadata")&&r.GetValueOrDefault("_blank")!="1").ToList();
         if(rows.Where(r=>!string.IsNullOrWhiteSpace(r.GetValueOrDefault("_id"))).GroupBy(r=>r["_id"],StringComparer.Ordinal).Any(g=>g.Count()>1))throw new BusinessRuleException("Duplicate internal invoice identifiers. Create a new row instead of copying internal identifiers.");
         for(int i=0;i<rows.Count;i++)
         {
@@ -18,7 +18,7 @@ public sealed partial class WorkbookStore
         if(rows.Where(r=>!string.IsNullOrWhiteSpace(r.GetValueOrDefault("F9"))).GroupBy(r=>r["F9"].Trim(),StringComparer.OrdinalIgnoreCase).Any(g=>g.Count()>1))throw new BusinessRuleException("Duplicate invoice reference for this party.");
         var receipts=Document<TradeVault.Application.ReceiptBook>("receipts",party.ToString())?.Receipts??[];
         if(receipts.Count==0)return;
-        var old=Load("form",party).Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
+        var old=Load("form",party).Rows.Where(r=>!r.ContainsKey("_metadata")&&r.GetValueOrDefault("_blank")!="1").ToList();
         foreach(var id in receipts.SelectMany(r=>r.Allocations).Select(a=>a.InvoiceId).Distinct())
         {
             var previous=old.Single(r=>ReportWorkflow.InvoiceKey(party,r)==id);var next=rows.SingleOrDefault(r=>ReportWorkflow.InvoiceKey(party,r)==id)??throw new BusinessRuleException("Invoices with receipt history cannot be deleted.");
@@ -33,8 +33,20 @@ public sealed partial class WorkbookStore
         if(snapshot.Revision!=expectedRevision)throw new TradeVault.Domain.BusinessRuleException("Records changed. Reload before deleting; nothing was deleted.");
         var records=snapshot.Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
         var target=name=="form"?records.SingleOrDefault(r=>ReportWorkflow.InvoiceKey(party,r)==invoiceId):records.ElementAtOrDefault(rowIndex);
-        if(target==null)return snapshot.Revision; // Unsaved draft: there is no stored record to delete.
-        snapshot.Rows.Remove(target);return Save(name,snapshot.Revision,snapshot.Rows,party);
+        if(target==null||target.GetValueOrDefault("_blank")=="1")return snapshot.Revision; // Unsaved draft: there is no stored record to delete.
+        snapshot.Rows[snapshot.Rows.IndexOf(target)]=new(){{"_blank","1"}};return Save(name,snapshot.Revision,snapshot.Rows,party);
+    }
+    public int RestoreWorksheetRecord(string name,Guid party,int expectedRevision,int rowIndex,Dictionary<string,string> record)
+    {
+        var snapshot=Load(name,party);
+        if(snapshot.Revision!=expectedRevision)throw new BusinessRuleException("Records changed. Reload before restoring; nothing was restored.");
+        if(record.ContainsKey("_metadata")||record.GetValueOrDefault("_blank")=="1")throw new BusinessRuleException("Only worksheet records can be restored.");
+        var records=snapshot.Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
+        if(name=="form"&&records.Any(r=>ReportWorkflow.InvoiceKey(party,r)==ReportWorkflow.InvoiceKey(party,record)))throw new BusinessRuleException("This invoice already exists. Nothing was restored.");
+        var index=Math.Clamp(rowIndex,0,records.Count);
+        if(index<records.Count&&records[index].GetValueOrDefault("_blank")=="1")snapshot.Rows[snapshot.Rows.IndexOf(records[index])]=new(record);
+        else snapshot.Rows.Insert(index<records.Count?snapshot.Rows.IndexOf(records[index]):snapshot.Rows.Count,new(record));
+        return Save(name,snapshot.Revision,snapshot.Rows,party);
     }
     internal T? Document<T>(string kind,string id)
     {
@@ -60,7 +72,7 @@ public sealed partial class WorkbookStore
         using(var source=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=full,Mode=SqliteOpenMode.ReadOnly,Pooling=false}.ToString()))
         {
             source.Open();using var cmd=source.CreateCommand();cmd.CommandText="PRAGMA integrity_check";if(!Equals(cmd.ExecuteScalar(),"ok"))throw new BusinessRuleException("Backup integrity check failed.");
-            cmd.CommandText="SELECT MAX(version) FROM schema_migrations";var version=Convert.ToInt32(cmd.ExecuteScalar());if(version is <2 or >7)throw new BusinessRuleException("Backup version is not supported by this application.");
+            cmd.CommandText="SELECT MAX(version) FROM schema_migrations";var version=Convert.ToInt32(cmd.ExecuteScalar());if(version is <2 or >9)throw new BusinessRuleException("Backup version is not supported by this application.");
             cmd.CommandText="SELECT name FROM sqlite_master WHERE type='table'";var tables=new HashSet<string>();using(var reader=cmd.ExecuteReader())while(reader.Read())tables.Add(reader.GetString(0));
             var required=new List<string>{"schema_migrations","app_instance","worksheets","audit_events","parties","invoices","receipts","receipt_allocations"};if(version>=3)required.AddRange(["worksheet_parties","party_worksheets"]);if(version>=4)required.AddRange(["workflow_documents","workflow_audit"]);
             if(required.Any(name=>!tables.Contains(name)))throw new BusinessRuleException("Backup schema is incomplete.");

@@ -19,13 +19,18 @@ public sealed class ExcelGrid : UserControl
     private readonly ObservableCollection<GridRow> displayRows;
     private readonly HashSet<GridRow> blanks=[];
     private readonly Action<GridRow>? promote;
+    private System.Windows.Interop.HwndSource? wheelSource;
+    private bool numberingPending;
+    private Point? panPosition;
     public event Action? Edited;
+    internal event Action? BeforeChange;
+    private bool clipboardPaste;
     internal Action<string>? ClipboardWriter{get;set;}
     private const string RecordFormat="TradeVault.Record.v1";
     private sealed record RecordClipboard(string[] Fields,string Terms);
     internal GridRow? WholeSelectedRecord
     {
-        get{var cells=Table.SelectedCells;var selected=cells.Select(c=>c.Item).Distinct().ToArray();return selected.Length==1&&selected[0] is GridRow row&&rows.Contains(row)&&Table.Columns.Where(c=>c.Visibility==Visibility.Visible).All(c=>cells.Any(cell=>ReferenceEquals(cell.Item,row)&&cell.Column==c))?row:null;}
+        get{var cells=Table.SelectedCells;var selected=cells.Select(c=>c.Item).Distinct().ToArray();return selected.Length==1&&selected[0] is GridRow row&&rows.Contains(row)&&row["_blank"]!="1"&&Table.Columns.Where(c=>c.Visibility==Visibility.Visible).All(c=>cells.Any(cell=>ReferenceEquals(cell.Item,row)&&cell.Column==c))?row:null;}
     }
     public ExcelGrid(IReadOnlyList<Field> fields, ObservableCollection<GridRow> rows, bool readOnly = false,Action<GridRow>? promote=null)
     {
@@ -56,11 +61,17 @@ public sealed class ExcelGrid : UserControl
         Table.HeadersVisibility = DataGridHeadersVisibility.All; Table.RowHeaderWidth = 42;
         Table.ClipboardCopyMode = DataGridClipboardCopyMode.ExcludeHeader;
         Table.LoadingRow += (_,e) => e.Row.Header = (e.Row.GetIndex()+1).ToString();
+        ((System.Collections.Specialized.INotifyCollectionChanged)Table.Items).CollectionChanged+=(_,_)=>QueueRowNumbers();
+        Table.ItemContainerGenerator.StatusChanged+=(_,_)=>QueueRowNumbers();
         Table.PreviewMouseLeftButtonDown+=(_,e)=>{
             if(e.OriginalSource is not DependencyObject source)return;
             var header=Ancestor<System.Windows.Controls.Primitives.DataGridRowHeader>(source);
-            if(header!=null&&Ancestor<DataGridRow>(header)?.Item is GridRow row){e.Handled=true;SelectRecordRow(row);}
+            if(header!=null&&Ancestor<DataGridRow>(header)?.Item is GridRow row){e.Handled=true;SelectRecordRow(row,(Keyboard.Modifiers&ModifierKeys.Control)!=0);}
         };
+        ScrollViewer.SetPanningMode(Table,PanningMode.Both);
+        Loaded+=(_,_)=>{wheelSource?.RemoveHook(HorizontalWheel);wheelSource=PresentationSource.FromVisual(this) as System.Windows.Interop.HwndSource;wheelSource?.AddHook(HorizontalWheel);QueueRowNumbers();};
+        Unloaded+=(_,_)=>{wheelSource?.RemoveHook(HorizontalWheel);wheelSource=null;panPosition=null;};
+        Table.PreviewMouseWheel+=(_,e)=>{if((Keyboard.Modifiers&ModifierKeys.Shift)!=0){e.Handled=ScrollHorizontally(-e.Delta);}};
         foreach (var field in fields)
         {
             var cellStyle=new Style(typeof(DataGridCell),(Style)FindResource(typeof(DataGridCell)));
@@ -73,7 +84,7 @@ public sealed class ExcelGrid : UserControl
                 var factory=new FrameworkElementFactory(typeof(DateCellEditor));
                 factory.SetBinding(DateCellEditor.ValueProperty,new Binding($"[{field.Key}]"){Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged,ValidatesOnNotifyDataErrors=false});
                 var template=new DataTemplate{VisualTree=factory};
-                Table.Columns.Add(new DataGridTemplateColumn{Header=field.Label,Width=CompactWidth(field),CellTemplate=template,CellEditingTemplate=template,SortMemberPath=$"[{field.Key}]",CellStyle=cellStyle});
+                Table.Columns.Add(new DataGridTemplateColumn{Header=field.Label,Width=CompactWidth(field),CellTemplate=template,CellEditingTemplate=template,ClipboardContentBinding=new Binding($"[{field.Key}]"){Mode=BindingMode.OneWay,Converter=new DateCellConverter()},SortMemberPath=$"[{field.Key}]",CellStyle=cellStyle});
                 continue;
             }
             var style = new Style(typeof(TextBlock)); style.Setters.Add(new Setter(TextBlock.PaddingProperty,new Thickness(8,3,8,3)));
@@ -112,7 +123,7 @@ public sealed class ExcelGrid : UserControl
         root.Children.Add(Table); Content = root;
         RefreshRecordCount();
     }
-    internal void RefreshRecordCount(){var total=rows.Count;var known=rows.ToHashSet();var visible=Table.Items.Cast<GridRow>().Count(known.Contains);recordCount.Text=visible==total?$"{total} record{(total==1?"":"s")}":$"{visible} of {total} records";}
+    internal void RefreshRecordCount(){var known=rows.Where(r=>r["_blank"]!="1").ToHashSet();var total=known.Count;var visible=Table.Items.Cast<GridRow>().Count(known.Contains);recordCount.Text=visible==total?$"{total} record{(total==1?"":"s")}":$"{visible} of {total} records";}
     private static TextBox? FindInput(DependencyObject root)
     {
         if(root is TextBox input)return input;
@@ -123,12 +134,94 @@ public sealed class ExcelGrid : UserControl
     {
         while(source!=null){if(source is T result)return result;source=source is Visual||source is System.Windows.Media.Media3D.Visual3D?VisualTreeHelper.GetParent(source):LogicalTreeHelper.GetParent(source);}return null;
     }
-    internal bool SelectRecordRow(GridRow row)
+    private IntPtr HorizontalWheel(IntPtr hwnd,int message,IntPtr wParam,IntPtr lParam,ref bool handled)
+    {
+        if(!Table.IsVisible)return IntPtr.Zero;
+        if(message is 0x020E or 0x024F||message==0x020A&&(wParam.ToInt64()&4)!=0)
+        {
+            var packed=lParam.ToInt64();var position=new Point((short)(packed&0xffff),(short)((packed>>16)&0xffff));
+            if(ContainsScreenPoint(position)||CursorOverSheet()){var delta=(short)((wParam.ToInt64()>>16)&0xffff);handled=ScrollHorizontally(message==0x020A?-delta:delta);}
+        }
+        else if(message==0x0114&&(lParam==IntPtr.Zero||CursorOverSheet()||Table.IsKeyboardFocusWithin)&&Descendant<ScrollViewer>(Table) is {} scroll&&scroll.ScrollableWidth>0)
+        {
+            var request=(int)(wParam.ToInt64()&0xffff);var position=(int)((wParam.ToInt64()>>16)&0xffff);
+            double? offset=request switch{0=>scroll.HorizontalOffset-48,1=>scroll.HorizontalOffset+48,2=>scroll.HorizontalOffset-scroll.ViewportWidth,3=>scroll.HorizontalOffset+scroll.ViewportWidth,4 or 5=>position,6=>0,7=>scroll.ScrollableWidth,_=>null};
+            if(offset is {} next){scroll.ScrollToHorizontalOffset(next);handled=true;}
+        }
+        else if(message==0x0119)
+        {
+            var gesture=new GestureInfo{Size=(uint)System.Runtime.InteropServices.Marshal.SizeOf<GestureInfo>()};
+            if(GetGestureInfo(lParam,ref gesture)&&gesture.Id==4)
+            {
+                var current=new Point(gesture.Location.X,gesture.Location.Y);
+                if((gesture.Flags&1)!=0){panPosition=ContainsScreenPoint(current)?current:null;}
+                else if(panPosition is {} previous)
+                {
+                    panPosition=current;var dx=previous.X-current.X;var dy=previous.Y-current.Y;
+                    if(Math.Abs(dx)>Math.Abs(dy)&&Math.Abs(dx)>0){var scale=VisualTreeHelper.GetDpi(Table).DpiScaleX;handled=ScrollPixels(dx/scale);}
+                }
+                if((gesture.Flags&4)!=0)panPosition=null;
+                if(handled)CloseGestureInfoHandle(lParam);
+            }
+        }
+        return IntPtr.Zero;
+    }
+    private bool ContainsScreenPoint(Point screen)
+    {
+        if(PresentationSource.FromVisual(Table)==null)return false;
+        return new Rect(new Point(),Table.RenderSize).Contains(Table.PointFromScreen(screen));
+    }
+    private bool CursorOverSheet()=>GetCursorPos(out var cursor)&&ContainsScreenPoint(new(cursor.X,cursor.Y));
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct NativePoint{public int X,Y;}
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct ShortPoint{public short X,Y;}
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct GestureInfo{public uint Size,Flags,Id;public IntPtr Target;public ShortPoint Location;public uint Instance,Sequence;public ulong Arguments;public uint ExtraSize;}
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return:System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool GetCursorPos(out NativePoint point);
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return:System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool GetGestureInfo(IntPtr handle,ref GestureInfo info);
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return:System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool CloseGestureInfoHandle(IntPtr handle);
+    private void QueueRowNumbers()
+    {
+        if(numberingPending)return;numberingPending=true;
+        Dispatcher.BeginInvoke(new Action(()=>{numberingPending=false;RenumberRows(Table);}),System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+    private static void RenumberRows(DependencyObject root)
+    {
+        if(root is DataGridRow row){var number=(row.GetIndex()+1).ToString();if(!Equals(row.Header,number))row.Header=number;return;}
+        for(int i=0;i<VisualTreeHelper.GetChildrenCount(root);i++)RenumberRows(VisualTreeHelper.GetChild(root,i));
+    }
+    private static T? Descendant<T>(DependencyObject root)where T:DependencyObject
+    {
+        if(root is T result)return result;
+        for(int i=0;i<VisualTreeHelper.GetChildrenCount(root);i++)if(Descendant<T>(VisualTreeHelper.GetChild(root,i)) is {} found)return found;
+        return null;
+    }
+    internal bool ScrollHorizontally(int delta)
+    {
+        return ScrollPixels(delta*0.4);
+    }
+    private bool ScrollPixels(double pixels)
+    {
+        if(Descendant<ScrollViewer>(Table) is not {} scroll||scroll.ScrollableWidth<=0||pixels==0)return false;
+        scroll.ScrollToHorizontalOffset(scroll.HorizontalOffset+pixels);return true;
+    }
+    internal bool SelectRecordRow(GridRow row,bool toggle=false)
     {
         if(!Table.Items.Contains(row))return false;
         if(!Table.CommitEdit()||!Table.CommitEdit(DataGridEditingUnit.Row,true))return false;
         var columns=Table.Columns.Where(c=>c.Visibility==Visibility.Visible).OrderBy(c=>c.DisplayIndex).ToArray();if(columns.Length==0)return false;
-        Table.CurrentCell=new(row,columns[0]);Table.SelectedCells.Clear();foreach(var column in columns)Table.SelectedCells.Add(new(row,column));Table.ScrollIntoView(row);Table.Focus();return true;
+        var selected=toggle?Table.SelectedCells.ToList():[];
+        var remove=toggle&&columns.All(c=>selected.Any(cell=>ReferenceEquals(cell.Item,row)&&cell.Column==c));
+        selected.RemoveAll(cell=>ReferenceEquals(cell.Item,row));
+        if(!remove)foreach(var column in columns)selected.Add(new(row,column));
+        Table.CurrentCell=new(row,columns[0]);Table.SelectedCells.Clear();foreach(var cell in selected)Table.SelectedCells.Add(cell);Table.ScrollIntoView(row);Table.Focus();return true;
     }
     internal bool MoveByTab(bool backwards)
     {
@@ -162,7 +255,7 @@ public sealed class ExcelGrid : UserControl
     }
     internal void ClearSelectedCells()
     {
-        var cells=EditableSelection();Table.CancelEdit();Table.CancelEdit(DataGridEditingUnit.Row);
+        var cells=EditableSelection();BeforeChange?.Invoke();Table.CancelEdit();Table.CancelEdit(DataGridEditingUnit.Row);
         foreach(var cell in cells)if(cell.Item is GridRow row)row[fields[Table.Columns.IndexOf(cell.Column)].Key]="";
         Feedback="";Edited?.Invoke();
     }
@@ -192,11 +285,29 @@ public sealed class ExcelGrid : UserControl
     }
     private void OnRowsChanged(object? sender,System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
     {
+        if(e.Action==System.Collections.Specialized.NotifyCollectionChangedAction.Replace&&e.OldItems is {Count:1}&&e.NewItems is {Count:1})
+        {
+            var index=displayRows.IndexOf((GridRow)e.OldItems[0]!);
+            var sorted=source.View is ListCollectionView {CustomSort:not null};
+            var order=sorted?source.View.Cast<GridRow>().ToList():null;
+            var position=order?.IndexOf((GridRow)e.OldItems[0]!)??-1;
+            if(index>=0)displayRows[index]=(GridRow)e.NewItems[0]!;
+            if(position>=0){order![position]=(GridRow)e.NewItems[0]!;((ListCollectionView)source.View).CustomSort=new FixedViewOrder(order,rows);}
+            RefreshRecordCount();return;
+        }
+
         if(e.Action==System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
         {foreach(var row in displayRows.Where(r=>!blanks.Contains(r)).ToArray())displayRows.Remove(row);}
         if(e.OldItems!=null)foreach(GridRow row in e.OldItems)displayRows.Remove(row);
         if(e.NewItems!=null)foreach(GridRow row in e.NewItems)if(!displayRows.Contains(row))displayRows.Insert(displayRows.Count-blanks.Count,row);
         RefreshRecordCount();
+    }
+    private sealed class FixedViewOrder(List<GridRow> order,ObservableCollection<GridRow> rows):System.Collections.IComparer
+    {
+        private readonly Dictionary<int,int> slots=order.Select((row,index)=>(slot:rows.IndexOf(row),index)).Where(pair=>pair.slot>=0).ToDictionary(pair=>pair.slot,pair=>pair.index);
+        private readonly Dictionary<GridRow,int> spare=order.Select((row,index)=>(row,index)).Where(pair=>!rows.Contains(pair.row)).ToDictionary(pair=>pair.row,pair=>pair.index);
+        private int Rank(object? item){if(item is not GridRow row)return int.MaxValue;var slot=rows.IndexOf(row);return slot>=0?slots.GetValueOrDefault(slot,int.MaxValue):spare.GetValueOrDefault(row,int.MaxValue);}
+        public int Compare(object? x,object? y)=>Rank(x).CompareTo(Rank(y));
     }
     private static Style EditingStyle()
     {
@@ -241,7 +352,16 @@ public sealed class ExcelGrid : UserControl
             if(Clipboard.ContainsText()){
                 var target=Table.CurrentItem as GridRow;RecordClipboard? record=null;
                 if(Clipboard.GetData(RecordFormat) is string metadata&&metadata.Length<16000){try{record=System.Text.Json.JsonSerializer.Deserialize<RecordClipboard>(metadata);}catch(System.Text.Json.JsonException){}}
-                if(Paste(Clipboard.GetText())&&record?.Fields is {} keys&&target!=null&&keys.SequenceEqual(Table.Columns.OrderBy(c=>c.DisplayIndex).Select(c=>fields[Table.Columns.IndexOf(c)].Key))&&keys.Contains("F9")&&int.TryParse(record.Terms,out var days)&&days>=0&&days<=3650){target["_terms"]=record.Terms;Edited?.Invoke();}
+                clipboardPaste=true;
+                try
+                {
+                    if(Paste(Clipboard.GetText()))
+                    {
+                        if(record?.Fields is {} keys&&target!=null&&keys.SequenceEqual(Table.Columns.OrderBy(c=>c.DisplayIndex).Select(c=>fields[Table.Columns.IndexOf(c)].Key))&&keys.Contains("F9")&&int.TryParse(record.Terms,out var days)&&days>=0&&days<=3650)target["_terms"]=record.Terms;
+                        Edited?.Invoke();
+                    }
+                }
+                finally{clipboardPaste=false;}
             }else Feedback="Copy a range of cells before pasting.";
         }
         catch(System.Runtime.InteropServices.ExternalException) {Feedback="Clipboard is busy. Retry paste.";}
@@ -258,12 +378,13 @@ public sealed class ExcelGrid : UserControl
         try {
             var changes = PastePlan.Create(text,row,col,visible.Count,ordered);
             foreach(var change in changes){var field=ordered.First(f=>f.Key==change.Key);if(field.IsDate&&!DateCellEditor.IsValidDate(change.Value))throw new ArgumentException("Paste contains an invalid date. No cells were changed.");}
+            BeforeChange?.Invoke();
             foreach (var change in changes) {
                 var field=ordered.First(f=>f.Key==change.Key);
                 visible[change.Row][change.Key] = field.IsDate?DateCellConverter.Normalize(change.Value):change.Value;
             }
             Feedback = $"Pasted {changes.Count} input cells — click Save to persist changes.";
-            Edited?.Invoke();
+            if(!clipboardPaste)Edited?.Invoke();
             return true;
         } catch (ArgumentException ex) { Feedback = ex.Message;return false; }
     }

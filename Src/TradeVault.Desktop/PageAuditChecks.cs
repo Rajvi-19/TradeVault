@@ -17,7 +17,7 @@ internal static class PageAuditChecks
         var party=store.CreateParty("SYNTHETIC Client Audit");var wf=new ReportWorkflow(store);
         var sheet=new WorksheetController(store);sheet.Load("form",party.Id);
         for(int i=1;i<=35;i++){var row=sheet.Add();row["F9"]="AUDIT-2026-"+i.ToString("D3");row["F10"]="2026-06-01";row["F5"]="15000";row["F6"]="10000";row["F17"]="2026-06-17";}
-        sheet.Save();wf.Configure(party.Id,new("F6","F22",true,new(2026,1,1)));wf.RecordReceipt(party.Id,new(2026,8,1),5000,"SYNTHETIC receipt",[new(sheet.Rows[0]["_id"],"Bank",5000)]);
+        sheet.Save();wf.RecordReceipt(party.Id,new(2026,8,1),5000,"SYNTHETIC receipt",[new(sheet.Rows[0]["_id"],"Bank",5000)]);
         var owner=new MainWindow(store,db.Paths.Database);owner.Show();
         void Capture(Window window,string name)
         {
@@ -39,7 +39,6 @@ internal static class PageAuditChecks
             foreach(var name in new[]{"form","details","ledger"}){owner.PreviewParty(name,party.Id);Capture(owner,"worksheet-"+name);}
             Modal("create-party",()=>new PartyDialog(store){Owner=owner}.ShowDialog());
             Modal("assign-party",()=>new PartyDialog(store,true){Owner=owner}.ShowDialog());
-            Modal("report-setup",()=>WorkflowWindows.Configure(owner,wf,party.Id));
             Modal("receipts",()=>WorkflowWindows.Receipts(owner,wf,party.Id));
             Modal("receipt-reversal",()=>
             {
@@ -47,7 +46,7 @@ internal static class PageAuditChecks
                 {
                     var receiptWindow=System.Windows.Application.Current.Windows.OfType<Window>().Last(w=>w.IsVisible&&w!=owner);
                     Descendants(receiptWindow).OfType<ListBox>().First().SelectedIndex=0;
-                    try{Descendants(receiptWindow).OfType<Button>().First(b=>System.Windows.Automation.AutomationProperties.GetName(b)=="Reverse selected receipt").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));}
+                    try{Descendants(receiptWindow).OfType<Button>().First(b=>System.Windows.Automation.AutomationProperties.GetName(b)=="Cancel payment").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));}
                     finally{receiptWindow.Close();}
                 }));WorkflowWindows.Receipts(owner,wf,party.Id);
             });
@@ -57,7 +56,7 @@ internal static class PageAuditChecks
                 {
                     var receiptWindow=System.Windows.Application.Current.Windows.OfType<Window>().Last(w=>w.IsVisible&&w!=owner);
                     Descendants(receiptWindow).OfType<ListBox>().First().SelectedIndex=0;
-                    Descendants(receiptWindow).OfType<Button>().First(b=>System.Windows.Automation.AutomationProperties.GetName(b)=="Correct selected / allocate an advance").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Descendants(receiptWindow).OfType<Button>().First(b=>System.Windows.Automation.AutomationProperties.GetName(b)=="Edit payment").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 }));WorkflowWindows.Receipts(owner,wf,party.Id);
             });
             Modal("reminders",()=>WorkflowWindows.Reminders(owner,wf,party.Id,new(2026,10,28)));

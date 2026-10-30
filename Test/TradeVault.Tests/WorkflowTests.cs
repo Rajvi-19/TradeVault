@@ -10,6 +10,34 @@ namespace TradeVault.Tests;
 
 public sealed class WorkflowTests
 {
+    [Fact]public void ClearedRecordKeepsItsSlotAndSurvivesDatabaseReopen()
+    {
+        using var f=new Fixture();var snapshot=f.Store.Load("form",f.Party);
+        snapshot.Rows.Add(Fixture.Invoice("INV-003","three"));snapshot.Rows.Add(Fixture.Invoice("INV-004","four"));
+        var saved=f.Store.Save("form",snapshot.Revision,snapshot.Rows,f.Party);
+        var cleared=f.Store.DeleteWorksheetRecord("form",f.Party,saved,2,"three");
+        var slots=f.Store.Load("form",f.Party).Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
+        Assert.Equal(4,slots.Count);Assert.Equal("1",slots[2]["_blank"]);Assert.Single(slots[2]);Assert.Equal("four",slots[3]["_id"]);
+        Assert.Equal(3,f.Workflow.Invoices(f.Party).Count);Assert.Equal(45000m,f.Workflow.BuildCurrent(f.Party).Tables[1].Totals["E"]);
+        var restored=f.Store.RestoreWorksheetRecord("form",f.Party,cleared,2,Fixture.Invoice("INV-003","three"));
+        Assert.Equal(4,f.Workflow.Invoices(f.Party).Count);
+        f.Store.DeleteWorksheetRecord("form",f.Party,restored,2,"three");f.Database.Dispose();
+        using var reopened=new PortableDatabase(new(f.Root));var store=new WorkbookStore(reopened);
+        slots=store.Load("form",f.Party).Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
+        Assert.Equal("1",slots[2]["_blank"]);Assert.Equal("four",slots[3]["_id"]);Assert.Equal(3,new ReportWorkflow(store).Invoices(f.Party).Count);
+    }
+    [Fact]public void RemovedRecordRestoreIsTargetedRevisionCheckedAndValidated()
+    {
+        using var f=new Fixture();var original=f.Store.Load("form",f.Party);var record=new Dictionary<string,string>(original.Rows.Single(r=>r.GetValueOrDefault("_id")=="one"));
+        var deleted=f.Store.DeleteWorksheetRecord("form",f.Party,original.Revision,0,"one");
+        Assert.Throws<BusinessRuleException>(()=>f.Store.RestoreWorksheetRecord("form",f.Party,original.Revision,0,record));
+        var restored=f.Store.RestoreWorksheetRecord("form",f.Party,deleted,0,record);
+        var rows=f.Workflow.Invoices(f.Party);Assert.Equal(new[]{"one","two"},rows.Select(r=>r["_id"]));Assert.Equal("15000",rows[1]["F5"]);
+        Assert.Throws<BusinessRuleException>(()=>f.Store.RestoreWorksheetRecord("form",f.Party,restored,0,record));
+        f.Workflow.RecordReceipt(f.Party,new(2026,7,1),100,"Protect after undo",[new("one","Bank",100)]);
+        Assert.Throws<BusinessRuleException>(()=>f.Store.DeleteWorksheetRecord("form",f.Party,restored,0,"one"));
+        Assert.Equal(2,f.Workflow.Invoices(f.Party).Count);
+    }
     private static ReportBundle ReadExportSnapshot(string path)
     {
         using var zip=ZipFile.OpenRead(path);using var input=zip.GetEntry("customXml/tradevault.xml")!.Open();
@@ -53,17 +81,16 @@ public sealed class WorkflowTests
         using var f=new Fixture();Assert.Empty(f.Workflow.PaymentBalances(f.Party,new(2026,5,1)));
         var receipt=f.Workflow.RecordReceipt(f.Party,new(2026,7,1),3200,"SCREEN",[new("one","Bank",3000),new("one","Difference",200)]);
         var balance=f.Workflow.PaymentBalances(f.Party,new(2026,7,1)).Single(b=>b.Id=="one");
-        Assert.Equal(7000,balance.BankUnpaid);Assert.Equal(1000,balance.DifferenceUnpaid);Assert.Equal(8000,balance.TotalUnpaid);
-        Assert.Equal(6500,ReportWorkflow.RemainingAfterPayment(balance,1000,500));Assert.Throws<BusinessRuleException>(()=>ReportWorkflow.RemainingAfterPayment(balance,7001,0));
-        Assert.Equal(11200,f.Workflow.PaymentBalances(f.Party,new(2026,7,1),receipt.Id).Single(b=>b.Id=="one").TotalUnpaid);
+        Assert.Equal(7000,balance.BankUnpaid);Assert.Equal(4800,balance.DifferenceUnpaid);Assert.Equal(11800,balance.TotalUnpaid);
+        Assert.Equal(10300,ReportWorkflow.RemainingAfterPayment(balance,1000,500));Assert.Throws<BusinessRuleException>(()=>ReportWorkflow.RemainingAfterPayment(balance,7001,0));
+        Assert.Equal(15000,f.Workflow.PaymentBalances(f.Party,new(2026,7,1),receipt.Id).Single(b=>b.Id=="one").TotalUnpaid);
         f.Workflow.ReverseReceipt(f.Party,receipt.Id,new(2026,8,1),"TEST");Assert.Throws<BusinessRuleException>(()=>f.Workflow.PaymentBalances(f.Party,new(2026,8,1),receipt.Id));
     }
-    [Fact]public void OpeningDifferenceIsVisibleWithoutInvoiceRows()
+    [Fact]public void NewPartyReportsStartAtZeroWithoutSetup()
     {
-        using var f=new Fixture();var party=f.Store.CreateParty("Opening balance only");
-        f.Workflow.Configure(party.Id,new("F6","F22",true,new(2026,7,1),0,250));
-        var after=f.Workflow.Build(party.Id,new(2026,7,1),true);Assert.Empty(after.Tables[0].Rows);Assert.Equal(250,after.Tables[0].Totals["K"]);Assert.Equal(250,after.Tables[1].Totals["E"]);
-        Assert.Equal(0,f.Workflow.Build(party.Id,new(2026,6,30),true).Tables[0].Totals["K"]);
+        using var f=new Fixture();var party=f.Store.CreateParty("New party");
+        var report=f.Workflow.BuildCurrent(party.Id);Assert.Empty(report.Tables[0].Rows);
+        Assert.Equal(0,report.Tables[0].Totals["K"]);Assert.Equal(0,report.Tables[1].Totals["E"]);
     }
     [Fact]public void FutureReversalDoesNotPermitHistoricalOverpayment()
     {
@@ -94,15 +121,19 @@ public sealed class WorkflowTests
         }
     }
 
-    [Fact]public void RegisterDifferenceRequiresMappingAndTracksChosenContract()
+    [Fact]public void RegisterDifferenceAlwaysUsesPakistanCustomsAndNeedsNoMapping()
     {
         using var f=new Fixture();var row=Fixture.Invoice("INV-DIFF","diff");
-        Assert.Equal(5000m,f.Workflow.RegisterDifference(f.Party,row));
-        row["F5"]="16000";Assert.Equal(6000m,f.Workflow.RegisterDifference(f.Party,row));
-        f.Workflow.Configure(f.Party,new("F7","F22",false,new(2026,1,1)));
-        Assert.Equal(7000m,f.Workflow.RegisterDifference(f.Party,row));
-        row.Remove("F7");Assert.Null(f.Workflow.RegisterDifference(f.Party,row));
-        var unconfigured=f.Store.CreateParty("UNCONFIGURED");Assert.Null(f.Workflow.RegisterDifference(unconfigured.Id,row));
+        Assert.Equal(6000m,f.Workflow.RegisterDifference(row)); // 15000 - 9000, not our customs 10000.
+        row["F6"]="500";Assert.Equal(6000m,f.Workflow.RegisterDifference(row));
+        row["F5"]="16000";Assert.Equal(7000m,f.Workflow.RegisterDifference(row));
+
+        Assert.Equal(7000m,f.Workflow.RegisterDifference(row));
+        row["F7"]="0";Assert.Equal(16000m,f.Workflow.RegisterDifference(row));
+        row.Remove("F7");Assert.Null(f.Workflow.RegisterDifference(row));
+        row["F7"]="9000";row.Remove("F5");Assert.Null(f.Workflow.RegisterDifference(row));
+        var unconfigured=f.Store.CreateParty("UNCONFIGURED");Assert.Empty(f.Workflow.BuildCurrent(unconfigured.Id).Tables[0].Rows);
+        Assert.Equal(6000m,f.Workflow.RegisterDifference(Fixture.Invoice("NO-MAPPING","plain")));
     }
     private sealed class Fixture:IDisposable
     {
@@ -113,33 +144,35 @@ public sealed class WorkflowTests
         {
             Database=new(new(Root));Store=new(Database);Party=Store.CreateParty("SYNTHETIC TEST PARTY").Id;Workflow=new(Store);
             Store.Save("form",0,[new(){["_metadata"]="1",["terms"]="90",["opening"]="0"},Invoice("INV-001","one"),Invoice("INV-002","two")],Party);
-            Workflow.Configure(Party,new("F6","F22",true,new(2026,1,1)));
+
         }
         public static Dictionary<string,string> Invoice(string number,string id)=>new(){["_id"]=id,["_terms"]="90",["F1"]="SYNTHETIC TEST PARTY",["F9"]=number,["F10"]="2026-06-01",["F5"]="15000",["F6"]="10000",["F7"]="9000",["F18"]="3800",["F17"]="2026-06-17",["F22"]="0",["F23"]="0"};
         public void Dispose(){Database.Dispose();} // Keep isolated test evidence; never delete company data.
     }
-    [Fact]public void GeneratedReportsUseChosenSourcesAndReconcile()
+    [Fact]public void GeneratedReportsUseFixedSourcesAndReconcile()
     {
-        using var f=new Fixture();var report=f.Workflow.Build(f.Party,new(2026,10,27),true);
-        Assert.Equal("10000.00",report.Tables[0].Rows[0]["D"]);Assert.Equal("1200.00",report.Tables[0].Rows[0]["I"]);
-        Assert.Equal(20000m,report.Tables[0].Totals["F"]);Assert.Equal(2400m,report.Tables[0].Totals["K"]);Assert.Equal(22400m,report.Tables[1].Totals["E"]);
+        using var f=new Fixture();var report=f.Workflow.BuildCurrent(f.Party);
+        Assert.Equal("10000.00",report.Tables[0].Rows[0]["D"]);
+        Assert.Equal("5000.00",report.Tables[0].Rows[0]["I"]);
+        Assert.Equal("0.00",report.Tables[0].Rows[0]["H"]);
+        Assert.Equal(20000m,report.Tables[0].Totals["F"]);
+        Assert.Equal(10000m,report.Tables[0].Totals["K"]);
+        Assert.Equal(30000m,report.Tables[1].Totals["E"]);
         Assert.Equal("2026-09-15",report.Tables[0].Rows[0]["N"]);
-        f.Workflow.Configure(f.Party,new("F7","F22",false,new(2026,1,1)));report=f.Workflow.Build(f.Party,new(2026,10,27),true);
-        Assert.Equal("9000.00",report.Tables[0].Rows[0]["D"]);Assert.Equal("0.00",report.Tables[0].Rows[0]["H"]);
     }
     [Fact]public void SplitPartialReceiptsAdvancesAndReversalAreHistorical()
     {
         using var f=new Fixture();var receipt=f.Workflow.RecordReceipt(f.Party,new(2026,7,1),13000,"TEST RECEIPT",[new("one","Bank",8000),new("one","Difference",1200),new("two","Bank",3000)]);
         var before=f.Workflow.Build(f.Party,new(2026,6,30),true);Assert.Equal(20000,before.Tables[0].Totals["F"]);
-        var after=f.Workflow.Build(f.Party,new(2026,7,1),true);Assert.Equal(9000,after.Tables[0].Totals["F"]);Assert.Equal(9400,after.Tables[1].Totals["E"]);
+        var after=f.Workflow.Build(f.Party,new(2026,7,1),true);Assert.Equal(9000,after.Tables[0].Totals["F"]);Assert.Equal(17000,after.Tables[1].Totals["E"]);
         f.Workflow.ReverseReceipt(f.Party,receipt.Id,new(2026,8,1),"Test correction");
-        Assert.Equal(9400,f.Workflow.Build(f.Party,new(2026,7,31),true).Tables[1].Totals["E"]);
-        Assert.Equal(22400,f.Workflow.Build(f.Party,new(2026,8,1),true).Tables[1].Totals["E"]);
+        Assert.Equal(17000,f.Workflow.Build(f.Party,new(2026,7,31),true).Tables[1].Totals["E"]);
+        Assert.Equal(30000,f.Workflow.Build(f.Party,new(2026,8,1),true).Tables[1].Totals["E"]);
         Assert.Throws<BusinessRuleException>(()=>f.Workflow.ReverseReceipt(f.Party,receipt.Id,new(2026,8,2),"Duplicate reversal"));
     }
     [Fact]public void SettledInvoicesAreNotOverdueAndFutureInvoicesAreExcluded()
     {
-        using var f=new Fixture();f.Workflow.RecordReceipt(f.Party,new(2026,7,1),11200,"Settlement",[new("one","Bank",10000),new("one","Difference",1200)]);
+        using var f=new Fixture();f.Workflow.RecordReceipt(f.Party,new(2026,7,1),15000,"Settlement",[new("one","Bank",10000),new("one","Difference",5000)]);
         var items=f.Workflow.Reminders(f.Party,new(2026,10,27));Assert.Equal("Settled",items[0].Status);Assert.Equal(0,items[0].OverdueDays);Assert.True(items[1].OverdueDays>0);
         Assert.Empty(f.Workflow.Build(f.Party,new(2026,5,1),true).Tables[0].Rows);
     }
@@ -153,7 +186,6 @@ public sealed class WorkflowTests
         Assert.Empty(f.Workflow.Receipts(f.Party));
         f.Workflow.RecordReceipt(f.Party,new(2026,7,1),100,"Posted",[new("one","Bank",100)]);
         var saved=f.Store.Load("form",f.Party);saved.Rows.RemoveAt(1);Assert.Throws<BusinessRuleException>(()=>f.Store.Save("form",saved.Revision,saved.Rows,f.Party));
-        Assert.Throws<BusinessRuleException>(()=>f.Workflow.Configure(f.Party,new("F7","F22",true,new(2026,1,1))));
     }
 
 
@@ -177,17 +209,17 @@ public sealed class WorkflowTests
     [Fact]public void AdvanceCanBeAllocatedLaterThroughAtomicCorrection()
     {
         using var f=new Fixture();var advance=f.Workflow.RecordReceipt(f.Party,new(2026,5,1),5000,"Advance",[]);
-        Assert.Equal(22400,f.Workflow.Build(f.Party,new(2026,7,1),true).Tables[0].Totals["F"]+f.Workflow.Build(f.Party,new(2026,7,1),true).Tables[0].Totals["K"]);
+        Assert.Equal(30000,f.Workflow.Build(f.Party,new(2026,7,1),true).Tables[0].Totals["F"]+f.Workflow.Build(f.Party,new(2026,7,1),true).Tables[0].Totals["K"]);
         f.Workflow.CorrectReceipt(f.Party,advance.Id,new(2026,7,1),5000,"Allocate advance",[new("one","Bank",5000)]);
         Assert.Equal(15000,f.Workflow.Build(f.Party,new(2026,7,1),true).Tables[0].Totals["F"]);
-        Assert.Equal(17400,f.Workflow.Build(f.Party,new(2026,7,1),true).Tables[1].Totals["E"]);
+        Assert.Equal(25000,f.Workflow.Build(f.Party,new(2026,7,1),true).Tables[1].Totals["E"]);
         Assert.Equal(3,f.Workflow.Receipts(f.Party).Count);
     }
     [Fact]public void FailedCorrectionDoesNotReverseOriginalOrAppendAnything()
     {
         using var f=new Fixture();var posted=f.Workflow.RecordReceipt(f.Party,new(2026,7,1),100,"Receipt",[new("one","Bank",100)]);
         Assert.Throws<BusinessRuleException>(()=>f.Workflow.CorrectReceipt(f.Party,posted.Id,new(2026,7,2),20000,"Invalid correction",[new("one","Bank",20000)]));
-        Assert.Single(f.Workflow.Receipts(f.Party));Assert.Equal(22300,f.Workflow.Build(f.Party,new(2026,7,2),true).Tables[1].Totals["E"]);
+        Assert.Single(f.Workflow.Receipts(f.Party));Assert.Equal(29900,f.Workflow.Build(f.Party,new(2026,7,2),true).Tables[1].Totals["E"]);
     }
 
     [Fact]public void PreviousSchemaBackupCanBeRestoredAndUpgraded()
@@ -196,13 +228,13 @@ public sealed class WorkflowTests
         using(var c=new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder{DataSource=backup,Pooling=false}.ToString()))
         {c.Open();using var cmd=c.CreateCommand();cmd.CommandText="DROP TABLE IF EXISTS account_recovery;DROP TABLE workflow_documents;DROP TABLE workflow_audit;DELETE FROM schema_migrations WHERE version>=4";cmd.ExecuteNonQuery();}
         f.Store.RestoreBackup(backup);Assert.NotNull(f.Store.Load("form",f.Party));
-        new ReportWorkflow(f.Store).Configure(f.Party,new("F6","F22",true,new(2026,1,1)));
-        Assert.Equal(22400,new ReportWorkflow(f.Store).Build(f.Party,new(2026,10,27),true).Tables[1].Totals["E"]);
+
+        Assert.Equal(30000,new ReportWorkflow(f.Store).Build(f.Party,new(2026,10,27),true).Tables[1].Totals["E"]);
     }
     [Fact]public void IncompleteBackupIsRejectedWithoutReplacingWorkingData()
     {
         using var f=new Fixture();var backup=f.Store.CreateBackup();
         using(var c=new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder{DataSource=backup,Pooling=false}.ToString())){c.Open();using var cmd=c.CreateCommand();cmd.CommandText="DROP TABLE workflow_documents";cmd.ExecuteNonQuery();}
-        Assert.Throws<BusinessRuleException>(()=>f.Store.RestoreBackup(backup));Assert.Equal(22400,f.Workflow.Build(f.Party,new(2026,10,27),true).Tables[1].Totals["E"]);
+        Assert.Throws<BusinessRuleException>(()=>f.Store.RestoreBackup(backup));Assert.Equal(30000,f.Workflow.Build(f.Party,new(2026,10,27),true).Tables[1].Totals["E"]);
     }
 }

@@ -8,6 +8,7 @@ namespace TradeVault.Desktop;
 public sealed class WorksheetController(WorkbookStore store)
 {
     public ObservableCollection<GridRow> Rows { get; } = [];
+    public IEnumerable<GridRow> Records=>Rows.Where(row=>row["_blank"]!="1");
     public string Name { get; private set; } = "form";
     public Guid PartyId {get;private set;}
     public string PartyName {get;private set;}="Unassigned records";
@@ -32,7 +33,7 @@ public sealed class WorksheetController(WorkbookStore store)
                 continue;
             }
             var row = new GridRow(); foreach (var cell in data) row[cell.Key] = cell.Value;
-            if(name=="form"){if(row["_id"].Length==0)row["_id"]=ReportWorkflow.InvoiceKey(PartyId,data);if(row["_terms"].Length==0)row["_terms"]=Terms.ToString();}
+            if(name=="form"&&row["_blank"]!="1"){if(row["_id"].Length==0)row["_id"]=ReportWorkflow.InvoiceKey(PartyId,data);if(row["_terms"].Length==0)row["_terms"]=Terms.ToString();}
             Rows.Add(row);
         }
         Calculate();
@@ -63,7 +64,7 @@ public sealed class WorksheetController(WorkbookStore store)
         var dates = Name switch { "form" => new[] { "F4","F10","F13","F14","F17","F24","F26" }, "details" => ["L"], _ => ["I","G"] };
         for (var i = 0; i < Rows.Count; i++)
         {
-            var row = Rows[i]; var issues = new List<CellIssue>();
+            var row = Rows[i];ActivateBlank(row);if(row["_blank"]=="1"){if(publish)row.SetIssues([]);continue;} var issues = new List<CellIssue>();
             var required = Name == "form" ? new[] {"F1","F9"} : new[] {"B"};
             foreach (var key in required) if (requiredFields && string.IsNullOrWhiteSpace(row[key])) issues.Add(new(key, $"{Fields.First(f=>f.Key==key).Label} is required."));
             if(requiredFields&&Name=="form"&&PartyId!=Guid.Empty&&!string.IsNullOrWhiteSpace(row["F1"])&&!string.Equals(row["F1"].Trim(),PartyName,StringComparison.OrdinalIgnoreCase))issues.Add(new("F1","Party name must match the selected party. Switch the party selector to enter other parties."));
@@ -97,6 +98,7 @@ public sealed class WorksheetController(WorkbookStore store)
         for (int i=0; i<Rows.Count; i++)
         {
             var row = Rows[i];
+            if(row["_blank"]=="1")continue;
             if(row.HasErrors)
             {
                 foreach(var field in Fields.Where(f=>f.Calculated))row[field.Key]="";
@@ -116,7 +118,7 @@ public sealed class WorksheetController(WorkbookStore store)
             else if (Name == "ledger") { if(runningKnown){running+=Number(row,"C")-Number(row,"D");Set(row,"E",running);}else row["E"]=""; Due(row,"I","J","K");row["G"]=row["K"]; }
             else
             {
-                var difference=workflow!.RegisterDifference(PartyId,row.Snapshot());if(difference is {} calculated)Set(row,"F8",calculated);else row["F8"]="";
+                var difference=workflow!.RegisterDifference(row.Snapshot());if(difference is {} calculated)Set(row,"F8",calculated);else row["F8"]="";
                 Due(row,"F17","_terms","F19",Terms);
                 var due = Date(row,"F19");
                 row["F20"] = due is {} d && d.DayNumber >= 30 ? d.AddDays(-30).ToString("yyyy-MM-dd") : "";
@@ -127,20 +129,48 @@ public sealed class WorksheetController(WorkbookStore store)
     public void Save()
     {
         var errors = Validate(); if (errors.Count > 0) throw new BusinessRuleException(string.Join("\n",errors.Take(8)));
-        if(Name=="form"&&Rows.GroupBy(r=>r["F9"].Trim(),StringComparer.OrdinalIgnoreCase).Any(g=>g.Count()>1))throw new BusinessRuleException("Duplicate invoice references. Include financial year/container suffix when distinct.");
+        if(Name=="form"&&Records.GroupBy(r=>r["F9"].Trim(),StringComparer.OrdinalIgnoreCase).Any(g=>g.Count()>1))throw new BusinessRuleException("Duplicate invoice references. Include financial year/container suffix when distinct.");
         Calculate();
         var data = new List<Dictionary<string,string>> { new() { ["_metadata"]="1", ["opening"]=Opening.ToString(CultureInfo.InvariantCulture), ["terms"]=Terms.ToString(CultureInfo.InvariantCulture),["asOf"]=AsOf.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture) } };
-        data.AddRange(Rows.Select(row => {var data=Fields.ToDictionary(f=>f.Key,f=>row[f.Key]);if(Name=="form"){data["_id"]=row["_id"];data["_terms"]=row["_terms"];}return data;}));
+        data.AddRange(Rows.Select(row => {if(row["_blank"]=="1")return new Dictionary<string,string>{{"_blank","1"}};var data=Fields.ToDictionary(f=>f.Key,f=>row[f.Key]);if(Name=="form"){data["_id"]=row["_id"];data["_terms"]=row["_terms"];}return data;}));
         Revision = store.Save(Name,Revision,data,PartyId);
     }
     public bool DeleteImmediately(GridRow row)
     {
         var index=Rows.IndexOf(row);if(index<0)throw new BusinessRuleException("Select a stored record or draft row first.");
         Revision=store.DeleteWorksheetRecord(Name,PartyId,Revision,index,Name=="form"?ReportWorkflow.InvoiceKey(PartyId,row.Snapshot()):null);
-        Rows.Remove(row);Calculate();
+        var blank=new GridRow();blank["_blank"]="1";Rows[index]=blank;Calculate();
+        return HasSavedDifferences();
+    }
+    internal void ActivateBlank(GridRow row)
+    {
+        if(row["_blank"]!="1"||!Fields.Any(f=>!f.Calculated&&!string.IsNullOrWhiteSpace(row[f.Key])))return;
+        row["_blank"]="";
+        if(Name=="form")
+        {
+            row["_id"]=Guid.NewGuid().ToString();row["_terms"]=Terms.ToString();
+            if(PartyId!=Guid.Empty)row["F1"]=PartyName;
+            if(row["F18"].Length==0)row["F18"]="3800.00";
+        }
+        else if(Name=="details"){row["H"]="3800.00";row["M"]="90";}
+        else row["J"]="90";
+    }
+    internal WorksheetEditState CaptureEditState()
+    {
+        var keys=Fields.Where(f=>!f.Calculated).Select(f=>f.Key).Concat(Name=="form"?new[]{"_id","_terms"}:Array.Empty<string>()).Append("_blank").ToArray();
+        return new(Rows.Select(row=>keys.ToDictionary(key=>key,key=>row[key])).ToList(),Opening,Terms);
+    }
+    internal void RestoreEditState(WorksheetEditState state,int revision)
+    {
+        Rows.Clear();Opening=state.Opening;Terms=state.Terms;Revision=revision;
+        foreach(var data in state.Rows){var row=new GridRow();foreach(var cell in data)row[cell.Key]=cell.Value;Rows.Add(row);}
+        Calculate();
+    }
+    internal bool HasSavedDifferences()
+    {
         var saved=new WorksheetController(store);saved.Load(Name,PartyId);
-        if(Rows.Count!=saved.Rows.Count||Opening!=saved.Opening||Terms!=saved.Terms)return true;
-        var inputs=Fields.Where(f=>!f.Calculated).Select(f=>f.Key).Concat(Name=="form"?new[]{"_terms"}:Array.Empty<string>()).ToArray();
-        return Rows.Zip(saved.Rows).Any(pair=>inputs.Any(key=>pair.First[key]!=pair.Second[key]));
+        var current=CaptureEditState();var stored=saved.CaptureEditState();
+        while(current.Rows.Count>stored.Rows.Count&&current.Rows[^1].GetValueOrDefault("_blank")=="1")current.Rows.RemoveAt(current.Rows.Count-1);
+        return current.Signature!=stored.Signature;
     }
 }

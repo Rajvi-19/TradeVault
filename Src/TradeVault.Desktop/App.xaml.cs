@@ -10,6 +10,7 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);AutomatedRun=e.Args.Any(a=>a is "--self-test" or "--qa-report" or "--render-ui");
         ShutdownMode=ShutdownMode.OnExplicitShutdown;
+        AppTheme.Initialize(AutomatedRun||e.Args.Contains("--audit-pages")?null:System.IO.Path.Combine(AppContext.BaseDirectory,"Data","ui-settings.json"));
         try
         {
             if(e.Args.Length==2&&e.Args[0]=="--audit-pages"){PageAuditChecks.Run(e.Args[1]);Shutdown(0);return;}

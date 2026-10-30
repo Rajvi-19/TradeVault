@@ -53,7 +53,7 @@ public sealed class PortableDatabase : IDisposable
             {
                 inspect.CommandText="SELECT COALESCE(MAX(version),0) FROM schema_migrations";
                 var previous=Convert.ToInt32(inspect.ExecuteScalar());
-                if(previous is >0 and <7)CreateBackup();
+                if(previous is >0 and <9)CreateBackup();
             }
         }
         using (var setup = connection.CreateCommand())
@@ -71,7 +71,7 @@ public sealed class PortableDatabase : IDisposable
             SELECT COALESCE(MAX(version), 0) FROM schema_migrations;
             """;
         var version = Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
-        if (version > 7) throw new InvalidOperationException("This database requires a newer TradeVault application.");
+        if (version > 9) throw new InvalidOperationException("This database requires a newer TradeVault application.");
         if (version == 0)
         {
             using var stream = typeof(PortableDatabase).Assembly.GetManifestResourceStream(
@@ -151,6 +151,18 @@ public sealed class PortableDatabase : IDisposable
                 DELETE FROM worksheets WHERE name='operator-reports';
                 INSERT INTO schema_migrations VALUES(7,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
                 """;command.ExecuteNonQuery();
+        }
+        if(version<8)
+        {
+            command.Parameters.Clear();command.CommandText="""
+                DELETE FROM workflow_documents WHERE kind='mapping';
+                DELETE FROM workflow_audit WHERE action='mapping';
+                INSERT INTO schema_migrations VALUES(8,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+                """;command.ExecuteNonQuery();
+        }
+        if(version<9)
+        {
+            command.Parameters.Clear();command.CommandText="INSERT INTO schema_migrations VALUES(9,strftime('%Y-%m-%dT%H:%M:%fZ','now'))";command.ExecuteNonQuery();
         }
         transaction.Commit();
     }

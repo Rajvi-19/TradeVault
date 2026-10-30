@@ -101,7 +101,7 @@ public sealed partial class WorkbookStore
             var destinationName=cmd.ExecuteScalar()!.ToString()!;
             cmd.CommandText="SELECT data FROM party_worksheets WHERE party_id=$empty AND name=$name";
             var source=JsonSerializer.Deserialize<List<Dictionary<string,string>>>(cmd.ExecuteScalar()!.ToString()!)!;
-            if(source.Where(row=>!row.ContainsKey("_metadata")).Any(row=>!string.Equals(row.GetValueOrDefault("F1","").Trim(),destinationName,StringComparison.OrdinalIgnoreCase)))
+            if(source.Where(row=>!row.ContainsKey("_metadata")&&row.GetValueOrDefault("_blank")!="1").Any(row=>!string.Equals(row.GetValueOrDefault("F1","").Trim(),destinationName,StringComparison.OrdinalIgnoreCase)))
                 throw new BusinessRuleException("Invoice rows contain a different or missing party name. Keep mixed records unassigned; assignment never guesses ownership.");
         }
         cmd.CommandText="""

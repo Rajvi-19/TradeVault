@@ -2,17 +2,23 @@
 
 # TradeVault — invoices, accounts and payments
 
-Build: UI 2026.10.28.1. All amounts are USD.
+Build: UI 2026.10.29.17. All amounts are USD.
 
 ## Confirmed deletion and save state
 
-Delete or the Delete toolbar button clears selected editable cells without a modal. Select a whole record by clicking its row number to request record deletion; only whole-record removal shows the selected record and party for confirmation. Keep record/Escape/closing the dialog cancels. Delete record now saves that record's removal immediately; Reload or reopening will not bring it back. Payment-history records remain protected. Stale-revision/validation failures leave the record in place. Other unsaved edits remain unsaved, so Save changes still applies to ordinary edits. Saved has a checkmark; pending edits show the blue Save changes button. Shortcuts is removed from the navbar, but keyboard shortcuts and F1 help remain. The main and login branding no longer shows Offline/USD mode badges. Currency units remain on amount fields and reports.
+Delete or the Delete toolbar button clears selected editable cells without a modal. Select a whole record by clicking its row number to request record deletion; only whole-record removal shows the selected record and party for confirmation. Keep record/Escape/closing the dialog cancels. Delete record now saves that record's removal immediately; Reload or reopening will not bring it back. Payment-history records remain protected. Stale-revision/validation failures leave the record in place. Other unsaved edits remain unsaved, so Save changes still applies to ordinary edits. Saved has a checkmark; pending edits show the blue Save changes button. Shortcuts is removed from the navbar, but keyboard shortcuts and F1 help remain. The header no longer shows Offline/USD mode badges. Currency units remain on amount fields and reports.
 
 ## Cutting cells and records
 
 Ctrl+X cuts a selected editable cell or rectangular range: clipboard data is written before values are cleared. These are ordinary draft edits until Save. Clipboard failure leaves the values unchanged. Calculated cells and read-only reports cannot be cut/cleared. When a text editor has focus, native text Delete/Ctrl+X behavior is retained.
 
-Select a whole record using its row number, then Ctrl+X to cut the record. Confirmation is required because its removal is saved immediately, like whole-row deletion. Cancel does not change the record or clipboard. The record is copied before storage removal; protected payment-history records cannot be removed. Ctrl+V pastes its visible fields into the matching worksheet and the app retains invoice terms via its own clipboard metadata. Destination party identity is inherited from the destination workspace; calculated values are recalculated. Only one whole record is removed at a time. Ordinary external text pastes continue to work.
+Select a whole record using its row number, then Ctrl+X to cut the record. Cut acts immediately without a confirmation dialog. Use Ctrl+Z to undo it. The record is copied before storage removal; protected payment-history records cannot be removed. Ctrl+V pastes its visible fields into the matching worksheet and the app retains invoice terms via its own clipboard metadata. Destination party identity is inherited from the destination workspace; calculated values are recalculated. Only one whole record is removed at a time. Ordinary external text pastes continue to work.
+
+## Undo and redo
+
+Ctrl+Z undoes the last worksheet change; Ctrl+Y redoes it. Both are listed in F1 help. There are no on-screen undo/redo buttons. Edits, pasted ranges, cell clears/cuts, new rows and whole-record removal can be undone. Calculations refresh from the restored inputs.
+
+History stays in memory for the active worksheet (up to 100 steps, bounded by size). Reloading, switching party/tab, or closing clears it. A new edit clears redo. Ordinary cell changes remain drafts until Save. Undoing/redoing an immediately saved cut/deletion restores/removes only that stored record immediately; unrelated draft edits stay unsaved. Existing validation, receipt-history protection and revision-conflict checks still apply. History does not reverse receipts, exports, backups, party creation or another application's clipboard contents.
 
 ## Simplified main screen
 
@@ -33,16 +39,13 @@ The selected party appears beside the worksheet heading. Invoice Register hides 
 
 Existing independently entered Account Details and Debit/Credit worksheets are preserved.
 
-For a named party, Report setup enables a register-based workflow:
-1. Select the bank-contract source explicitly: F6 or F7. The independent amounts are not silently equated.
-2. Select the existing cumulative bank-receipt source explicitly: F22 dated F24, or F25 dated F26. Difference receipts use F23 dated F24.
-3. Decide whether to deduct each register row's shipping amount once on that row's invoice date. The default is NOT to infer a shipping posting. Checking the box is explicit approval of this particular rule, not inference about per-container or paid-date policy.
-4. Enter the effective date and any supplementary opening balances. Opening balances must exclude invoices already represented in the register, to avoid double counting.
-5. Enable generated reports. A backup is made before configuration is saved.
+For every named party, the report tabs automatically show read-only reports from the saved Invoice Register and dated payments. There is no Report setup screen or saved report configuration.
 
-After setup, the report tabs automatically show read-only reports derived from the saved register and dated allocations. Check Legacy manual reports to see/edit the original independent worksheets. Generated reports never overwrite those worksheets.
-
-Report setup can be changed before receipts exist. After receipts are posted, mappings are protected to avoid silently reinterpreting history.
+- Bank-contract portion always uses Our customs invoice amount (F6).
+- Earlier bank payments always use Nemichem receipts (F25), dated by Nemichem receipt date (F26).
+- Difference receipts retain their separate F23 amount and F24 date.
+- No automatic shipping deduction or supplementary opening balances are applied. Shipping amounts remain recorded in Invoice Register; they do not represent payments.
+- Existing independent worksheets remain stored and are not overwritten by generated reports. Unassigned records retain their legacy worksheets until assigned to a party.
 
 ## Register and terms
 
@@ -50,24 +53,24 @@ Report setup can be changed before receipts exist. After receipts are posted, ma
 - New terms changes the default for future rows; it does not change existing invoices.
 - Select a register row and use Selected terms to adjust that invoice deliberately.
 - Duplicate invoice references within a party are rejected. Include the financial year/container suffix where separate records genuinely need distinct references.
-- Original and the two customs amounts remain separate inputs. Register Difference Amount is locked and calculated as Original minus the contract source selected in Report setup. It stays blank if mapping or either required input is missing. Shipping is deducted only in the separate net-difference report calculation, when approved.
+- Original and the two customs amounts remain separate inputs. Register Difference before shipping / USD is locked and always calculated as Original invoice amount minus Pakistan customs invoice amount. It stays blank if either amount is missing and does not require setup. Shipping is not automatically deducted from generated balances.
 - Existing cumulative receipts are opening/baseline movements at the dates you supply. The app cannot invent the earlier payment history behind a cumulative amount.
 - Invoices with receipt history cannot be deleted. Their historical amount/date inputs are protected; use explicit receipt corrections rather than overwriting history.
 - Generated reporting requires complete invoice dates, source amounts and dates for nonzero baseline receipts. An incomplete register remains accessible for correction even when a generated report cannot be built.
 
 ## Customer payments and unpaid invoices
 
-Open Payments / unpaid invoices for the selected customer. One row per invoice shows the unpaid bank portion, unpaid difference portion, total unpaid and payment due date at the selected payment date. Future invoices are excluded. Invoice balances come from application services; their sum does not subtract unassigned advances or invoice-unallocated opening balances.
+Open Receipts for the selected customer. One row per invoice shows the unpaid bank portion, unpaid difference portion, total unpaid and payment due date at the selected payment date. Future invoices are excluded. Invoice balances come from application services; their sum does not subtract unassigned advances .
 
-1. Enter Date money was received, Total money received (USD), and a Payment description / bank transfer reference. The description is a note, not a bank-account selector.
-2. Enter amounts in Pay bank portion and Pay difference portion against the relevant invoices. Bank means the contract portion; Difference means the portion remaining after approved shipping. Leave other amounts at zero.
+1. Enter Payment date, Amount received (USD), and an optional Reference / description. The description is a note, not a bank-account selector.
+2. Enter amounts in Pay bank and Pay difference against the relevant invoices. Bank means the contract portion; Difference means Original invoice amount minus Our customs invoice amount for account reports. The separate Invoice Register Difference before shipping column remains Original minus Pakistan customs. Leave other amounts at zero.
 3. The summary updates automatically: money received, assigned to invoices and unassigned advance. Unpaid after this payment previews each invoice balance. A separate Calculate summary button is no longer needed.
-4. Save new payment validates and saves. Negative/invalid amounts, assignments above a portion's unpaid balance and assignments above the receipt total are blocked. Unassigned money is a customer advance; it reduces the ledger but does not settle an invoice until assigned.
-5. Open Recorded payments to select an existing active payment. Edit selected payment / assign its advance loads that payment. The date label changes to the date the correction takes effect. Save payment correction records reversal plus replacement atomically. Its preview removes the original payment before showing available balances, so its amounts can be reassigned. Future payments are excluded from the dated preview; final save still validates against all recorded payments.
-6. Cancel recorded payment asks for an effective date and reason. The original stays in history and its effect is reversed. This does not initiate a bank refund. Cancelled/replaced entries are marked and cannot be edited again.
-7. Start new payment / clear form exits correction mode and clears draft entries. The form scrolls vertically, and the summary/save controls stay visible at the bottom. The invoice table also scrolls horizontally/vertically when needed.
+4. Save payment validates and saves. Negative/invalid amounts, assignments above a portion's unpaid balance and assignments above the receipt total are blocked. Unassigned money is a customer advance; it reduces the ledger but does not settle an invoice until assigned.
+5. Open Payment history to select an existing active payment. Edit payment loads that payment. The date label changes to the date the correction takes effect. Save correction records reversal plus replacement atomically. Its preview removes the original payment before showing available balances, so its amounts can be reassigned. Future payments are excluded from the dated preview; final save still validates against all recorded payments.
+6. Cancel payment asks for an effective date and reason. The original stays in history and its effect is reversed. This does not initiate a bank refund. Cancelled/replaced entries are marked and cannot be edited again.
+7. Clear form exits correction mode and clears draft entries. The form scrolls vertically, and the summary/save controls stay visible at the bottom. The invoice table also scrolls horizontally/vertically when needed.
 
-Saving valid register edits or switching from the register to either report saves the register first and rebuilds the generated view from it. Invalid edits keep the user in place with an error. Customers without calculation settings are prompted to choose explicit sources before opening generated reports. Existing manual worksheets remain preserved. Invoice amount/date fields linked to receipt history remain protected; the change does not bypass historical safeguards.
+Saving valid register edits or switching from the register to either report saves the register first and rebuilds the generated view from it. Invalid edits keep the user in place with an error. All named parties use the fixed sources automatically. Existing manual worksheets remain preserved. Invoice amount/date fields linked to receipt history remain protected; the change does not bypass historical safeguards.
 
 Historical receipts/corrections are included at their effective dates. Both main report tabs now include all saved entries, with no selected reporting cutoff. Changing source invoice values does not reconstruct every previous invoice version; existing exported reports stay frozen.
 
@@ -108,3 +111,16 @@ Run Src/TradeVault.Desktop/Verify-Workflow.ps1 for Desktop build, backend/workfl
 Software checks do not certify physical USB failure behavior, clean-machine launch, printer drivers, high-DPI/accessibility or actual caption/clipboard mouse interaction. Those require the final device/business acceptance checklist.
 
 Older normalized invoice/receipt tables are preserved but not silently migrated into this workflow. Register-based generated reports and dated receipt books are the new UI path. Existing manual sheets remain accessible; don't enter the same payment in both baseline fields and the new receipt book.
+
+## Worksheet selection and scrolling
+
+Click a row number to select its full record. Hold Ctrl and click other row numbers to add records; Ctrl-click a selected row to deselect it. Plain clicking another row selects just that row. Editable date columns are included in full-record copy/paste; calculated dates are recalculated instead of pasted.
+
+Horizontal touchpad wheel gestures scroll the sheet sideways. Shift+mouse wheel is also supported. Toolbar order is Receipts, Reminders, Preview / Print, Export Excel, Backups.
+
+After cutting or deleting a full record, its row remains blank and lower records retain their worksheet positions. For example, clearing record 3 leaves row 3 blank and record 4 stays on row 4. Blank positions survive saving/reopening and are excluded from invoice counts and reports. Type or paste into the blank row to reuse it with a new invoice identity. Row numbers represent current worksheet positions; invoice references are unchanged. Horizontal scrolling accepts standard/pointer horizontal wheels, driver-shifted wheels, legacy horizontal-scroll requests and horizontal Windows pan gestures.
+
+## Appearance
+
+Use the small moon/sun square immediately after Saved or Save changes to switch between light and dark. Click again to return. The selection is remembered in Data/ui-settings.json beside this application, so it travels with the USB copy. Switching preserves current edits and undo history. Worksheet/report viewers and app dialogs follow the theme; exported/printed reports retain white pages. Native Windows dialogs follow Windows appearance.
+

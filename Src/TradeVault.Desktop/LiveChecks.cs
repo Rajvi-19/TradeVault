@@ -15,10 +15,23 @@ internal static class LiveChecks
             Capture(window,System.IO.Path.Combine(directory,"compact-window.png"),1000,600);
             var partyDialog=new PartyDialog(store);var partySurface=(System.Windows.FrameworkElement)partyDialog.Content;partySurface.Measure(new(440,double.PositiveInfinity));Capture(partyDialog,System.IO.Path.Combine(directory,"new-party.png"),440,(int)Math.Ceiling(partySurface.DesiredSize.Height));partyDialog.Close();
             var deleteDialog=new ConfirmDeleteWindow(window,"TEST-INV-006","[TEST] Sample party");var deleteSurface=(System.Windows.FrameworkElement)deleteDialog.Content;deleteSurface.Measure(new(560,double.PositiveInfinity));Capture(deleteDialog,System.IO.Path.Combine(directory,"delete-confirmation.png"),560,(int)Math.Ceiling(deleteSurface.DesiredSize.Height));deleteDialog.Close();
+            AppTheme.SetDark(true);
+            foreach(var name in new[]{"form","details","ledger"}){window.PreviewSheet(name);Capture(window,System.IO.Path.Combine(directory,name+"-dark.png"),1100,720);}
+            var darkParty=new PartyDialog(store);var darkSurface=(System.Windows.FrameworkElement)darkParty.Content;darkSurface.Measure(new(440,double.PositiveInfinity));Capture(darkParty,System.IO.Path.Combine(directory,"new-party-dark.png"),440,(int)Math.Ceiling(darkSurface.DesiredSize.Height));darkParty.Close();
+            AppTheme.SetDark(false);
             window.Close();
             var party=store.CreateParty("QA generated reports");var controller=new WorksheetController(store);controller.Load("form",party.Id);var row=controller.Add();row["F9"]="QA-GENERATED-001";row["F10"]="2026-06-01";row["F5"]="15000";row["F6"]="10000";row["F17"]="2026-06-17";controller.Save();
-            new ReportWorkflow(store).Configure(party.Id,new("F6","F22",true,new(2026,1,1)));var generated=new MainWindow(store,database.Paths.Database);generated.PreviewParty("details",party.Id);Capture(generated,System.IO.Path.Combine(directory,"generated-details.png"),1440,880);generated.PreviewParty("ledger",party.Id);Capture(generated,System.IO.Path.Combine(directory,"generated-ledger.png"),1440,880);generated.Close();
-            var paymentView=new PaymentsWindow(window,new ReportWorkflow(store),party.Id);Capture(paymentView,System.IO.Path.Combine(directory,"payments.png"),1180,700);Capture(paymentView,System.IO.Path.Combine(directory,"payments-small.png"),1000,600);paymentView.Close();
+            var generated=new MainWindow(store,database.Paths.Database);generated.PreviewParty("details",party.Id);Capture(generated,System.IO.Path.Combine(directory,"generated-details.png"),1440,880);generated.PreviewParty("ledger",party.Id);Capture(generated,System.IO.Path.Combine(directory,"generated-ledger.png"),1440,880);generated.Close();
+            controller.Load("form",party.Id);
+            foreach(var suffix in new[]{"002","003"}){var extra=controller.Add();extra["F9"]="QA-GENERATED-"+suffix;extra["F10"]="2026-06-01";extra["F5"]="18000";extra["F6"]="12000";extra["F7"]="11000";extra["F17"]="2026-06-17";}controller.Save();
+            var paymentService=new ReportWorkflow(store);var firstId=ReportWorkflow.InvoiceKey(party.Id,paymentService.Invoices(party.Id)[0]);paymentService.RecordReceipt(party.Id,new(2026,8,1),3000,"Transfer received",[new(firstId,"Bank",2800),new(firstId,"Difference",200)]);
+            var cancelled=paymentService.RecordReceipt(party.Id,new(2026,8,10),1000,"Deposit / advance",[new(firstId,"Bank",500)]);paymentService.ReverseReceipt(party.Id,cancelled.Id,new(2026,8,15),"Duplicate transfer corrected");
+            var paymentView=new PaymentsWindow(window,paymentService,party.Id,party.Name);paymentView.PreviewDraft();Capture(paymentView,System.IO.Path.Combine(directory,"payments.png"),1180,700);Capture(paymentView,System.IO.Path.Combine(directory,"payments-small.png"),1000,600);Capture(paymentView,System.IO.Path.Combine(directory,"payments-minimum.png"),760,480);
+            AppTheme.SetDark(true);Capture(paymentView,System.IO.Path.Combine(directory,"payments-dark.png"),1180,700);paymentView.PreviewHistory();Capture(paymentView,System.IO.Path.Combine(directory,"payments-history-dark.png"),1180,700);AppTheme.SetDark(false);Capture(paymentView,System.IO.Path.Combine(directory,"payments-history.png"),1180,700);paymentView.Close();
+            var gapParty=store.CreateParty("QA fixed row positions");var gap=new WorksheetController(store);gap.Load("form",gapParty.Id);
+            for(var i=1;i<=4;i++){var item=gap.Add();item["F9"]="POSITION-"+i;item["F10"]="2026-06-01";item["F5"]="15000";item["F6"]="10000";item["F7"]="9000";}
+            gap.Save();gap.DeleteImmediately(gap.Rows[2]);var gapWindow=new MainWindow(store,database.Paths.Database);gapWindow.PreviewParty("form",gapParty.Id);Capture(gapWindow,System.IO.Path.Combine(directory,"blank-third-row.png"),1100,720);gapWindow.Close();
+
         }
         finally{System.IO.Directory.Delete(root,true);}
     }
@@ -68,7 +81,7 @@ internal static class LiveChecks
                 draft["F17"]=DateCellConverter.Normalize("17/6/2026");sheet.Save();
                 Require(draft["F19"]=="2026-09-15","Derived due remains calculated");
                 Require(store.Load("form").Rows.Count==3,"Only two entered rows and metadata persisted");
-                var window=new MainWindow(store,db.Paths.Database);window.Measure(new System.Windows.Size(1440,880));window.Arrange(new System.Windows.Rect(0,0,1440,880));window.UpdateLayout();window.CheckInteractions();window.CheckPartyInteractions();window.CheckWorkflowInteractions();window.CheckShortcutInteractions();window.Close();
+                var window=new MainWindow(store,db.Paths.Database);window.Measure(new System.Windows.Size(1440,880));window.Arrange(new System.Windows.Rect(0,0,1440,880));window.UpdateLayout();window.CheckInteractions();window.CheckPartyInteractions();window.CheckWorkflowInteractions();window.CheckShortcutInteractions();window.CheckUndoRedoInteractions();window.CheckBlankRowInteractions();window.CheckThemeInteractions();window.Close();
             }
             using var reopened=new PortableDatabase(new(root));var s=new WorkbookStore(reopened);Require(s.Load("details").Rows.Count==2,"Persistence after reopen");
         }

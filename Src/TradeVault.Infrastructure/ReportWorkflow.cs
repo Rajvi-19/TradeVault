@@ -11,20 +11,10 @@ public sealed partial class ReportWorkflow(WorkbookStore store)
 {
     private static readonly CultureInfo Culture=CultureInfo.InvariantCulture;
     public string Root=>store.Database.Paths.Root;
-    public ReportMapping? Mapping(Guid party)=>store.Document<ReportMapping>("mapping",party.ToString());
-    public decimal? RegisterDifference(Guid party,Dictionary<string,string> row)
+    public decimal? RegisterDifference(Dictionary<string,string> row)
     {
-        var mapping=Mapping(party);
-        if(mapping==null||string.IsNullOrWhiteSpace(row.GetValueOrDefault("F5"))||string.IsNullOrWhiteSpace(row.GetValueOrDefault(mapping.ContractField)))return null;
-        return Amount(row,"F5",true)-Amount(row,mapping.ContractField,true);
-    }
-    public void Configure(Guid party,ReportMapping mapping)
-    {
-        Party(party);if(party==Guid.Empty)throw new BusinessRuleException("Assign records to a named party before enabling generated reports.");
-        if(mapping.ContractField is not("F6" or "F7")||mapping.BankReceivedField is not("F22" or "F25"))throw new BusinessRuleException("Choose explicit amount sources.");
-        Money(mapping.OpeningBank);Money(mapping.OpeningDifference);
-        if(Receipts(party).Count>0&&Mapping(party)!=mapping)throw new BusinessRuleException("Mappings cannot change after receipts are recorded. Reverse/migrate them explicitly first.");
-        store.CreateBackup();store.Mutate<ReportMapping>("mapping",party.ToString(),_=>mapping);
+        if(string.IsNullOrWhiteSpace(row.GetValueOrDefault("F5"))||string.IsNullOrWhiteSpace(row.GetValueOrDefault("F7")))return null;
+        return Amount(row,"F5",true)-Amount(row,"F7",true);
     }
     private WorksheetParty Party(Guid id)=>store.GetParties().SingleOrDefault(p=>p.Id==id)??throw new BusinessRuleException("Party not found.");
     internal static decimal Money(decimal value){Usd.FromDecimal(value);return value;}
@@ -39,7 +29,7 @@ public sealed partial class ReportWorkflow(WorkbookStore store)
         if(!DateOnly.TryParseExact(text,"yyyy-MM-dd",Culture,DateTimeStyles.None,out var date))throw new BusinessRuleException($"{key}: invalid date.");return date;
     }
     public static string InvoiceKey(Guid party,Dictionary<string,string> row)=>row.GetValueOrDefault("_id")??Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(party+"|"+row.GetValueOrDefault("F9","").Trim().ToUpperInvariant())));
-    public List<Dictionary<string,string>> Invoices(Guid party)=>store.Load("form",party).Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
+    public List<Dictionary<string,string>> Invoices(Guid party)=>store.Load("form",party).Rows.Where(r=>!r.ContainsKey("_metadata")&&r.GetValueOrDefault("_blank")!="1").ToList();
     public List<PartyReceipt> Receipts(Guid party)=>store.Document<ReceiptBook>("receipts",party.ToString())?.Receipts??[];
     public void EnsureInvoiceCanDelete(Guid party,Dictionary<string,string> row)
     {
@@ -77,7 +67,7 @@ public sealed partial class ReportWorkflow(WorkbookStore store)
     }
     public PartyReceipt RecordReceipt(Guid party,DateOnly date,decimal amount,string reference,List<ReceiptSplit> splits)
     {
-        Party(party);if(Mapping(party)==null)throw new BusinessRuleException("Configure generated reports first.");
+        Party(party);
         if(Money(amount)<=0||splits.Any(s=>s.Amount<=0||s.Component is not("Bank" or "Difference"))||splits.GroupBy(s=>(s.InvoiceId,s.Component)).Any(g=>g.Count()>1))throw new BusinessRuleException("Use positive amounts and unique invoice/component allocations.");
         foreach(var split in splits)Money(split.Amount);
         if(splits.Sum(s=>s.Amount)>amount||reference.Length>200)throw new BusinessRuleException("Allocations exceed the receipt or reference is too long.");
@@ -109,13 +99,13 @@ public sealed partial class ReportWorkflow(WorkbookStore store)
     }
     public int? SettlementAwareOverdue(Guid party,Dictionary<string,string> row,DateOnly asOf)
     {
-        var mapping=Mapping(party);if(mapping==null||!row.ContainsKey("F5")||!row.ContainsKey(mapping.ContractField))return null;
+        if(string.IsNullOrWhiteSpace(row.GetValueOrDefault("F5"))||string.IsNullOrWhiteSpace(row.GetValueOrDefault("F6")))return null;
         var due=DueDates.Calculate(Date(row,"F17"),int.TryParse(row.GetValueOrDefault("_terms"),out var terms)?terms:90);if(due==null)return 0;
-        var bank=Amount(row,mapping.BankReceivedField);var diff=Amount(row,"F23");
-        var bankDate=bank==0?(DateOnly?)null:Date(row,mapping.BankReceivedField=="F25"?"F26":"F24");var diffDate=diff==0?(DateOnly?)null:Date(row,"F24");
+        var bank=Amount(row,"F25");var diff=Amount(row,"F23");
+        var bankDate=bank==0?(DateOnly?)null:Date(row,"F26");var diffDate=diff==0?(DateOnly?)null:Date(row,"F24");
         if(bank>0&&bankDate==null||diff>0&&diffDate==null)return null;
         var key=InvoiceKey(party,row);var allocated=Receipts(party).Where(r=>r.Date<=asOf).SelectMany(r=>r.Allocations.Where(a=>a.InvoiceId==key)).Sum(a=>a.Amount);
-        var outstanding=Amount(row,"F5",true)-(mapping.DeductRegisteredShipping?Amount(row,"F18",true):0)-(bankDate<=asOf?bank:0)-(diffDate<=asOf?diff:0)-allocated;
+        var outstanding=Amount(row,"F5",true)-(bankDate<=asOf?bank:0)-(diffDate<=asOf?diff:0)-allocated;
         return outstanding>0?Math.Max(0,asOf.DayNumber-due.Value.DayNumber):0;
     }
     public ReportBundle Build(Guid party,DateOnly asOf,bool generated)
@@ -146,20 +136,19 @@ public sealed partial class ReportWorkflow(WorkbookStore store)
     }
     private ReportBundle BuildGenerated(Guid party,DateOnly asOf,List<PartyReceipt> receipts,bool validationOnly)
     {
-        var mapping=Mapping(party)??throw new BusinessRuleException("Configure amount sources before generating reports.");
+        Party(party);
         var rows=Invoices(party);var duplicates=rows.GroupBy(r=>r.GetValueOrDefault("F9","").Trim(),StringComparer.OrdinalIgnoreCase).FirstOrDefault(g=>g.Key.Length==0||g.Count()>1);
         if(duplicates!=null)throw new BusinessRuleException("Register has missing or duplicate invoice numbers. Use a unique invoice/container reference.");
         var details=new List<Dictionary<string,string>>();var entries=new List<(DateOnly Date,string Key,string Text,decimal Debit,decimal Credit)>();
-        var notes=new List<string>{"Generated from saved invoice register and dated receipt allocations. Independent legacy worksheets are preserved.","Contract source: "+mapping.ContractField+"; baseline receipt source: "+mapping.BankReceivedField+". Shipping deductions "+(mapping.DeductRegisteredShipping?"explicitly approved":"excluded")+".","Historical results use current invoice values, filtered by effective dates. Corrected invoice versions are not reconstructed.","Existing cumulative receipts are treated as single baseline movements on their recorded dates; earlier payment history is not invented."};
-        decimal runningDifference=asOf>=mapping.OpeningDate?mapping.OpeningDifference:0;
-        if(asOf>=mapping.OpeningDate){var opening=mapping.OpeningBank+mapping.OpeningDifference;entries.Add((mapping.OpeningDate,"0","Opening balance",Math.Max(0,opening),Math.Max(0,-opening)));}
+        var notes=new List<string>{"Generated from saved invoice register and dated receipt allocations. Independent legacy worksheets are preserved.","Bank contract: Our customs invoice amount. Earlier bank payments: Nemichem receipts, using Nemichem receipt date. No automatic shipping deduction or opening-balance adjustment.","Historical results use current invoice values, filtered by effective dates. Corrected invoice versions are not reconstructed.","Existing cumulative receipts are treated as single baseline movements on their recorded dates; earlier payment history is not invented."};
+        decimal runningDifference=0;
         foreach(var row in rows.OrderBy(r=>r.GetValueOrDefault("F10","")).ThenBy(r=>r.GetValueOrDefault("F9",""),StringComparer.Ordinal))
         {
             var key=InvoiceKey(party,row);var invoice=row.GetValueOrDefault("F9","");var date=Date(row,"F10",true)!.Value;
-            var original=Amount(row,"F5",true);var contract=Amount(row,mapping.ContractField,true);var shipping=mapping.DeductRegisteredShipping?Amount(row,"F18",true):0;
-            if(original-contract-shipping<0)throw new BusinessRuleException(invoice+": difference after approved shipping is negative. Review the mapping.");
-            var baselineBank=Amount(row,mapping.BankReceivedField);var baselineDiff=Amount(row,"F23");
-            var bankDate=baselineBank==0?(DateOnly?)null:Date(row,mapping.BankReceivedField=="F25"?"F26":"F24",true);
+            var original=Amount(row,"F5",true);var contract=Amount(row,"F6",true);decimal shipping=0;
+            if(original-contract-shipping<0)throw new BusinessRuleException(invoice+": Our customs invoice amount exceeds the original invoice amount.");
+            var baselineBank=Amount(row,"F25");var baselineDiff=Amount(row,"F23");
+            var bankDate=baselineBank==0?(DateOnly?)null:Date(row,"F26",true);
             var diffDate=baselineDiff==0?(DateOnly?)null:Date(row,"F24",true);
             if(bankDate<date||diffDate<date)throw new BusinessRuleException(invoice+": baseline receipt predates invoice.");
             var allocations=receipts.SelectMany(r=>r.Allocations.Where(a=>a.InvoiceId==key).Select(a=>(r.Date,a.Component,a.Amount))).ToList();
@@ -190,15 +179,14 @@ public sealed partial class ReportWorkflow(WorkbookStore store)
         foreach(var receipt in receipts.Where(r=>r.Date<=asOf)){var remainder=receipt.Amount-receipt.Allocations.Sum(a=>a.Amount);if(remainder!=0)entries.Add((receipt.Date,receipt.Id+"advance","Unallocated advance / "+receipt.Reference,0,remainder));}
         var ledger=new List<Dictionary<string,string>>();decimal balance=0;
         foreach(var entry in entries.OrderBy(e=>e.Date).ThenBy(e=>e.Key,StringComparer.Ordinal)){balance+=entry.Debit-entry.Credit;ledger.Add(new(){["B"]=entry.Date.ToString("yyyy-MM-dd")+" · "+entry.Text,["C"]=F(entry.Debit),["D"]=F(entry.Credit),["E"]=F(balance),["G"]="",["H"]="",["I"]="",["J"]="",["K"]=""});}
-        if(asOf<mapping.OpeningDate)notes.Add("Opening balances are excluded before their effective date.");
         var unallocated=receipts.Where(r=>r.Date<=asOf).Sum(r=>r.Amount-r.Allocations.Sum(a=>a.Amount));notes.Add($"Unallocated advances USD {F(unallocated)} are credited in the party ledger but do not settle a specific invoice. Closing party balance USD {F(balance)}.");
-        notes.Add($"Opening bank USD {F(mapping.OpeningBank)} and opening difference USD {F(mapping.OpeningDifference)} effective {mapping.OpeningDate:yyyy-MM-dd}; opening balances are not invoice-aged.");
         var detailTable=Table("Account Details",details);detailTable.Totals["K"]=runningDifference;
-        return Bundle(party,asOf,"Generated",[detailTable,Table("Debit Credit",ledger)],notes);
+        var ledgerTable=Table("Debit Credit",ledger);ledgerTable.Totals["E"]=balance;
+        return Bundle(party,asOf,"Generated",[detailTable,ledgerTable],notes);
     }
     private ReportBundle BuildLegacy(Guid party,DateOnly asOf)
     {
-        var tables=new List<ReportTable>();foreach(var name in new[]{"details","ledger"})tables.Add(Table(name=="details"?"Account Details":"Debit Credit",store.Load(name,party).Rows.Where(r=>!r.ContainsKey("_metadata")).ToList()));
+        var tables=new List<ReportTable>();foreach(var name in new[]{"details","ledger"})tables.Add(Table(name=="details"?"Account Details":"Debit Credit",store.Load(name,party).Rows.Where(r=>!r.ContainsKey("_metadata")&&r.GetValueOrDefault("_blank")!="1").ToList()));
         return Bundle(party,asOf,"Manual snapshot",tables,["Saved independently entered worksheet values. Reporting date is a label, not a historical transaction filter. No automatic reconciliation claimed."]);
     }
     private static string F(decimal value)=>value.ToString("0.00",Culture);

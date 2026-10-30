@@ -20,7 +20,7 @@ internal static class ExcelDemoSeeder
             foreach(var lab in new[]{false,true})
             {
                 var party=store.CreateParty(lab?"[TEST] Receipt allocation practice":"[TEST] Account Details workbook sample");
-                workflow.Configure(party.Id,new("F6","F22",true,new(2026,1,1)));
+
                 var sheet=new WorksheetController(store);sheet.Load("form",party.Id);sheet.AsOf=new(2026,10,27);
                 foreach(var entry in lab?entries.Skip(6).Take(2):entries)
                 {

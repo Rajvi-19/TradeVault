@@ -1,0 +1,290 @@
+[
+  {
+    "Id": "D01",
+    "Feature": "Fresh datasets empty",
+    "Status": "PASS",
+    "Evidence": "Fresh isolated SQLite database contains no company rows."
+  },
+  {
+    "Id": "D02",
+    "Feature": "Synthetic 12-invoice save/reload",
+    "Status": "PASS",
+    "Evidence": "12 invoices with 26 source fields persisted/reloaded."
+  },
+  {
+    "Id": "D03",
+    "Feature": "Shipping default",
+    "Status": "PASS",
+    "Evidence": "All 12 invoice shipping inputs start at USD 3,800."
+  },
+  {
+    "Id": "D04",
+    "Feature": "BL \u002B terms due date",
+    "Status": "PASS",
+    "Evidence": "17-Jun-2026 \u002B 90 days = 15-Sep-2026."
+  },
+  {
+    "Id": "D05",
+    "Feature": "Reminder and as-of overdue",
+    "Status": "PASS",
+    "Evidence": "Reminder 16-Aug; overdue 41 days as of 26-Oct."
+  },
+  {
+    "Id": "D06",
+    "Feature": "Editable terms",
+    "Status": "PASS",
+    "Evidence": "Changing terms to 60 recalculates due to 16-Aug."
+  },
+  {
+    "Id": "D07",
+    "Feature": "Editable shipping persistence",
+    "Status": "PASS",
+    "Evidence": "USD 4,200 remains after reload; historical default does not overwrite."
+  },
+  {
+    "Id": "D08",
+    "Feature": "Invalid USD blocked; revision unchanged",
+    "Status": "PASS",
+    "Evidence": "Negative amount rejected without saving."
+  },
+  {
+    "Id": "D09",
+    "Feature": "Sub-cent amount blocked",
+    "Status": "PASS",
+    "Evidence": "USD precision beyond cents is rejected."
+  },
+  {
+    "Id": "D10",
+    "Feature": "Required party/invoice validation",
+    "Status": "PASS",
+    "Evidence": "Missing party blocks save and valid persisted data remains."
+  },
+  {
+    "Id": "D11",
+    "Feature": "Invalid date blocked",
+    "Status": "PASS",
+    "Evidence": "Invalid calendar day rejected."
+  },
+  {
+    "Id": "D12",
+    "Feature": "Unknown dates remain blank",
+    "Status": "PASS",
+    "Evidence": "No BL date produces no due/reminder date."
+  },
+  {
+    "Id": "D13",
+    "Feature": "Stale update rejected",
+    "Status": "PASS",
+    "Evidence": "Revision conflict rejected instead of overwriting changes."
+  },
+  {
+    "Id": "D14",
+    "Feature": "Deletion saved and reloaded",
+    "Status": "PASS",
+    "Evidence": "Delete underlying record, save and reload retains 11 records."
+  },
+  {
+    "Id": "C01",
+    "Feature": "Details formula results",
+    "Status": "PASS",
+    "Evidence": "Per row: pending bank 7,000; net difference 1,200; received difference 1,200; running pending 0."
+  },
+  {
+    "Id": "C02",
+    "Feature": "Cumulative receipt input recalculates",
+    "Status": "PASS",
+    "Evidence": "Changing manual bank-received input 3,000 to 5,000 reduces pending to 5,000. This is not receipt-allocation UI."
+  },
+  {
+    "Id": "C03",
+    "Feature": "Corrected first-row difference rule",
+    "Status": "PASS",
+    "Evidence": "First invoice follows the same net-minus-receipts rule as later invoices."
+  },
+  {
+    "Id": "C04",
+    "Feature": "Ledger debits/credits and opening",
+    "Status": "PASS",
+    "Evidence": "Opening 100 \u002B 12 \u00D7 (15,000 \u2212 3,000 \u2212 3,800) = 98,500."
+  },
+  {
+    "Id": "C05",
+    "Feature": "Source workbook field counts",
+    "Status": "PASS",
+    "Evidence": "26 invoice, 14 details, 9 ledger columns."
+  },
+  {
+    "Id": "U01",
+    "Feature": "Date normalization",
+    "Status": "PASS",
+    "Evidence": "Day-first and named month normalize to ISO."
+  },
+  {
+    "Id": "U02",
+    "Feature": "Invalid date input retained",
+    "Status": "PASS",
+    "Evidence": "Invalid date preserved so validation can explain it."
+  },
+  {
+    "Id": "U12",
+    "Feature": "Calendar date validation is immediate",
+    "Status": "PASS",
+    "Evidence": "Impossible days and month lengths are flagged immediately; real leap days and blank optional dates remain valid."
+  },
+  {
+    "Id": "U03",
+    "Feature": "Continuous blank sheet without stored blanks",
+    "Status": "PASS",
+    "Evidence": "100 spare rows available independently of stored rows."
+  },
+  {
+    "Id": "U04",
+    "Feature": "Rectangular paste",
+    "Status": "PASS",
+    "Evidence": "2\u00D72 range updates the selected input cells."
+  },
+  {
+    "Id": "U05",
+    "Feature": "Paste date normalization",
+    "Status": "PASS",
+    "Evidence": "1/2/2026 is interpreted as 1-Feb-2026."
+  },
+  {
+    "Id": "U06",
+    "Feature": "Calculated cells locked; mixed paste atomic",
+    "Status": "PASS",
+    "Evidence": "Paste spanning shipping and locked due date is rejected before any changes."
+  },
+  {
+    "Id": "U07",
+    "Feature": "Malformed paste rejected",
+    "Status": "PASS",
+    "Evidence": "Ragged range does not change cells."
+  },
+  {
+    "Id": "U08",
+    "Feature": "Find / filter and clear",
+    "Status": "PASS",
+    "Evidence": "Matching one real row then clearing restores full worksheet."
+  },
+  {
+    "Id": "U09",
+    "Feature": "Frozen identifiers and resizable columns",
+    "Status": "PASS",
+    "Evidence": "Two frozen identifiers; column resizing enabled."
+  },
+  {
+    "Id": "U10",
+    "Feature": "Typing promotes row and preserves defaults",
+    "Status": "PASS",
+    "Evidence": "A spare row becomes a record only after input."
+  },
+  {
+    "Id": "U11",
+    "Feature": "Read-only grid rejects paste",
+    "Status": "PASS",
+    "Evidence": "Read-only view refuses programmatic paste."
+  },
+  {
+    "Id": "U13",
+    "Feature": "Tab commits valid dates and skips calculated cells",
+    "Status": "PASS",
+    "Evidence": "Invalid date keeps current cell; Tab/Shift\u002BTab navigate input columns and Tab wraps to next row."
+  },
+  {
+    "Id": "U14",
+    "Feature": "Invalid pasted date is atomic",
+    "Status": "PASS",
+    "Evidence": "A range containing an impossible date is rejected before changing any input."
+  },
+  {
+    "Id": "U15",
+    "Feature": "Row header selects the entire visible record",
+    "Status": "PASS",
+    "Evidence": "Row-header handler selects every visible column of one record, including calculated cells."
+  },
+  {
+    "Id": "U16",
+    "Feature": "Cell cut clears only selected editable values",
+    "Status": "PASS",
+    "Evidence": "Ctrl\u002BX path copies before clearing; cells do not remove rows, clipboard failure is non-destructive, and formulas stay locked."
+  },
+  {
+    "Id": "U17",
+    "Feature": "Whole-record copy includes all editable dates",
+    "Status": "PASS",
+    "Evidence": "WPF clipboard bindings round-trip all seven input dates; calculated dates stay locked."
+  },
+  {
+    "Id": "U18",
+    "Feature": "Ctrl-click row selection toggles multiple records",
+    "Status": "PASS",
+    "Evidence": "Two nonadjacent rows remain selected; Ctrl toggles and plain click replaces selection."
+  },
+  {
+    "Id": "U19",
+    "Feature": "Horizontal wheel scrolls worksheet in both directions",
+    "Status": "PASS",
+    "Evidence": "Horizontal wheel deltas move the sheet right and left while retaining frozen columns."
+  },
+  {
+    "Id": "U20",
+    "Feature": "Native Windows touchpad messages reach the worksheet",
+    "Status": "PASS",
+    "Evidence": "Real HWND dispatch covers horizontal mouse/pointer wheels, shifted-wheel drivers and legacy horizontal scrolling without cached mouse-over."
+  },
+  {
+    "Id": "U21",
+    "Feature": "Deletion compacts records and renumbers visible rows",
+    "Status": "PASS",
+    "Evidence": "Deleting row 3 moves record 4 to row 3; further deletion and filtering retain consecutive numbers starting at 1."
+  },
+  {
+    "Id": "W04",
+    "Feature": "Workspace fits a 1366 by 768 desktop",
+    "Status": "PASS",
+    "Evidence": "Startup size accounts for taskbar space so caption and report navigation remain on screen."
+  },
+  {
+    "Id": "W05",
+    "Feature": "All three worksheet tabs remain visible",
+    "Status": "PASS",
+    "Evidence": "Invoice register, Account details and Debit \u0026 credit button bounds are inside the 1366 by 728 workspace."
+  },
+  {
+    "Id": "W01",
+    "Feature": "Visible caption controls on workspace",
+    "Status": "PASS",
+    "Evidence": "The workspace window have explicit minimize/maximize/close controls and resize chrome; OS click acceptance is separate."
+  },
+  {
+    "Id": "W02",
+    "Feature": "All sheet layouts stay compact",
+    "Status": "PASS",
+    "Evidence": "Worksheet component begins above 290px including the explicit 36px caption at 1000\u00D7600 content size."
+  },
+  {
+    "Id": "W03",
+    "Feature": "UI Save/reload handlers",
+    "Status": "PASS",
+    "Evidence": "Real MainWindow input \u2192 Save \u2192 reload round trip; Save disabled after success."
+  },
+  {
+    "Id": "U22",
+    "Feature": "Worksheet undo and redo preserve edits and stored records",
+    "Status": "PASS",
+    "Evidence": "Keyboard undo/redo covers formulas, pasted dates, cell cuts, deletion, redo invalidation, unrelated drafts and reload scope."
+  },
+  {
+    "Id": "C06",
+    "Feature": "Register difference is calculated and protected",
+    "Status": "PASS",
+    "Evidence": "Difference uses original minus Pakistan customs independently of the fixed F6 bank-contract source, overrides stale input, updates after edit/reload and locks F8. Both legacy ledger due columns follow BL \u002B terms."
+  },
+  {
+    "Id": "D15",
+    "Feature": "Database reopen persistence",
+    "Status": "PASS",
+    "Evidence": "12 detail rows plus metadata survive database disposal/reopen."
+  }
+]
