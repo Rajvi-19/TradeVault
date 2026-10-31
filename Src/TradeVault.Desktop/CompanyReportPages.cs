@@ -64,10 +64,12 @@ public sealed partial class MainWindow
         {
             currentCompanyReport=new CompanyReports(store).Build(reportKind,selected.Id);
             var report=currentCompanyReport;
-            var footer=new StackPanel{Margin=new(12,8,12,10)};
-            var totals=new WrapPanel();foreach(var item in report.Summary){var panel=new StackPanel{Margin=new(0,0,32,4)};panel.Children.Add(Ui.Text(item.Key,11,"#64748B"));panel.Children.Add(Ui.Text(item.Value,14,"#18243B",true));totals.Children.Add(panel);}footer.Children.Add(totals);
-            footer.Children.Add(Ui.Text("Summary covers the full selected account. Search filters table rows only.",10,"#64748B"));
-            var notes=new StackPanel();foreach(var note in report.Notes)notes.Children.Add(Ui.Text(note,11,"#64748B"));footer.Children.Add(new Expander{Header="Calculation notes and missing inputs",Content=notes,FontSize=11,Margin=new(0,6,0,0)});DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
+            if(reportKind!=CompanyReportKind.AccountDetails)
+            {
+                var footer=new WrapPanel{Margin=new(12,8,12,10)};
+                foreach(var item in report.Summary){var panel=new StackPanel{Margin=new(0,0,32,4)};panel.Children.Add(Ui.Text(item.Key,11,"#64748B"));panel.Children.Add(Ui.Text(item.Value,14,"#18243B",true));footer.Children.Add(panel);}
+                DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
+            }
             if(report.Notes.Count>0){var notice=Ui.Text(report.Notes[0],11,"#9A6700");notice.Margin=new(12,0,12,8);DockPanel.SetDock(notice,Dock.Top);root.Children.Add(notice);}
             var rows=new ObservableCollection<GridRow>(report.Table.Rows.Select(data=>{var row=new GridRow();foreach(var cell in data)row[cell.Key]=cell.Value;return row;}));
             grid=new ExcelGrid(report.Table.Columns.Select(c=>new Field(c.Key,c.Label,Width:c.Key=="A"?70:c.Type=="integer"?90:c.Type=="date"?140:c.Type=="text"?380:170,DataType:c.Type)).ToArray(),rows,true,frozenColumns:reportKind==CompanyReportKind.AgentLedger?2:1);
@@ -77,4 +79,5 @@ public sealed partial class MainWindow
         RefreshPageHeading();
     }
 }
+
 

@@ -124,7 +124,7 @@ public sealed partial class MainWindow : Window
         Check(masterActions.Visibility==Visibility.Collapsed&&!partyTools.Children.OfType<Button>().Any(),"Invoice Register must not offer party or agent creation.");
         foreach(var name in new[]{"parties","agents"})
         {
-            Navigate(name);Check(grid!=null&&grid.Table.IsReadOnly&&grid.Table.Columns.Count==2,"Master page requires a read-only two-column grid.");
+            Navigate(name);Check(grid!=null&&grid.Table.IsReadOnly&&grid.Table.Columns.Count==5,"Master page requires a read-only five-column grid.");
             CheckPageExport();Check(grid!.Table.Columns[0].Header?.ToString()==(name=="parties"?"Party Name":"Agent Name")&&grid.Table.Columns[1].Header?.ToString()=="Invoices","Master headers differ.");
             var expected=name=="parties"?store.GetPartyMaster().Select(e=>(e.Name,e.Invoices)):store.GetAgents().Select(e=>(e.Name,e.Invoices));
             Check(grid.Table.Items.Cast<GridRow>().Select(row=>(row["A"],int.Parse(row["B"]))).SequenceEqual(expected),"Master invoice counts are stale or incorrect.");
@@ -482,9 +482,9 @@ public sealed partial class MainWindow : Window
         if(master)
         {
             var rows=new System.Collections.ObjectModel.ObservableCollection<GridRow>();
-            if(name=="parties")foreach(var entry in store.GetPartyMaster()){var row=new GridRow();row["A"]=entry.Name;row["B"]=entry.Invoices.ToString(CultureInfo.InvariantCulture);rows.Add(row);}
-            else foreach(var entry in store.GetAgents()){var row=new GridRow();row["A"]=entry.Name;row["B"]=entry.Invoices.ToString(CultureInfo.InvariantCulture);rows.Add(row);}
-            grid=new ExcelGrid([new("A",name=="parties"?"Party Name":"Agent Name",Width:440),new("B","Invoices",Width:130)],rows,true);sheetArea.Children.Add(grid);
+            if(name=="parties")foreach(var entry in store.GetPartyMaster()){var row=new GridRow();row["A"]=entry.Name;row["B"]=entry.Invoices.ToString(CultureInfo.InvariantCulture);var amounts=new CompanyReports(store).MasterAmounts(name=="agents",entry.Id.ToString());row["E"]=amounts.OriginalOrPartyReceipts?.ToString("0.00",CultureInfo.InvariantCulture)??"";row["C"]=amounts.Received.ToString("0.00",CultureInfo.InvariantCulture);row["D"]=amounts.Pending?.ToString("0.00",CultureInfo.InvariantCulture)??"";rows.Add(row);}
+            else foreach(var entry in store.GetAgents()){var row=new GridRow();row["A"]=entry.Name;row["B"]=entry.Invoices.ToString(CultureInfo.InvariantCulture);var amounts=new CompanyReports(store).MasterAmounts(name=="agents",entry.Id.ToString());row["E"]=amounts.OriginalOrPartyReceipts?.ToString("0.00",CultureInfo.InvariantCulture)??"";row["C"]=amounts.Received.ToString("0.00",CultureInfo.InvariantCulture);row["D"]=amounts.Pending?.ToString("0.00",CultureInfo.InvariantCulture)??"";rows.Add(row);}
+            grid=new ExcelGrid([new("A",name=="parties"?"Party Name":"Agent Name",Width:310),new("B","Invoices",Width:90),new("E",name=="parties"?"Original invoice total / USD":"Received from parties / USD",Width:230,DataType:"number"),new("C",name=="parties"?"Paid by party to agent / USD":"Sent to company / USD",Width:230,DataType:"number"),new("D",name=="parties"?"Party still owes agent / USD":"Agent still owes company / USD",Width:230,DataType:"number")],rows,true);sheetArea.Children.Add(grid);
         }
         if(receipt)LoadTransferReceiptPage(name);
         if(name=="reports")LoadCompanyReportPage();
@@ -642,3 +642,5 @@ public sealed partial class MainWindow : Window
     }
     private sealed class ActionCommand(Action execute):ICommand{public event EventHandler? CanExecuteChanged{add{}remove{}}public bool CanExecute(object? parameter)=>true;public void Execute(object? parameter)=>execute();}
 }
+
+

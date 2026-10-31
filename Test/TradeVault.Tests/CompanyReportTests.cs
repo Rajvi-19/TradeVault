@@ -36,12 +36,25 @@ public sealed class CompanyReportTests:IDisposable
         store.AddTransferReceipt(TransferReceiptKind.Agent,agent,new(2026,7,5),2000,"Further remittance");var updated=new CompanyReports(store).Build(CompanyReportKind.AgentLedger,agent);Assert.Equal("USD -1000.00",updated.Summary["Pending with agent"]);Assert.Equal("-1000.00",updated.Table.Rows.Last()["H"]);
         Assert.Throws<BusinessRuleException>(()=>new CompanyReports(store).Build(CompanyReportKind.AgentLedger,"unknown"));
     }
+    [Fact]public void MasterAmountsFollowEachLedgerAndRetainAdvancesAndUnknownBalances()
+    {
+        var (store,party,agent)=Fixture();var reports=new CompanyReports(store);
+        Assert.Equal(new MasterLedgerAmounts(0,18000,18000),reports.MasterAmounts(false,party.ToString()));Assert.Equal(new MasterLedgerAmounts(0,0,0),reports.MasterAmounts(true,agent));
+        store.AddTransferReceipt(TransferReceiptKind.Party,party.ToString(),new(2026,7,1),20000,"Party paid with advance",agent);
+        store.AddTransferReceipt(TransferReceiptKind.Agent,agent,new(2026,7,2),15000,"Company received");
+        Assert.Equal(new MasterLedgerAmounts(20000,-2000,18000),reports.MasterAmounts(false,party.ToString()));Assert.Equal(new MasterLedgerAmounts(15000,5000,20000),reports.MasterAmounts(true,agent));
+        store.CreateRegisterInvoice(party,store.Load("form",party).Revision,new("Pakistan","Synthetic intermediary","DRAFT",new(2026,7,3),agent));
+        Assert.Null(reports.MasterAmounts(false,party.ToString()).Pending);Assert.Null(reports.MasterAmounts(false,party.ToString()).OriginalOrPartyReceipts);Assert.Equal(20000,reports.MasterAmounts(false,party.ToString()).Received);
+        var empty=store.CreateParty("Empty buyer");Assert.Equal(new MasterLedgerAmounts(0,0,0),reports.MasterAmounts(false,empty.Id.ToString()));
+    }
     [Fact]public void MissingInvoiceAmountMakesRunningBalanceUnavailable()
     {
         var (store,party,agent)=Fixture();store.CreateRegisterInvoice(party,store.Load("form",party).Revision,new("Pakistan","Synthetic intermediary","PI-DRAFT",new(2026,7,1),agent));
         var report=new CompanyReports(store).Build(CompanyReportKind.PartyLedger,party.ToString());Assert.Equal("",report.Table.Rows.Last()["E"]);Assert.Equal("Unavailable",report.Summary["Net recorded balance"]);
     }
 }
+
+
 
 
 

@@ -6,10 +6,19 @@ namespace TradeVault.Infrastructure;
 
 public enum CompanyReportKind { AccountDetails, PartyLedger, AgentLedger }
 public sealed record CompanyReport(ReportTable Table,string Subject,IReadOnlyList<string> Notes,IReadOnlyDictionary<string,string> Summary);
+public sealed record MasterLedgerAmounts(decimal Received,decimal? Pending,decimal? OriginalOrPartyReceipts);
 
 /// <summary>Read-only projections. Missing allocation/charge data is never converted to a zero receipt.</summary>
 public sealed class CompanyReports(WorkbookStore store)
 {
+    public MasterLedgerAmounts MasterAmounts(bool agent,string masterId)
+    {
+        var rows=Build(agent?CompanyReportKind.AgentLedger:CompanyReportKind.PartyLedger,masterId).Table.Rows;
+        var received=rows.Sum(r=>Number(r,agent?"G":"D")??0);
+        var pending=rows.Count==0?0m:Number(rows.Last(),agent?"H":"E");
+        decimal? total=agent?rows.Sum(r=>Number(r,"D")??0):pending.HasValue?rows.Sum(r=>Number(r,"C")??0):null;
+        return new(received,pending,total);
+    }
     private static readonly CultureInfo Culture=CultureInfo.InvariantCulture;
     private static ReportColumn C(string key,string label,string type="text")=>new(key,label,type);
     public static List<ReportColumn> Columns(CompanyReportKind kind)=>kind switch
