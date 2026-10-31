@@ -33,11 +33,17 @@ TradeVault replaces scattered export-tracking worksheets with party-specific inv
 
 The application runs locally without an application server or internet connection. Owner and Operator use separate application folders and databases. The Operator exports an Excel report; the Owner imports a frozen copy for review. Working databases are independent.
 
-**Current source build:** `UI 2026.10.31.8` · **Database schema:** `13`. Upgrades schemas 9, 11, 12 and the recognized additive schema 10 with an automatic pre-upgrade backup.
+**Current source build:** `UI 2026.10.31.10` · **Database schema:** `13`. Upgrades schemas 9, 11, 12 and the recognized additive schema 10 with an automatic pre-upgrade backup.
 
 **Reusable design reference:** [design.md](design.md) describes the general visual system without project-specific information, so it can be used for other applications. The October 30 interface opens directly into the workspace and no longer includes the earlier authentication/role/inbox screens or Report setup toolbar action; descriptions of those features below belong to the earlier functional baseline.
 
 ### Recent changes reflected in this documentation
+
+- **Receipt tab correction:** restored Party Receipt and Agent Receipt as empty placeholder tabs, in their original positions before Reports. The removed receipt-entry module remains unavailable.
+
+- **Invoice identity order:** Party name, Agent name, Invoice number, Invoice date, Country name. All five are read-only; only the first three are frozen. Invoice number/date are the existing F3/F4 proforma identity fields under clearer labels; separate India invoice fields remain.
+- **Receipt removal:** removed the Receipts button, receipt-entry window, receipt shortcut and both receipt tabs. Current tabs are Party Master, Agent Master, Invoice Register and Reports. Recorded payment history remains stored for accurate balances; this update does not erase financial history.
+- **Reminders and window layout:** Reminders is enabled for All parties and follows current party/agent/search filters. The filter row is compact and single-line. Custom window maximization now uses the current monitor work area so the footer and worksheet scrollbar remain above the taskbar.
 
 - **Current-page export:** one Export dropdown provides Export to Excel and Export to PDF. It exports only the visible rows/columns of the open page, respecting filters, search and sort. Party/Agent Masters export their own two-column tables. Empty placeholder pages have Export disabled.
 - **Invoice identity:** Party name is now the first visible, locked/frozen column, followed by the previous 20 columns. New Invoice includes a required Party Master selector and can be opened from the All parties view. The first five identity columns are locked/frozen.
@@ -636,3 +642,20 @@ Current setup flow: **Party Master → New Party**, then **Agent Master → New 
 - Moved the active page name beside TradeVault in the title bar; the lower row displays applied filters. Added small field labels and cleaner dropdown item styling. Updated Reports and title-bar Backups icons. Master/placeholder pages keep their requested contents and no longer repeat page titles below the header.
 - Added a single-page Excel package test and live checks for current-page rows/columns, filtered export scope, locked party identity, PDF column coverage, generated Excel/PDF files, export-menu choices and party-filter options. Updated prior spreadsheet/keyboard tests for the fifth locked identity field. Database schema remains 13 and no company-data migration/seeding is performed by this update.
 - Verified and installed `UI 2026.10.31.8`: normal Debug rebuild with zero warnings/errors, **69 backend tests**, live WPF checks (including choosing another party in New Invoice and generating page-scoped Excel/PDF artifacts), and **52/52 acceptance checks** passed. Reviewed synthetic screenshots of the compact register, header, master page and five-field invoice modal. Existing company records remain unchanged.
+
+### 2026-10-31 — Compact identity/filter layout, reminder scope and receipt UI removal
+
+- Reordered existing register identities to Party name (F1), Agent name (F27), Invoice number (F3), Invoice date (F4), Country name (F2). Retained data keys and all other columns; no values are moved between fields. F3/F4 are the previous proforma identity values, distinct from India invoice F9/F10. All five remain shaded/read-only/backend-protected, while freezing and non-reordering apply only to the first three. New Invoice follows the same field order.
+- Enabled Reminders in the all-party overview. Reminder results use the current visible invoice IDs, intersect party/agent/search filters, include party name and invoice identity, and retain historical payment deductions. Invalid party data produces Needs validation rows with unknown amounts rather than invented balances. The window includes a scrollable multi-party table.
+- Removed the Receipts toolbar action, customer-receipt shortcut, PaymentsWindow screen and its UI audits/screenshots. Removed Party Receipt and Agent Receipt tabs; Ctrl+1 through Ctrl+4 now follow Party Master, Agent Master, Invoice Register, Reports. Removed receipt UI entry points. Existing stored payments and backend historical compatibility/calculation paths are retained to avoid changing balances or losing financial evidence.
+- Compacted the filter strip by putting labels beside the dropdowns and reducing vertical margins. The applied-filter summary remains on the same row. The active page title remains beside TradeVault.
+- Added native WM_GETMINMAXINFO handling for custom chrome, using the current monitor's physical work area and taskbar bounds. It applies to maximize buttons, title-bar/system maximize and monitor changes without a hard-coded primary-screen height. Verified footer and horizontal-scrollbar screen coordinates with a real WPF HWND in restored, maximized and restored-again states. Normal worksheet layout remains bounded and scrollable.
+- Updated column/freeze/navigation checks and added live all-party reminder coverage. Reviewed current renderings in compact and wide layouts. Database schema remains 13; no receipt history or company records are deleted or seeded by this UI update.
+- Verified and installed `UI 2026.10.31.9`: normal Debug rebuild completed with zero warnings/errors; **69 backend tests**, live WPF checks (including native restored/maximized/restored-again footer and scrollbar visibility) and **52/52 acceptance checks** passed. Reviewed the compact single-row filters, four-tab navigation and new identity order in synthetic screenshots.
+
+### 2026-10-31 — Restore the two receipt placeholder tabs
+
+- Restored Party Receipt and Agent Receipt in the header/navigation, giving the original six-tab order: Party Master, Agent Master, Invoice Register, Party Receipt, Agent Receipt, Reports.
+- Both restored pages are empty placeholders. The removed receipt-entry screen, toolbar button and receipt-entry shortcut remain removed; no financial records or backend schema are changed.
+- Restored matching page titles, Ctrl+4/Ctrl+5 navigation and Ctrl+6 for Reports. Updated existing navigation/layout checks and screenshot coverage to include both placeholders.
+- Installed `UI 2026.10.31.10`: normal Debug rebuild completed with zero warnings/errors; 69 backend tests, live WPF navigation/layout checks and 52/52 acceptance checks passed.

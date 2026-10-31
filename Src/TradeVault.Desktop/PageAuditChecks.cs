@@ -39,26 +39,6 @@ internal static class PageAuditChecks
             foreach(var name in new[]{"form","details","ledger"}){owner.PreviewParty(name,party.Id);Capture(owner,"worksheet-"+name);}
             Modal("create-party",()=>new PartyDialog(store){Owner=owner}.ShowDialog());
             Modal("assign-party",()=>new PartyDialog(store,true){Owner=owner}.ShowDialog());
-            Modal("receipts",()=>WorkflowWindows.Receipts(owner,wf,party.Id));
-            Modal("receipt-reversal",()=>
-            {
-                owner.Dispatcher.BeginInvoke(new Action(()=>
-                {
-                    var receiptWindow=System.Windows.Application.Current.Windows.OfType<Window>().Last(w=>w.IsVisible&&w!=owner);
-                    Descendants(receiptWindow).OfType<ListBox>().First().SelectedIndex=0;
-                    try{Descendants(receiptWindow).OfType<Button>().First(b=>System.Windows.Automation.AutomationProperties.GetName(b)=="Cancel payment").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));}
-                    finally{receiptWindow.Close();}
-                }));WorkflowWindows.Receipts(owner,wf,party.Id);
-            });
-            Modal("receipt-correction",()=>
-            {
-                owner.Dispatcher.BeginInvoke(new Action(()=>
-                {
-                    var receiptWindow=System.Windows.Application.Current.Windows.OfType<Window>().Last(w=>w.IsVisible&&w!=owner);
-                    Descendants(receiptWindow).OfType<ListBox>().First().SelectedIndex=0;
-                    Descendants(receiptWindow).OfType<Button>().First(b=>System.Windows.Automation.AutomationProperties.GetName(b)=="Edit payment").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                }));WorkflowWindows.Receipts(owner,wf,party.Id);
-            });
             Modal("reminders",()=>WorkflowWindows.Reminders(owner,wf,party.Id,new(2026,10,28)));
             Modal("backups",()=>WorkflowWindows.Backups(owner,store));
             Modal("report-preview",()=>WorkflowWindows.ReportView(owner,wf.Build(party.Id,new(2026,10,28),true)).ShowDialog());

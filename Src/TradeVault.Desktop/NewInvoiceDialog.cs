@@ -27,7 +27,7 @@ internal sealed class NewInvoiceDialog:Window
         var panel=new StackPanel{Margin=new(20)};
         panel.Children.Add(Ui.Text("New Invoice",21,"#18243B",true));
         var hint=Ui.Text("Select the party and enter invoice details. These five values are fixed after creation.",12,"#64748B");hint.Margin=new(0,6,0,8);panel.Children.Add(hint);
-        foreach(var (label,editor) in new (string,FrameworkElement)[]{("Party name",partyInput),("Country name",country),("Agent name",agent),("Proforma invoice number",proforma),("Proforma invoice date",date)})
+        foreach(var (label,editor) in new (string,FrameworkElement)[]{("Party name",partyInput),("Agent name",agent),("Invoice number",proforma),("Invoice date",date),("Country name",country)})
         {
             var text=Ui.Text(label,12,"#52627A",true);text.Margin=new(0,10,0,5);panel.Children.Add(text);panel.Children.Add(editor);
             System.Windows.Automation.AutomationProperties.SetName(editor,label);

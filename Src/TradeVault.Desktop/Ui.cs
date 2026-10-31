@@ -5,7 +5,7 @@ using System.Windows.Shell;
 namespace TradeVault.Desktop;
 internal static class Ui
 {
-    public const string BuildLabel="UI 2026.10.31.8";
+    public const string BuildLabel="UI 2026.10.31.10";
     internal static Size WorkspaceSize(Rect workArea)=>new(Math.Min(1440,workArea.Width),Math.Min(880,workArea.Height));
     public static void WindowFrame(Window window,UIElement body,string title,bool embeddedControls=false)
     {
@@ -13,6 +13,7 @@ internal static class Ui
         window.WindowStyle=WindowStyle.None;
         WindowChrome.SetWindowChrome(window,new WindowChrome{CaptionHeight=embeddedControls?42:36,ResizeBorderThickness=new Thickness(6),GlassFrameThickness=new Thickness(0),CornerRadius=new CornerRadius(0),UseAeroCaptionButtons=false});
         window.ResizeMode=ResizeMode.CanResize;
+        WindowBounds.Attach(window);
         window.Title=title+" | "+BuildLabel;
         window.Icon=System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/Assets/TradeVault.ico"));
         window.ShowInTaskbar=true;

@@ -8,8 +8,8 @@ public sealed record NewRegisterInvoice(string CountryName,string AgentName,stri
 /// <summary>Stable worksheet keys keep existing records and receipt allocations compatible.</summary>
 public static class RegisterInvoiceSchema
 {
-    public static readonly string[] VisibleKeys=["F1","F2","F27","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12","F13","F14","F15","F16","F17","F19","F20","F21"];
-    public static readonly string[] IdentityKeys=["F1","F2","F27","F3","F4"];
+    public static readonly string[] VisibleKeys=["F1","F27","F3","F4","F2","F5","F6","F7","F8","F9","F10","F11","F12","F13","F14","F15","F16","F17","F19","F20","F21"];
+    public static readonly string[] IdentityKeys=["F1","F27","F3","F4","F2"];
     public static DateOnly? DueDate(IReadOnlyDictionary<string,string> row)
     {
         var custom=row.GetValueOrDefault("_dueOverride","");

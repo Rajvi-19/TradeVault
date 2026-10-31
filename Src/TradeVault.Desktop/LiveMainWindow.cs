@@ -49,6 +49,7 @@ public sealed partial class MainWindow : Window
     private bool dirty,refreshing;
     private bool calculationPending;
     private readonly Grid sheetArea=new();
+    private readonly DockPanel footer;
     private readonly List<(Key Key,ModifierKeys Modifiers,string Gesture,string Description,Action Action)> shortcuts=[];
     internal Func<string,bool>? ConfirmRecordDeletion;
 
@@ -75,15 +76,15 @@ public sealed partial class MainWindow : Window
         }
         tabs.Children.Add(new ScrollViewer{Content=navigation,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,VerticalScrollBarVisibility=ScrollBarVisibility.Disabled});DockPanel.SetDock(tabs,Dock.Top);root.Children.Add(tabs);
 
-        var footer=new DockPanel{Height=24,Margin=new(12,0,12,0)};var build=Ui.Text(Ui.BuildLabel,10,"#64748B");build.Margin=new(16,0,0,0);DockPanel.SetDock(build,Dock.Right);footer.Children.Add(build);DockPanel.SetDock(revision,Dock.Right);footer.Children.Add(revision);footer.Children.Add(status);DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
-        var heading=new DockPanel{Margin=new(12,8,12,6)};pageHeading=heading;
+        footer=new DockPanel{Height=24,Margin=new(12,0,12,0)};var build=Ui.Text(Ui.BuildLabel,10,"#64748B");build.Margin=new(16,0,0,0);DockPanel.SetDock(build,Dock.Right);footer.Children.Add(build);DockPanel.SetDock(revision,Dock.Right);footer.Children.Add(revision);footer.Children.Add(status);DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
+        var heading=new DockPanel{Margin=new(12,4,12,4)};pageHeading=heading;
         partyTools=new StackPanel{Orientation=Orientation.Horizontal};
         partySelector.SetResourceReference(StyleProperty,"FilterSelectorStyle");
         System.Windows.Controls.TextSearch.SetTextPath(partySelector,"Name");
-        var partyGroup=new StackPanel();var partyLabel=Ui.Text("PARTY",10,"#64748B",true);partyLabel.Margin=new(1,0,0,4);partyGroup.Children.Add(partyLabel);partyGroup.Children.Add(partySelector);partyTools.Children.Add(partyGroup);
+        var partyGroup=new StackPanel{Orientation=Orientation.Horizontal};var partyLabel=Ui.Text("Party",11,"#64748B",true);partyLabel.Margin=new(0,0,7,0);partyGroup.Children.Add(partyLabel);partyGroup.Children.Add(partySelector);partyTools.Children.Add(partyGroup);
         agentSelector.SetResourceReference(StyleProperty,"FilterSelectorStyle");System.Windows.Controls.TextSearch.SetTextPath(agentSelector,"Name");
         System.Windows.Automation.AutomationProperties.SetName(agentSelector,"Filter by agent");
-        agentFilterGroup.Orientation=Orientation.Vertical;var agentLabel=Ui.Text("AGENT",10,"#64748B",true);agentLabel.Margin=new(1,0,0,4);agentFilterGroup.Children.Add(agentLabel);agentFilterGroup.Children.Add(agentSelector);partyTools.Children.Add(agentFilterGroup);
+        agentFilterGroup.Orientation=Orientation.Horizontal;var agentLabel=Ui.Text("Agent",11,"#64748B",true);agentLabel.Margin=new(0,0,7,0);agentFilterGroup.Children.Add(agentLabel);agentFilterGroup.Children.Add(agentSelector);partyTools.Children.Add(agentFilterGroup);
         agentSelector.SelectionChanged+=(_,_)=>ChangeAgentFilter();
         assignButton=CompactButton("Assign worksheet",()=>Run(AssignWorksheet),"\uE8B5");
         DockPanel.SetDock(partyTools,Dock.Right);heading.Children.Add(partyTools);title.FontFamily=new("Segoe UI Variable Display, Segoe UI");title.FontSize=17;title.TextWrapping=TextWrapping.NoWrap;title.TextTrimming=TextTrimming.CharacterEllipsis;heading.Children.Add(title);DockPanel.SetDock(heading,Dock.Top);root.Children.Add(heading);
@@ -97,8 +98,7 @@ public sealed partial class MainWindow : Window
         optionBar=new Border{Background=Ui.Color("#FFFFFF"),BorderBrush=Ui.Color("#DCE3ED"),BorderThickness=new(1),Padding=new(10,5,10,5),Margin=new(10,0,10,4),Child=toolbar};DockPanel.SetDock(optionBar,Dock.Top);root.Children.Add(optionBar);
         workflows=new WrapPanel{VerticalAlignment=VerticalAlignment.Center,Margin=new(0,0,12,0)};
         newInvoiceButton=CompactButton("New Invoice",()=>Run(CreateInvoice),"\uE710");newInvoiceButton.ToolTip="Create invoice (Ctrl+N)";workflows.Children.Add(newInvoiceButton);
-        workflows.Children.Add(CompactButton("Receipts",()=>Run(()=>{RequireSaved();RequireParty();WorkflowWindows.Receipts(this,workflow,controller.PartyId);Open(controller.Name);}),"\uE8D4"));
-        workflows.Children.Add(CompactButton("Reminders",()=>Run(()=>{RequireSaved();RequireParty();Options();WorkflowWindows.Reminders(this,workflow,controller.PartyId,controller.AsOf);}),"\uE787"));
+        workflows.Children.Add(CompactButton("Reminders",()=>Run(ShowFilteredReminders),"\uE787"));
         toolbar.Children.Add(workflows);
         masterActions.Children.Add(CompactButton("New Party",()=>Run(CreateParty),"\uE710"));masterActions.Children.Add(CompactButton("New Agent",()=>Run(CreateAgent),"\uE710"));toolbar.Children.Add(masterActions);masterActions.Visibility=Visibility.Collapsed;
         notification=new Border{Background=Ui.Color("#FFF2F0"),BorderBrush=Ui.Color("#F3C8C3"),BorderThickness=new(1),Padding=new(10,6,10,6),Margin=new(10,0,10,4),Child=message,Visibility=Visibility.Collapsed};DockPanel.SetDock(notification,Dock.Top);root.Children.Add(notification);
@@ -118,7 +118,7 @@ public sealed partial class MainWindow : Window
     internal void CheckMasterPages()
     {
         void Check(bool value,string text){if(!value)throw new InvalidOperationException(text);}
-        Check(nav.Keys.SequenceEqual(new[]{"parties","agents","form","partyReceipt","agentReceipt","reports"}),"Six requested tabs must appear in order.");
+        Check(nav.Keys.SequenceEqual(new[]{"parties","agents","form","partyReceipt","agentReceipt","reports"}),"Six workspace tabs must appear in order.");
         Check(backupButton.Parent is StackPanel controls&&controls.Children.Count==4&&ReferenceEquals(controls.Children[0],backupButton)&&System.Windows.Automation.AutomationProperties.GetName((Button)controls.Children[1])=="Minimize"&&System.Windows.Shell.WindowChrome.GetIsHitTestVisibleInChrome(backupButton),"Backups must be clickable immediately to the left of Minimize.");
         Open("form");Check(title.ToolTip==null&&!ToolTipService.GetIsEnabled(nav["form"]),"Invoice Register must not display a hover tooltip.");
         Check(masterActions.Visibility==Visibility.Collapsed&&!partyTools.Children.OfType<Button>().Any(),"Invoice Register must not offer party or agent creation.");
@@ -144,6 +144,10 @@ public sealed partial class MainWindow : Window
         store.CreateRegisterInvoice(first.Id,0,new("India",agentA.Name,"FILTER-ONE-A",new(2026,5,1),agentA.Id));
         store.CreateRegisterInvoice(first.Id,1,new("India",agentB.Name,"FILTER-ONE-B",new(2026,5,1),agentB.Id));
         store.CreateRegisterInvoice(second.Id,0,new("India",agentA.Name,"FILTER-TWO-A",new(2026,5,1),agentA.Id));
+        foreach(var party in new[]{first,second})
+        {
+            var snapshot=store.Load("form",party.Id);foreach(var row in snapshot.Rows){row["F9"]=row["F3"];row["F10"]="2026-06-01";row["F5"]="15000";row["F6"]="10000";row["F7"]="9000";row["F17"]="2026-06-17";}store.Save("form",snapshot.Revision,snapshot.Rows,party.Id);
+        }
         void Agent(string id)=>agentSelector.SelectedItem=agentSelector.Items.Cast<AgentMasterEntry>().Single(agent=>agent.Id==id);
         PreviewParty("form",first.Id);Agent(agentA.Id);
         CheckPageExport();Check(grid!.Table.Items.Count==1&&controller.Records.Count()==2&&!dirty,"Party and agent filters must intersect without changing records.");
@@ -156,6 +160,7 @@ public sealed partial class MainWindow : Window
         Check(grid!.Table.Items.Count==0,"Party/agent combination with no matches must be empty.");Agent("");Check(grid.Table.Items.Count==1,"All agents must restore this party's invoices.");
         partySelector.SelectedItem=partySelector.Items.Cast<WorksheetParty>().Single(party=>party.Id==AllPartiesId);Agent(agentA.Id);
         Check(allPartiesView&&grid!.Table.IsReadOnly&&grid.Table.Items.Count==2,"Agent-only filter must include matching invoices across parties.");
+        if(CurrentReminders().Count!=2||workflows.Children.OfType<Button>().Any(button=>!button.IsEnabled))throw new InvalidOperationException("All-party reminders must remain enabled and include matching invoices across parties.");
         ReloadSaved();Check(allPartiesView&&grid!.Table.Items.Count==2&&selectedAgentId==agentA.Id,"Reload must retain the all-party and agent filters.");
         partySelector.SelectedItem=partySelector.Items.Cast<WorksheetParty>().Single(party=>party.Id==first.Id);
         Check(!allPartiesView&&!grid!.Table.IsReadOnly&&grid.Table.Items.Count==1,"Selecting a party must restore editable intersected results.");
@@ -196,7 +201,6 @@ public sealed partial class MainWindow : Window
         AddKey(Key.D6,ModifierKeys.Control,"Ctrl+6","Open Reports",()=>Navigate("reports"));
         AddKey(Key.E,ModifierKeys.Control,"Ctrl+E","Export current page to Excel",ExportReports);
         AddKey(Key.P,ModifierKeys.Control,"Ctrl+P","Export current page to PDF",()=>ExportCurrentPage(true));
-        AddKey(Key.R,ModifierKeys.Control|ModifierKeys.Shift,"Ctrl+Shift+R","Open customer receipts",()=>{RequireSaved();RequireParty();WorkflowWindows.Receipts(this,workflow,controller.PartyId);Open(controller.Name);});
         AddKey(Key.F1,ModifierKeys.None,"F1","Show keyboard shortcuts",ShowShortcuts);
     }
     internal bool TryShortcut(Key key,ModifierKeys modifiers)
@@ -279,11 +283,11 @@ public sealed partial class MainWindow : Window
         openingGroup.Visibility=Visibility.Collapsed;termsGroup.Visibility=Visibility.Collapsed;newInvoiceButton.Visibility=name=="form"?Visibility.Visible:Visibility.Collapsed;
         generatedView=nextGenerated;
         if(generatedView){grid=WorkflowWindows.ReportGrid(nextReport!.Tables[name=="details"?0:1]);title.Text+=" · generated";}
-        else grid=new ExcelGrid(controller.Fields.ToArray(),controller.Rows,promote:name=="form"?null:row=>{controller.Add(row);Watch(row);MarkDirty();UpdateRecords();},frozenColumns:name=="form"?5:2);
+        else grid=new ExcelGrid(controller.Fields.ToArray(),controller.Rows,promote:name=="form"?null:row=>{controller.Add(row);Watch(row);MarkDirty();UpdateRecords();},frozenColumns:name=="form"?3:2);
         if(name=="form")
         {
             grid.CanEditRecord=row=>row["_blank"]!="1";
-            foreach(var column in grid.Table.Columns.Take(5))column.CanUserReorder=false;
+            foreach(var column in grid.Table.Columns.Take(3))column.CanUserReorder=false;
             grid.Table.BeginningEdit+=(_,e)=>{if(e.Row.Item is GridRow row&&row["_blank"]=="1")e.Cancel=true;};
         }
         grid.Table.RowHeight=28;grid.BeforeChange+=CaptureHistory;grid.Edited+=Calculate;
@@ -393,7 +397,6 @@ public sealed partial class MainWindow : Window
         if(((GridRow)grid!.Table.Items[0])["C"]!="16000.00")throw new InvalidOperationException("Invoice edits did not save when opening Account details.");
         Navigate("ledger");if(grid!.Table.Items.Cast<GridRow>().Last()["E"]!="16000.00")throw new InvalidOperationException("Invoice edit did not reach debit/credit.");
         Navigate("form");controller.Rows[0]["F5"]="15000";Navigate("details");
-        var payments=new PaymentsWindow(this,workflow,party.Id);payments.CheckForAcceptance();payments.Close();
         workflow.RecordReceipt(party.Id,new(2026,7,1),5000,"UI workflow test",[new(ReportWorkflow.InvoiceKey(party.Id,row.Snapshot()),"Bank",5000)]);
         PreviewParty("details",party.Id);if(((GridRow)grid.Table.Items[0])["F"]!="5000.00")throw new InvalidOperationException("Generated UI did not reflect dated receipt.");
         PreviewParty("form",party.Id);var future=controller.Add();Watch(future);future["F9"]="WF-FUTURE";future["F10"]="2026-11-20";future["F5"]="15000";future["F6"]="10000";Save();
@@ -447,10 +450,10 @@ public sealed partial class MainWindow : Window
             foreach(var row in sheet.Records)rows.Add(row);
         }
         activePage="form";allPartiesView=true;generatedView=true;dirty=false;
-        partyTools.Visibility=Visibility.Visible;agentFilterGroup.Visibility=Visibility.Visible;optionBar.Visibility=Visibility.Visible;workflows.Visibility=Visibility.Visible;workflows.IsEnabled=true;foreach(UIElement action in workflows.Children)action.IsEnabled=ReferenceEquals(action,newInvoiceButton);options.Visibility=Visibility.Collapsed;masterActions.Visibility=Visibility.Collapsed;
+        partyTools.Visibility=Visibility.Visible;agentFilterGroup.Visibility=Visibility.Visible;optionBar.Visibility=Visibility.Visible;workflows.Visibility=Visibility.Visible;workflows.IsEnabled=true;foreach(UIElement action in workflows.Children)action.IsEnabled=true;options.Visibility=Visibility.Collapsed;masterActions.Visibility=Visibility.Collapsed;
         title.Text="Invoice register · All parties";title.ToolTip=null;partySelector.ToolTip=null;
         foreach(var item in nav){item.Value.Background=Ui.Color(item.Key=="form"?"#E8EFFD":"#FFFFFF");item.Value.Foreground=Ui.Color(item.Key=="form"?"#2458D3":"#52627A");}
-        grid=new ExcelGrid(ExcelFields.For("form").ToArray(),rows,true,frozenColumns:5);grid.Table.RowHeight=28;foreach(var column in grid.Table.Columns.Take(5))column.CanUserReorder=false;
+        grid=new ExcelGrid(ExcelFields.For("form").ToArray(),rows,true,frozenColumns:3);grid.Table.RowHeight=28;foreach(var column in grid.Table.Columns.Take(3))column.CanUserReorder=false;
         sheetArea.Children.Clear();sheetArea.Children.Add(grid);RefreshAgents();ApplyAgentFilter();notification.Visibility=Visibility.Collapsed;SetSaveState(false);status.Text="All parties · select a specific party to edit invoices or use invoice actions";revision.Text="Local storage";RefreshPageHeading();
     }
     private void CreateParty()
@@ -506,7 +509,7 @@ public sealed partial class MainWindow : Window
     internal void CheckShortcutInteractions()
     {
         var party=store.CreateParty("Shortcut UI TEST");PreviewParty("form",party.Id);
-        if(shortcuts.Count!=20||shortcuts.Select(s=>(s.Key,s.Modifiers)).Distinct().Count()!=shortcuts.Count)throw new InvalidOperationException("Shortcut registration is missing or duplicated.");
+        if(shortcuts.Count!=19||shortcuts.Select(s=>(s.Key,s.Modifiers)).Distinct().Count()!=shortcuts.Count)throw new InvalidOperationException("Shortcut registration is missing or duplicated.");
         if(!store.GetAgents().Any(a=>a.Name=="TEST agent"))store.CreateAgent("TEST agent");NewInvoiceInput=()=>new("TEST country","TEST agent","TEST PI-"+Guid.NewGuid(),new(2026,5,1));TryShortcut(Key.N,ModifierKeys.Control);var row=controller.Records.ToList().Last();row["F9"]="SHORTCUT-TEST";row["F10"]="2026-06-01";row["F5"]="1000";row["F6"]="800";TryShortcut(Key.S,ModifierKeys.Control);
         if(dirty||saveButton.IsEnabled||System.Windows.Automation.AutomationProperties.GetName(saveButton)!="All changes saved")throw new InvalidOperationException("Ctrl+S did not save and update button state.");
         int cellConfirmations=0;ConfirmRecordDeletion=_=>{cellConfirmations++;return false;};grid!.Table.SelectedCells.Clear();grid.Table.CurrentCell=new(row,grid.Table.Columns.Single(c=>c.SortMemberPath=="[F11]"));grid.Table.SelectedCells.Add(grid.Table.CurrentCell);row["F11"]="CLEAR ME";TryShortcut(Key.Delete,ModifierKeys.None);

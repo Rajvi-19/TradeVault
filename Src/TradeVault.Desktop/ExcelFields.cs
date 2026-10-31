@@ -5,10 +5,10 @@ public static class ExcelFields
  {
  "form" => [
 new("F1","Party name",false,150,Locked:true),
-new("F2","Country name",false,115,Locked:true),
 new("F27","Agent name",false,155,Locked:true),
-new("F3","Proforma invoice number",false,155,Locked:true),
-new("F4","Proforma invoice date",false,135,Locked:true),
+new("F3","Invoice number",false,155,Locked:true),
+new("F4","Invoice date",false,135,Locked:true),
+new("F2","Country name",false,115,Locked:true),
 new("F5","Original amount ($)",false,240),
 new("F6","Our customs invoice amount ($)",false,240),
 new("F7","Pakistan customs invoice amount ($)",false,240),

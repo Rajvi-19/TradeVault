@@ -85,7 +85,7 @@ public sealed partial class MainWindow
         var report=BuildPageExport();Check(report.Tables.Count==1&&report.Tables[0].Name==PageName(activePage)&&report.Tables[0].Rows.Count==grid!.Table.Items.Cast<GridRow>().Count(row=>row["_blank"]!="1"),"Page export must contain only currently visible rows.");
         if(activePage=="form")
         {
-            Check(report.Tables[0].Columns.Count==21&&report.Tables[0].Columns[0].Key=="F1"&&grid!.Table.FrozenColumnCount==5,"Party must be the first frozen export/register column.");
+            Check(report.Tables[0].Columns.Count==21&&report.Tables[0].Columns[0].Key=="F1"&&grid!.Table.FrozenColumnCount==3,"Party must be the first frozen export/register column.");
             var bands=PdfPageBands(report);Check(bands.Tables.All(table=>table.Columns.Count<=7)&&bands.Tables.SelectMany(table=>table.Columns).Select(column=>column.Key).Distinct().Count()==21,"PDF column groups must retain every register column.");
             var evidence=Path.Combine(AppContext.BaseDirectory,"TestEvidence");Directory.CreateDirectory(evidence);var excel=Path.Combine(evidence,"Invoice Register - Current Page.xlsx");var pdf=Path.Combine(evidence,"Invoice Register - Current Page.pdf");SavePageExcel(report,excel);ReportPdf.Save(bands,pdf);Check(File.Exists(excel)&&File.ReadAllText(pdf).StartsWith("%PDF-1.4"),"Both page export formats must produce valid files.");
         }

@@ -67,7 +67,6 @@ internal static class WorkflowWindows
         if(picker.ShowDialog(owner)!=true)return;ReportPdf.Save(report,picker.FileName);
         try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(picker.FileName){UseShellExecute=true});}catch(Exception){MessageBox.Show(owner,"PDF saved:\n"+picker.FileName);}
     }
-    internal static void Receipts(Window owner,ReportWorkflow service,Guid party) { new PaymentsWindow(owner,service,party).ShowDialog(); }
     internal static void Backups(Window owner,WorkbookStore store)
     {
         var (window,form)=Form(owner,"Backup and recovery",760,500);
@@ -82,12 +81,16 @@ internal static class WorkflowWindows
     }
     internal static void Reminders(Window owner,ReportWorkflow service,Guid party,DateOnly asOf)
     {
-        var (window,form)=Form(owner,"Unpaid invoices and payment reminders",900,550);
         var name=service.Build(party,asOf,true).PartyName;
-        var items=service.Reminders(party,asOf).Select(r=>new {Party=name,r.Invoice,r.Due,r.Outstanding,r.OverdueDays,r.Status}).ToList();var table=new DataGrid{ItemsSource=items,AutoGenerateColumns=false,IsReadOnly=true,CanUserDeleteRows=false,CanUserAddRows=false,Height=350};
+        Reminders(owner,service.Reminders(party,asOf).Select(r=>new InvoiceReminder(name,r.Invoice,r.Due,r.Outstanding,r.OverdueDays,r.Status)).ToList(),asOf);
+    }
+    internal static void Reminders(Window owner,IReadOnlyList<InvoiceReminder> items,DateOnly asOf)
+    {
+        var (window,form)=Form(owner,"Invoice reminders",1050,550);
+        var table=new DataGrid{ItemsSource=items,AutoGenerateColumns=false,IsReadOnly=true,CanUserDeleteRows=false,CanUserAddRows=false,Height=350};
         foreach(var (label,path,width,format) in new[]{("Party","Party",220,""),("Invoice","Invoice",190,""),("Due date","Due",110,"{0:dd-MM-yyyy}"),("Outstanding / USD","Outstanding",145,"{0:N2}"),("Overdue days","OverdueDays",110,""),("Status","Status",150,"")})
             table.Columns.Add(new DataGridTextColumn{Header=label,Width=width,Binding=new System.Windows.Data.Binding(path){StringFormat=format,ConverterCulture=CultureInfo.InvariantCulture}});
         form.Children.Add(Ui.Text($"Reporting cutoff: {asOf:dd-MM-yyyy} · All amounts USD",12,"#52627A"));form.Children.Add(table);
-        form.Children.Add(Ui.Text("Includes settled, BL-pending, due-soon and overdue invoices. Unallocated advances do not settle a specific invoice.",12,"#64748B"));window.ShowDialog();
+        form.Children.Add(Ui.Text("Uses the current party, agent and search filters. Includes settled, BL-pending, due-soon and overdue invoices; records needing validation show no estimated balance.",12,"#64748B"));window.ShowDialog();
     }
 }

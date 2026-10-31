@@ -36,8 +36,8 @@ internal static class InvoiceRegisterChecks
         var controller=new WorksheetController(store);controller.Load("form",party.Id);var row=controller.Rows.Single();
         var fields=controller.Fields.ToArray();
         Check(fields.Select(f=>f.Key).SequenceEqual(RegisterInvoiceSchema.VisibleKeys),"Register columns are in the requested 21-column order.");
-        var grid=new ExcelGrid(fields,controller.Rows,frozenColumns:5);
-        Check(grid.Table.Columns.Count==21&&grid.Table.FrozenColumnCount==5&&grid.Table.Columns.Take(5).All(c=>c.IsReadOnly),"First five identity columns must be locked and frozen.");
+        var grid=new ExcelGrid(fields,controller.Rows,frozenColumns:3);
+        Check(grid.Table.Columns.Count==21&&grid.Table.FrozenColumnCount==3&&grid.Table.Columns.Take(5).All(c=>c.IsReadOnly),"All five identity columns are locked; only the first three are frozen.");
         Check(grid.Table.Columns.Take(5).All(c=>c.HeaderStyle!=null&&c.CellStyle.Setters.OfType<System.Windows.Setter>().Any(setter=>setter.Property==Control.BackgroundProperty)),"Locked identity columns must have distinct header and cell backgrounds.");
         Check(!grid.Table.Columns[18].IsReadOnly&&grid.Table.Columns[19].IsReadOnly&&grid.Table.Columns[20].IsReadOnly,"Due date is editable; reminder and overdue are calculated.");
         grid.Table.CurrentCell=new(row,grid.Table.Columns[0]);Check(!grid.Paste("Changed country"),"Pasting into identity must be rejected.");
