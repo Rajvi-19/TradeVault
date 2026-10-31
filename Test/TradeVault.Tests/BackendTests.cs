@@ -118,20 +118,7 @@ public sealed class BackendTests : IDisposable
         Assert.Throws<BusinessRuleException>(() => service.UpdateInvoice(Change(current, contract: Money(400))));
     }
 
-    [Fact]
-    public void BackupCanBeReopenedAndSecondInstanceIsBlocked()
-    {
-        var party = Party();
-        Invoice(party);
-        Assert.Throws<IOException>(() => new PortableDatabase(new(root)));
-        var backup = database.CreateBackup();
-        var restoreRoot = Path.Combine(root, "Restore");
-        var restorePaths = new PortablePaths(restoreRoot);
-        Directory.CreateDirectory(restorePaths.Data);
-        File.Copy(backup, restorePaths.Database);
-        using var restored = new PortableDatabase(restorePaths);
-        Assert.Single(new TradeVaultService(restored).GetInvoices(party.Id));
-    }
+    
 
     [Fact]
     public void InvalidPrecisionDatesAndNegativeValuesAreRejected()

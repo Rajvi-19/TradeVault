@@ -40,7 +40,6 @@ internal static class PageAuditChecks
             Modal("create-party",()=>new PartyDialog(store){Owner=owner}.ShowDialog());
             Modal("assign-party",()=>new PartyDialog(store,true){Owner=owner}.ShowDialog());
             Modal("reminders",()=>WorkflowWindows.Reminders(owner,wf,party.Id,new(2026,10,28)));
-            Modal("backups",()=>WorkflowWindows.Backups(owner,store));
             Modal("report-preview",()=>WorkflowWindows.ReportView(owner,wf.Build(party.Id,new(2026,10,28),true)).ShowDialog());
             ReportPdf.Save(wf.Build(party.Id,new(2026,10,28),true),Path.Combine(output,"full-width-reports.pdf"));
             File.WriteAllText(Path.Combine(output,"page-audit.txt"),"PASS: page construction, modal open/close and screenshot rendering; synthetic data only. OS file dialogs, physical printing and real USB ejection require manual acceptance.");

@@ -26,6 +26,7 @@ public sealed partial class MainWindow
     }
     private void RefreshPageHeading()
     {
+        if(sheetArea.Parent is Border frame){frame.BorderThickness=new Thickness(activePage=="reports"?0:1);frame.Background=Ui.Color(activePage=="reports"?"#F4F6FA":"#FFFFFF");}
         pageTitle.Text=activePage=="reports"?"Reports / "+CurrentReportName:PageName(activePage);
         var party=(partySelector.SelectedItem as WorksheetParty)?.Name??"All parties";
         var agent=(agentSelector.SelectedItem as AgentMasterEntry)?.Name??"All agents";
@@ -41,17 +42,7 @@ public sealed partial class MainWindow
     }
     internal static ReportBundle PdfPageBands(ReportBundle report)
     {
-        var tables=new List<ReportTable>();
-        foreach(var table in report.Tables)
-        {
-            if(table.Columns.Count<=8){tables.Add(table);continue;}
-            var repeated=table.Columns.Where(column=>column.Key is "F1" or "F3" or "F9" || (table.Name is "Account Details" or "Party Ledger" && column.Key=="B")).ToList();var remaining=table.Columns.Except(repeated).ToList();var band=0;
-            foreach(var chunk in remaining.Chunk(7-repeated.Count))
-            {
-                var columns=repeated.Concat(chunk).ToList();tables.Add(new(table.Name+" - Part "+(++band),columns,table.Rows.Select(row=>columns.ToDictionary(column=>column.Key,column=>row.GetValueOrDefault(column.Key,""))).ToList(),new()));
-            }
-        }
-        return report with{Tables=tables};
+        return report;
     }
     private void ExportCurrentPage(bool pdf)
     {
@@ -86,7 +77,7 @@ public sealed partial class MainWindow
         if(activePage=="form")
         {
             Check(report.Tables[0].Columns.Count==21&&report.Tables[0].Columns[0].Key=="F1"&&grid!.Table.FrozenColumnCount==3,"Party must be the first frozen export/register column.");
-            var bands=PdfPageBands(report);Check(bands.Tables.All(table=>table.Columns.Count<=7)&&bands.Tables.SelectMany(table=>table.Columns).Select(column=>column.Key).Distinct().Count()==21,"PDF column groups must retain every register column.");
+            var bands=PdfPageBands(report);Check(bands.Tables.Count==1&&bands.Tables[0].Columns.Count==21,"PDF must retain every register column together on one wide page.");
             var evidence=Path.Combine(AppContext.BaseDirectory,"TestEvidence");Directory.CreateDirectory(evidence);var excel=Path.Combine(evidence,"Invoice Register - Current Page.xlsx");var pdf=Path.Combine(evidence,"Invoice Register - Current Page.pdf");SavePageExcel(report,excel);ReportPdf.Save(bands,pdf);Check(File.Exists(excel)&&File.ReadAllText(pdf).StartsWith("%PDF-1.4"),"Both page export formats must produce valid files.");
         }
     }

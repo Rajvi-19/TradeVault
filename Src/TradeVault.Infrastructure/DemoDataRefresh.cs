@@ -6,7 +6,7 @@ using TradeVault.Domain;
 
 namespace TradeVault.Infrastructure;
 
-public sealed record DemoRefreshResult(int RemovedParties,int RemovedAgents,int RemovedInvoices,string Backup);
+public sealed record DemoRefreshResult(int RemovedParties,int RemovedAgents,int RemovedInvoices);
 
 public sealed partial class WorkbookStore
 {
@@ -17,7 +17,7 @@ public sealed partial class WorkbookStore
     private static bool DemoRow(Dictionary<string,string> row)=>new[]{"F1","F3","F9","B"}.Any(k=>DemoMarked(row.GetValueOrDefault(k)));
     public DemoRefreshResult RefreshDemoData(DateOnly today,bool replaceAll=false)
     {
-        var backup=database.CreateBackup();var root=Path.TrimEndingDirectorySeparator(Path.GetFullPath(database.Paths.Root));var stage=Path.Combine(root,".demo-refresh-"+Guid.NewGuid().ToString("N"));
+        var root=Path.TrimEndingDirectorySeparator(Path.GetFullPath(database.Paths.Root));var stage=Path.Combine(root,".demo-refresh-"+Guid.NewGuid().ToString("N"));
         try
         {
             using(var staged=new PortableDatabase(new(stage)))BuildFreshDemo(new(staged),today);
@@ -79,7 +79,7 @@ public sealed partial class WorkbookStore
             }
             var info=JsonSerializer.Serialize(new{ReplaceAll=replaceAll,RemovedParties=parties.Count+allParties,RemovedAgents=agents.Count+allAgents,RemovedInvoices=removedInvoices+allInvoices,AddedInvoices=9,AddedPartyReceipts=4,AddedAgentReceipts=3});
             Execute("INSERT INTO workflow_audit VALUES($id,'Local workspace','DemoDataRefreshed','demo-dataset',NULL,$info,$time)",("$id",Guid.NewGuid().ToString()),("$info",info),("$time",DateTimeOffset.UtcNow.ToString("O")));
-            command.Parameters.Clear();command.CommandText="PRAGMA foreign_key_check";using(var reader=command.ExecuteReader())if(reader.Read())throw new BusinessRuleException("Relationship validation failed. No changes were committed.");transaction.Commit();return new(parties.Count+allParties,agents.Count+allAgents,removedInvoices+allInvoices,backup);
+            command.Parameters.Clear();command.CommandText="PRAGMA foreign_key_check";using(var reader=command.ExecuteReader())if(reader.Read())throw new BusinessRuleException("Relationship validation failed. No changes were committed.");transaction.Commit();return new(parties.Count+allParties,agents.Count+allAgents,removedInvoices+allInvoices);
         }
         finally
         {

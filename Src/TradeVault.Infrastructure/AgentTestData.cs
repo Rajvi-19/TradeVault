@@ -3,14 +3,14 @@ using Microsoft.Data.Sqlite;
 
 namespace TradeVault.Infrastructure;
 
-public sealed record AgentTestDataResult(int AgentsCreated,int InvoicesAssigned,string Backup);
+public sealed record AgentTestDataResult(int AgentsCreated,int InvoicesAssigned);
 
 public sealed partial class WorkbookStore
 {
     /// <summary>Explicit test-data maintenance; never runs during normal startup or invoice Save.</summary>
     public AgentTestDataResult SeedAgentTestData()
     {
-        var backup=database.CreateBackup();
+        
         using var connection=database.Open();using var transaction=connection.BeginTransaction();using var command=connection.CreateCommand();command.Transaction=transaction;
         var agents=new List<(string Id,string Name)>();var created=0;
         foreach(var name in new[]{"[TEST] Meridian Trading Malaysia","[TEST] Pacific Colour Logistics","[TEST] Straits Export Partners"})
@@ -37,6 +37,6 @@ public sealed partial class WorkbookStore
             Log(connection,transaction,sheet.Party,"TestAgentsAssignedToBlankInvoices:Local workspace");
             command.Parameters.Clear();command.CommandText="INSERT INTO workflow_audit VALUES($id,'Local workspace','TestAgentsAssigned',$entity,$before,$after,$time)";command.Parameters.AddWithValue("$id",Guid.NewGuid().ToString());command.Parameters.AddWithValue("$entity",sheet.Party+":form");command.Parameters.AddWithValue("$before",sheet.Data);command.Parameters.AddWithValue("$after",after);command.Parameters.AddWithValue("$time",DateTimeOffset.UtcNow.ToString("O"));command.ExecuteNonQuery();
         }
-        transaction.Commit();return new(created,assigned,backup);
+        transaction.Commit();return new(created,assigned);
     }
 }

@@ -8,7 +8,7 @@ internal static class AgentWorkflowSeeder
 {
     internal static void Run(WorkbookStore store,PortableDatabase database)
     {
-        var backup=database.CreateBackup();var invoices=0;var receipts=0;
+        var invoices=0;var receipts=0;
         var samples=new[]{
             (Agent:"[TEST] Meridian Trading Malaysia",Buyer:"[TEST] Karachi Textile Colours",Country:"Pakistan",Original:18000m,Customs:12000m),
             (Agent:"[TEST] Pacific Colour Logistics",Buyer:"[TEST] Lahore Fabric Processors",Country:"Pakistan",Original:24000m,Customs:16000m),
@@ -35,7 +35,7 @@ internal static class AgentWorkflowSeeder
             if(!store.GetTransferReceipts(TransferReceiptKind.Agent).Any(r=>r.MasterId==agent.Id&&r.Description==agentNote))
             {store.AddTransferReceipt(TransferReceiptKind.Agent,agent.Id,new(2026,10,25),sample.Customs-2000,agentNote);receipts++;}
         }
-        Console.WriteLine($"Agent workflow samples: {invoices} invoices, {receipts} receipts added. Backup: {backup}");
+        Console.WriteLine($"Agent workflow samples: {invoices} invoices, {receipts} receipts added.");
     }
     internal static void Check(WorkbookStore store,PortableDatabase database)
     {

@@ -49,7 +49,7 @@ public sealed partial class WorkbookStore
         var records=snapshot.Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
         var target=name=="form"?records.SingleOrDefault(r=>ReportWorkflow.InvoiceKey(party,r)==invoiceId):records.ElementAtOrDefault(rowIndex);
         if(target==null||target.GetValueOrDefault("_blank")=="1")return snapshot.Revision; // Unsaved draft: there is no stored record to delete.
-        snapshot.Rows[snapshot.Rows.IndexOf(target)]=new(){{"_blank","1"}};return Save(name,snapshot.Revision,snapshot.Rows,party);
+        snapshot.Rows.Remove(target);return Save(name,snapshot.Revision,snapshot.Rows,party);
     }
     public int RestoreWorksheetRecord(string name,Guid party,int expectedRevision,int rowIndex,Dictionary<string,string> record)
     {
@@ -78,22 +78,5 @@ public sealed partial class WorkbookStore
         cmd.Parameters.Clear();cmd.CommandText="INSERT INTO workflow_audit VALUES($id,$actor,$action,$entity,$before,$after,$time)";
         cmd.Parameters.AddWithValue("$id",Guid.NewGuid().ToString());cmd.Parameters.AddWithValue("$actor","Local workspace");cmd.Parameters.AddWithValue("$action",kind);cmd.Parameters.AddWithValue("$entity",id);cmd.Parameters.AddWithValue("$before",(object?)before??DBNull.Value);cmd.Parameters.AddWithValue("$after",after);cmd.Parameters.AddWithValue("$time",DateTimeOffset.UtcNow.ToString("O"));cmd.ExecuteNonQuery();t.Commit();return next;
     }
-    public string CreateBackup(){return database.CreateBackup();}
-    public IReadOnlyList<string> Backups(){return Directory.GetFiles(database.Paths.Backups,"*.db").OrderDescending().ToArray();}
-    public void RestoreBackup(string path)
-    {
-        var full=Path.GetFullPath(path);var parent=Path.GetFullPath(database.Paths.Backups)+Path.DirectorySeparatorChar;
-        if(!full.StartsWith(parent,StringComparison.OrdinalIgnoreCase)||!File.Exists(full))throw new BusinessRuleException("Choose a backup from this application's Backups folder.");
-        using(var source=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=full,Mode=SqliteOpenMode.ReadOnly,Pooling=false}.ToString()))
-        {
-            source.Open();using var cmd=source.CreateCommand();cmd.CommandText="PRAGMA integrity_check";if(!Equals(cmd.ExecuteScalar(),"ok"))throw new BusinessRuleException("Backup integrity check failed.");
-            cmd.CommandText="SELECT MAX(version) FROM schema_migrations";var version=Convert.ToInt32(cmd.ExecuteScalar());if(version is <2 or >13||version==10&&!PortableDatabase.IsCompatibleRevertedSchema(source))throw new BusinessRuleException("Backup version is not supported by this application.");
-            cmd.CommandText="SELECT name FROM sqlite_master WHERE type='table'";var tables=new HashSet<string>();using(var reader=cmd.ExecuteReader())while(reader.Read())tables.Add(reader.GetString(0));
-            var required=new List<string>{"schema_migrations","app_instance","worksheets","audit_events","parties","invoices","receipts","receipt_allocations"};if(version>=3)required.AddRange(["worksheet_parties","party_worksheets"]);if(version>=4)required.AddRange(["workflow_documents","workflow_audit"]);
-            if(version>=13)required.Add("worksheet_agents");
-            if(required.Any(name=>!tables.Contains(name)))throw new BusinessRuleException("Backup schema is incomplete.");
-            cmd.CommandText="PRAGMA foreign_key_check";using(var reader=cmd.ExecuteReader())if(reader.Read())throw new BusinessRuleException("Backup contains broken relationships.");
-        }
-        database.RestoreVerified(full);
-    }
+
 }

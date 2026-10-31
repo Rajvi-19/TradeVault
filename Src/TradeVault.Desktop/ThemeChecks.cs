@@ -29,6 +29,9 @@ internal static class ThemeChecks
                 AppTheme.SetDark(dark);Flush();
                 foreach(var text in new[]{"#18243B","#52627A","#64748B","#2458D3"})
                     if(Ratio(((SolidColorBrush)Ui.Color(text)).Color,((SolidColorBrush)Ui.Color("#FFFFFF")).Color)<4.5)throw new InvalidOperationException("Insufficient theme text contrast: "+text);
+                if(dark)foreach(var surface in new[]{"#F4F6FA","#F7F9FC","#EDF1F6","#E8EFFD","#F0F5FF"})
+                    foreach(var text in new[]{"#18243B","#52627A"})
+                        if(Ratio(((SolidColorBrush)Ui.Color(text)).Color,((SolidColorBrush)Ui.Color(surface)).Color)<4.5)throw new InvalidOperationException("Insufficient dark surface contrast: "+surface);
             }
             if(Ratio(Colors.White,((SolidColorBrush)AppTheme.AccentFill).Color)<4.5)throw new InvalidOperationException("Primary button contrast failed.");
         }

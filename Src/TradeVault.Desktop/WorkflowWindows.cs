@@ -67,18 +67,7 @@ internal static class WorkflowWindows
         if(picker.ShowDialog(owner)!=true)return;ReportPdf.Save(report,picker.FileName);
         try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(picker.FileName){UseShellExecute=true});}catch(Exception){MessageBox.Show(owner,"PDF saved:\n"+picker.FileName);}
     }
-    internal static void Backups(Window owner,WorkbookStore store)
-    {
-        var (window,form)=Form(owner,"Backup and recovery",760,500);
-        var list=Field(form,"Backups stored beside the application",new ListBox{ItemsSource=store.Backups(),Height=200});
-        form.Children.Add(Ui.Button("Create verified backup",()=>Safe(window,()=>{store.CreateBackup();list.ItemsSource=store.Backups();}),"PrimaryButton"));
-        var restore=Ui.Button("Restore selected backup",()=>Safe(window,()=>{
-            if(list.SelectedItem is not string path)throw new ArgumentException("Choose a backup.");
-            if(MessageBox.Show(window,"Replace ALL working data with this backup? A safety backup is made first. The workspace will close. Reopen TradeVault after restoring.","Restore backup",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)return;
-            store.RestoreBackup(path);window.Close();owner.Close();
-        }));form.Children.Add(restore);
-        form.Children.Add(Ui.Text("For lost-drive recovery, keep a separate copy of a verified backup on another USB. Keep backup drives in a safe place.",12,"#64748B"));window.ShowDialog();
-    }
+
     internal static void Reminders(Window owner,ReportWorkflow service,Guid party,DateOnly asOf)
     {
         var name=service.Build(party,asOf,true).PartyName;

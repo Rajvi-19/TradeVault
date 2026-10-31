@@ -12,17 +12,17 @@ internal static class AppTheme
 {
     private static readonly Dictionary<string,string> dark=new(StringComparer.OrdinalIgnoreCase)
     {
-        ["#111E35"]="#0D1420",["#18243B"]="#E5ECF6",["#2458D3"]="#94B8FF",
-        ["#247653"]="#8CD5AE",["#407057"]="#9AD5B7",["#52627A"]="#BECBDD",
-        ["#64748B"]="#A8B8CE",["#718096"]="#AEBFD5",["#8FAEEA"]="#759CE1",
-        ["#9A6700"]="#EDC775",["#A63E3E"]="#FFA8A3",["#B42318"]="#FFAAA3",
-        ["#C2413C"]="#FFAAA3",["#CBD5E1"]="#40516A",["#CDD9EC"]="#40516A",
-        ["#D4E2D9"]="#395B4D",["#D9E4F4"]="#D9E4F4",["#DCE3ED"]="#35465D",
-        ["#E2E8F0"]="#35465D",["#E7EFFF"]="#2D456C",["#E8EFFD"]="#2D456C",
-        ["#EDF1F6"]="#2A394E",["#EDF3FF"]="#21334F",["#EDF4FF"]="#21334F",
-        ["#F0F5FF"]="#1D2D47",["#F3C8C3"]="#754A4A",["#F3F8F5"]="#1C3029",
-        ["#F4F6FA"]="#111925",["#F7F9FC"]="#1D293B",["#FAFBFD"]="#1B2738",
-        ["#FEECE9"]="#3B252D",["#FFF2F0"]="#3B252D",["#FFFFFF"]="#172234"
+        ["#111E35"]="#10141C",["#18243B"]="#E6EDF3",["#2458D3"]="#9DBEFF",
+        ["#247653"]="#85D4AE",["#407057"]="#9BD7B7",["#52627A"]="#BAC4D2",
+        ["#64748B"]="#9DAABB",["#718096"]="#A1ADBD",["#8FAEEA"]="#6089CF",
+        ["#9A6700"]="#E6BD73",["#A63E3E"]="#F8A49C",["#B42318"]="#FFAAA0",
+        ["#C2413C"]="#FFAAA0",["#CBD5E1"]="#394351",["#CDD9EC"]="#374150",
+        ["#D4E2D9"]="#29483D",["#D9E4F4"]="#DCE5F1",["#DCE3ED"]="#252D39",
+        ["#E2E8F0"]="#252D39",["#E7EFFF"]="#263B5E",["#E8EFFD"]="#223553",
+        ["#EDF1F6"]="#1C2430",["#EDF3FF"]="#202D43",["#EDF4FF"]="#202D43",
+        ["#F0F5FF"]="#1B283D",["#F3C8C3"]="#65403D",["#F3F8F5"]="#192B25",
+        ["#F4F6FA"]="#0E131B",["#F7F9FC"]="#1C232F",["#FAFBFD"]="#191F29",
+        ["#FEECE9"]="#352024",["#FFF2F0"]="#352024",["#FFFFFF"]="#161C26"
     };
     private sealed class Entry(string original):INotifyPropertyChanged
     {

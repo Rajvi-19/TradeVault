@@ -36,7 +36,7 @@ internal sealed class ReportPaginator : DocumentPaginator
         double left=24,width=PageSize.Width-48,cw=width/page.Table.Columns.Count;
         void Text(string value,double x,double y,double w,double h,double size,bool bold=false,bool right=false)
         {
-            var text=new FormattedText(value,CultureInfo.InvariantCulture,FlowDirection.LeftToRight,new Typeface(new FontFamily("Segoe UI"),FontStyles.Normal,bold?FontWeights.SemiBold:FontWeights.Normal,FontStretches.Normal),size,Brushes.Black,1){MaxTextWidth=Math.Max(1,w-10),MaxTextHeight=h-6,Trimming=TextTrimming.CharacterEllipsis,TextAlignment=right?TextAlignment.Right:TextAlignment.Left};
+            var text=new FormattedText(value,CultureInfo.InvariantCulture,FlowDirection.LeftToRight,new Typeface(new FontFamily("Segoe UI"),FontStyles.Normal,bold?FontWeights.SemiBold:FontWeights.Normal,FontStretches.Normal),size,Brushes.Black,1){MaxTextWidth=Math.Max(1,w-10),MaxTextHeight=h-6,Trimming=TextTrimming.None,TextAlignment=TextAlignment.Center};
             dc.DrawText(text,new Point(x+5,y+3));
         }
         Text("TRADEVAULT",left,18,width,25,12,true);
@@ -45,10 +45,11 @@ internal sealed class ReportPaginator : DocumentPaginator
         void Row(IEnumerable<string> values,double y,double height,bool header=false,bool total=false)
         {
             int index=0;foreach(var value in values){double x=left+index*cw;
-                dc.DrawRectangle(header?new SolidColorBrush(Color.FromRgb(229,236,246)):total?Brushes.AliceBlue:Brushes.White,new Pen(Brushes.LightGray,.5),new Rect(x,y,cw,height));
-                Text(value,x,y,cw,height,header?8:9,header||total,!header&&page.Table.Columns[index].Type=="number");index++;}
+                dc.DrawRectangle(header?new SolidColorBrush(Color.FromRgb(235,239,245)):Brushes.White,new Pen(Brushes.LightGray,.5),new Rect(x,y,cw,height));
+                Text(value,x,y,cw,height,header?11.5:11,header||total,!header&&page.Table.Columns[index].Type=="number");index++;}
         }
         Row(page.Table.Columns.Select(c=>c.Label),108,72,true);
+        dc.DrawLine(new Pen(new SolidColorBrush(Color.FromRgb(88,101,123)),1.2),new Point(left,180),new Point(left+width,180));
         double y=180;foreach(var row in page.Table.Rows.Skip(page.Start).Take(page.Count))
         {
             Row(page.Table.Columns.Select(c=>{var value=row.GetValueOrDefault(c.Key,"");if(c.Type=="date"&&DateOnly.TryParseExact(value,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var date))return date.ToString("dd-MM-yyyy",CultureInfo.InvariantCulture);return c.Type=="number"&&decimal.TryParse(value,NumberStyles.Number,CultureInfo.InvariantCulture,out var amount)?amount.ToString(page.Table.Name=="Account Details"&&c.Key is "A" or "M"?"0":"N2",CultureInfo.InvariantCulture):value;}),y,38);y+=38;

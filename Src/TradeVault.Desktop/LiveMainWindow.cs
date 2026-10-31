@@ -39,7 +39,6 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<string,Button> nav=new();
     private readonly Button saveButton;
     private readonly Button themeButton;
-    private readonly Button backupButton;
     private readonly Button deleteButton;
     private readonly Button newInvoiceButton;
     internal Func<NewRegisterInvoice?>? NewInvoiceInput {get;set;}
@@ -58,7 +57,7 @@ public sealed partial class MainWindow : Window
         this.store=store;workflow=new(store);controller=new(store);var startup=Ui.WorkspaceSize(SystemParameters.WorkArea);Width=startup.Width;Height=startup.Height;MinWidth=Math.Min(1000,startup.Width);MinHeight=Math.Min(600,startup.Height);WindowStartupLocation=WindowStartupLocation.CenterScreen;
         var root=new DockPanel{Background=Ui.Color("#F4F6FA")};
         var header=new DockPanel{Background=Ui.Color("#111E35"),Height=42};
-        var windowControls=Ui.WindowControls(this);backupButton=Ui.LineIconButton("Backups",()=>Run(()=>{RequireSaved();WorkflowWindows.Backups(this,store);}),"backup","QuietButton");backupButton.Foreground=Brushes.White;backupButton.Height=36;backupButton.MinHeight=36;backupButton.Padding=new(12,0,12,0);backupButton.Margin=new(0,0,6,0);System.Windows.Shell.WindowChrome.SetIsHitTestVisibleInChrome(backupButton,true);windowControls.Children.Insert(0,backupButton);DockPanel.SetDock(windowControls,Dock.Right);header.Children.Add(windowControls);
+        var windowControls=Ui.WindowControls(this);DockPanel.SetDock(windowControls,Dock.Right);header.Children.Add(windowControls);
         var brand=new StackPanel{Orientation=Orientation.Horizontal,Margin=new(14,0,0,0)};
         var logo=Ui.BrandIcon(26);logo.Margin=new(0,0,9,0);brand.Children.Add(logo);
         brand.Children.Add(Ui.Text("TradeVault",18,"#FFFFFF",true));var divider=Ui.Text("/",16,"#64748B");divider.Margin=new(14,0,12,0);brand.Children.Add(divider);brand.Children.Add(pageTitle);header.Children.Add(brand);
@@ -66,11 +65,11 @@ public sealed partial class MainWindow : Window
 
         var tabs=new DockPanel{Background=Ui.Color("#FFFFFF"),Height=40};
         saveButton=Ui.Button("Save changes",()=>Run(Save),"PrimaryButton","\uE74E");saveButton.MinHeight=30;saveButton.MinWidth=124;saveButton.Width=124;ToolTipService.SetShowOnDisabled(saveButton,true);saveButton.Padding=new(12,4,12,4);saveButton.Margin=new(0,4,6,4);
-        themeButton=Ui.Button("",()=>Run(AppTheme.Toggle),"SecondaryActionButton");themeButton.Width=32;themeButton.Height=32;themeButton.MinHeight=32;themeButton.Padding=new(0);themeButton.Margin=new(0,4,10,4);
+        themeButton=Ui.Button("",()=>Run(AppTheme.Toggle),"ThemeToggleButton");themeButton.Width=32;themeButton.Height=32;themeButton.MinHeight=32;themeButton.Padding=new(0);themeButton.SetResourceReference(BackgroundProperty,"ThemeF7F9FC");themeButton.Margin=new(0,4,10,4);
         SetupExport();var saveActions=new StackPanel{Orientation=Orientation.Horizontal};saveActions.Children.Add(exportButton);saveActions.Children.Add(saveButton);saveActions.Children.Add(themeButton);DockPanel.SetDock(saveActions,Dock.Right);tabs.Children.Add(saveActions);
         AppTheme.Changed+=RefreshThemeButton;Closed+=(_,_)=>AppTheme.Changed-=RefreshThemeButton;RefreshThemeButton();
         var navigation=new StackPanel{Orientation=Orientation.Horizontal,Margin=new(6,0,0,0)};
-        foreach(var (name,label,icon) in new[]{("parties","Party Master","party"),("agents","Agent Master","party"),("form","Invoice Register","invoice"),("partyReceipt","Party Receipt","ledger"),("agentReceipt","Agent Receipt","ledger"),("reports","Reports","reports")})
+        foreach(var (name,label,icon) in new[]{("parties","Party Master","partyMaster"),("agents","Agent Master","agentMaster"),("form","Invoice Register","invoice"),("partyReceipt","Party Receipt","partyReceipt"),("agentReceipt","Agent Receipt","agentReceipt"),("reports","Reports","reports")})
         {
             var b=Ui.LineIconButton(label,()=>Run(()=>Navigate(name)),icon);b.Padding=new(8,5,8,5);ToolTipService.SetIsEnabled(b,false);b.MinHeight=32;b.Margin=new(2,3,2,3);nav.Add(name,b);navigation.Children.Add(b);
         }
@@ -119,7 +118,6 @@ public sealed partial class MainWindow : Window
     {
         void Check(bool value,string text){if(!value)throw new InvalidOperationException(text);}
         Check(nav.Keys.SequenceEqual(new[]{"parties","agents","form","partyReceipt","agentReceipt","reports"}),"Six workspace tabs must appear in order.");
-        Check(backupButton.Parent is StackPanel controls&&controls.Children.Count==4&&ReferenceEquals(controls.Children[0],backupButton)&&System.Windows.Automation.AutomationProperties.GetName((Button)controls.Children[1])=="Minimize"&&System.Windows.Shell.WindowChrome.GetIsHitTestVisibleInChrome(backupButton),"Backups must be clickable immediately to the left of Minimize.");
         Open("form");Check(title.ToolTip==null&&!ToolTipService.GetIsEnabled(nav["form"]),"Invoice Register must not display a hover tooltip.");
         Check(masterActions.Visibility==Visibility.Collapsed&&!partyTools.Children.OfType<Button>().Any(),"Invoice Register must not offer party or agent creation.");
         foreach(var name in new[]{"parties","agents"})
@@ -189,8 +187,8 @@ public sealed partial class MainWindow : Window
         AddKey(Key.N,ModifierKeys.Control|ModifierKeys.Shift,"Ctrl+Shift+N","Create a party",CreateParty);
         AddKey(Key.Delete,ModifierKeys.None,"Delete","Clear cells / delete whole row with confirmation",Delete);
         AddKey(Key.X,ModifierKeys.Control,"Ctrl+X","Cut selected cells / whole record without confirmation",CutSelection);
-        AddKey(Key.Z,ModifierKeys.Control,"Ctrl+Z","Undo worksheet edit, cut or deletion",()=>ReplayHistory(false));
-        AddKey(Key.Y,ModifierKeys.Control,"Ctrl+Y","Redo worksheet edit, cut or deletion",()=>ReplayHistory(true));
+        AddKey(Key.Z,ModifierKeys.Control,"Ctrl+Z","Undo cell edit",()=>ReplayHistory(false));
+        AddKey(Key.Y,ModifierKeys.Control,"Ctrl+Y","Redo cell edit",()=>ReplayHistory(true));
         AddKey(Key.F,ModifierKeys.Control,"Ctrl+F","Search the current worksheet",()=>grid?.FocusSearch());
         AddKey(Key.F5,ModifierKeys.None,"F5","Reload saved records",ReloadSaved);
         AddKey(Key.L,ModifierKeys.Control,"Ctrl+L","Choose a party",()=>{partySelector.Focus();partySelector.IsDropDownOpen=true;});
@@ -215,7 +213,7 @@ public sealed partial class MainWindow : Window
         var dialog=new Window{Owner=this,Width=650,Height=Math.Min(610,SystemParameters.WorkArea.Height),WindowStartupLocation=WindowStartupLocation.CenterOwner};
         var panel=new StackPanel{Margin=new(18)};panel.Children.Add(Ui.Text("Keyboard shortcuts",20,"#18243B",true));
         foreach(var item in shortcuts){var line=new DockPanel{Margin=new(0,10,0,0)};var gesture=Ui.Text(item.Gesture,13,"#2458D3",true);gesture.Width=180;DockPanel.SetDock(gesture,Dock.Left);line.Children.Add(gesture);line.Children.Add(Ui.Text(item.Description));panel.Children.Add(line);}
-        panel.Children.Add(Ui.Text("In grids: Tab / Shift+Tab move between inputs. Ctrl+C / Ctrl+V copy and paste. Click a row number to select a whole record. Delete clears cells; whole-row deletion asks for confirmation. Ctrl+X cuts cells or a whole record without confirmation. Whole-record Cut/Delete leave that row blank and keep lower records in place. Ctrl+Z undoes and Ctrl+Y redoes worksheet changes. History is kept for the active worksheet until you reload, change party or switch tabs. Undoing a cut/deletion restores the stored record immediately; ordinary cell edits still use Save changes. While editing text, Delete and Ctrl+X use normal text-editing behavior.",12,"#64748B"));
+        panel.Children.Add(Ui.Text("In grids: Tab / Shift+Tab move between inputs. Ctrl+C / Ctrl+V copy and paste. Click a row number to select a whole record. Delete clears cells; whole-row deletion asks for confirmation. Ctrl+X cuts cells or a whole record without confirmation. Whole-record Cut/Delete permanently remove the row. Ctrl+Z undoes and Ctrl+Y redoes worksheet changes. History is kept for the active worksheet until you reload, change party or switch tabs. Whole-record deletion cannot be undone; ordinary cell edits still use Save changes. While editing text, Delete and Ctrl+X use normal text-editing behavior.",12,"#64748B"));
         var close=Ui.Button("Close",()=>dialog.Close());close.IsCancel=true;close.Margin=new(0,14,0,0);panel.Children.Add(close);
         Ui.WindowFrame(dialog,new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto},"Keyboard shortcuts");dialog.ShowDialog();
     }
@@ -259,7 +257,7 @@ public sealed partial class MainWindow : Window
     {
         var label=AppTheme.IsDark?"Switch to light theme":"Switch to dark theme";
         themeButton.ToolTip=label;System.Windows.Automation.AutomationProperties.SetName(themeButton,label);
-        var geometry=AppTheme.IsDark?"M8,4 A4,4 0 1 0 8,12 A4,4 0 1 0 8,4 M8,0 V2 M8,14 V16 M0,8 H2 M14,8 H16 M2.3,2.3 L3.7,3.7 M12.3,12.3 L13.7,13.7 M13.7,2.3 L12.3,3.7 M3.7,12.3 L2.3,13.7":"M11.5,1.5 A7,7 0 1 0 14.5,11 A6,6 0 0 1 11.5,1.5 Z";
+        var geometry=AppTheme.IsDark?"M8,5 A3,3 0 1 0 8,11 A3,3 0 1 0 8,5 M8,1 V2 M8,14 V15 M1,8 H2 M14,8 H15 M3,3 L4,4 M12,12 L13,13 M13,3 L12,4 M4,12 L3,13":"M10.5,1.5 A6.5,6.5 0 1 0 14.5,11 A6,6 0 0 1 10.5,1.5 Z";
         var icon=new System.Windows.Shapes.Path{Data=Geometry.Parse(geometry),Width=16,Height=16,Stretch=Stretch.Uniform,StrokeThickness=1.5,StrokeStartLineCap=PenLineCap.Round,StrokeEndLineCap=PenLineCap.Round};icon.SetBinding(System.Windows.Shapes.Shape.StrokeProperty,new System.Windows.Data.Binding("Foreground"){Source=themeButton});themeButton.Content=icon;
     }
     private void MarkDirty(){dirty=true;SetSaveState(true);status.Text="● Unsaved changes";status.Foreground=Ui.Color("#9A6700");}
@@ -333,9 +331,9 @@ public sealed partial class MainWindow : Window
         var records=snapshot.Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
         var stored=controller.Name=="form"?records.SingleOrDefault(r=>ReportWorkflow.InvoiceKey(controller.PartyId,r)==ReportWorkflow.InvoiceKey(controller.PartyId,row.Snapshot())):records.ElementAtOrDefault(index);
         if(cut)grid.CopyRecordForCut(row);grid.Table.CancelEdit();grid.Table.CancelEdit(DataGridEditingUnit.Row);
-        refreshing=true;try{dirty=controller.DeleteImmediately(row);Watch(controller.Rows[index]);}finally{refreshing=false;}
-        history.Capture(controller.CaptureEditState(),new(row.Snapshot(),index){StoredData=stored==null?null:new(stored)});
-        SetSaveState(dirty);UpdateRecords();revision.Text=$"Revision {controller.Revision} · Local storage";notification.Visibility=Visibility.Collapsed;status.Text=(cut?"Record cut to clipboard; row left blank":"Record cleared and saved; row left blank")+(dirty?" · other edits remain unsaved":"");status.Foreground=Ui.Color("#247653");
+        refreshing=true;try{dirty=controller.DeleteImmediately(row);}finally{refreshing=false;}
+        history.Reset(controller.CaptureEditState());
+        SetSaveState(dirty);UpdateRecords();revision.Text=$"Revision {controller.Revision} · Local storage";notification.Visibility=Visibility.Collapsed;status.Text=(cut?"Record cut and permanently deleted":"Record permanently deleted")+(dirty?" · other edits remain unsaved":"");status.Foreground=Ui.Color("#247653");
     }
     private void CaptureHistory(){if(grid!=null&&!generatedView&&!refreshing)history.Capture(controller.CaptureEditState());}
     private void ReplayHistory(bool redo)
@@ -343,18 +341,6 @@ public sealed partial class MainWindow : Window
         if(grid==null||generatedView)return;
         CaptureHistory();var step=redo?history.RedoStep:history.UndoStep;if(step==null)return;
         var nextRevision=controller.Revision;
-        if(step.Removed is {} removed)
-        {
-            var id=controller.Name=="form"?ReportWorkflow.InvoiceKey(controller.PartyId,removed.Data):null;
-            if(redo)
-            {
-                var records=store.Load(controller.Name,controller.PartyId).Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
-                var stored=controller.Name=="form"?records.SingleOrDefault(r=>ReportWorkflow.InvoiceKey(controller.PartyId,r)==id):records.ElementAtOrDefault(removed.Index);
-                nextRevision=store.DeleteWorksheetRecord(controller.Name,controller.PartyId,controller.Revision,removed.Index,id);
-                removed.StoredData=stored==null?null:new(stored);
-            }
-            else if(removed.StoredData is {} data)nextRevision=store.RestoreWorksheetRecord(controller.Name,controller.PartyId,controller.Revision,removed.Index,data);
-        }
         grid.Table.CancelEdit();grid.Table.CancelEdit(DataGridEditingUnit.Row);refreshing=true;
         try
         {
@@ -484,7 +470,7 @@ public sealed partial class MainWindow : Window
             var rows=new System.Collections.ObjectModel.ObservableCollection<GridRow>();
             if(name=="parties")foreach(var entry in store.GetPartyMaster()){var row=new GridRow();row["A"]=entry.Name;row["B"]=entry.Invoices.ToString(CultureInfo.InvariantCulture);var amounts=new CompanyReports(store).MasterAmounts(name=="agents",entry.Id.ToString());row["E"]=amounts.OriginalOrPartyReceipts?.ToString("0.00",CultureInfo.InvariantCulture)??"";row["C"]=amounts.Received.ToString("0.00",CultureInfo.InvariantCulture);row["D"]=amounts.Pending?.ToString("0.00",CultureInfo.InvariantCulture)??"";rows.Add(row);}
             else foreach(var entry in store.GetAgents()){var row=new GridRow();row["A"]=entry.Name;row["B"]=entry.Invoices.ToString(CultureInfo.InvariantCulture);var amounts=new CompanyReports(store).MasterAmounts(name=="agents",entry.Id.ToString());row["E"]=amounts.OriginalOrPartyReceipts?.ToString("0.00",CultureInfo.InvariantCulture)??"";row["C"]=amounts.Received.ToString("0.00",CultureInfo.InvariantCulture);row["D"]=amounts.Pending?.ToString("0.00",CultureInfo.InvariantCulture)??"";rows.Add(row);}
-            grid=new ExcelGrid([new("A",name=="parties"?"Party Name":"Agent Name",Width:310),new("B","Invoices",Width:90),new("E",name=="parties"?"Original invoice total / USD":"Received from parties / USD",Width:230,DataType:"number"),new("C",name=="parties"?"Paid by party to agent / USD":"Sent to company / USD",Width:230,DataType:"number"),new("D",name=="parties"?"Party still owes agent / USD":"Agent still owes company / USD",Width:230,DataType:"number")],rows,true);sheetArea.Children.Add(grid);
+            grid=new ExcelGrid([new("A",name=="parties"?"Party Name":"Agent Name",Width:310),new("B","Invoices",Width:90),new("E",name=="parties"?"Original invoice total / USD":"Received from parties / USD",Width:230,DataType:"number"),new("C",name=="parties"?"Paid by party to agent / USD":"Sent to company / USD",Width:230,DataType:"number"),new("D",name=="parties"?"Party still owes agent / USD":"Agent still owes company / USD",Width:230,DataType:"number")],rows,true);grid.Table.Columns[^1].Width=new DataGridLength(1,DataGridLengthUnitType.Star);grid.Table.Columns[^1].MinWidth=230;sheetArea.Children.Add(grid);
         }
         if(receipt)LoadTransferReceiptPage(name);
         if(name=="reports")LoadCompanyReportPage();
@@ -534,7 +520,7 @@ public sealed partial class MainWindow : Window
         ConfirmRecordDeletion=_=>throw new InvalidOperationException("Cut requested confirmation.");TryShortcut(Key.X,ModifierKeys.Control);
         if(!clipboard.Contains("CUT-RECORD")||controller.Records.ToList().Count!=0||store.Load("form",party.Id).Rows.Any(r=>!r.ContainsKey("_metadata")&&r.GetValueOrDefault("_blank")!="1"))throw new InvalidOperationException("Whole-record cut was not copied and persisted.");
         TryShortcut(Key.Z,ModifierKeys.Control);
-        if(controller.Records.ToList().Count!=1||!store.Load("form",party.Id).Rows.Any(r=>r.GetValueOrDefault("F9")=="CUT-RECORD"))throw new InvalidOperationException("Undo did not restore the stored cut record.");
+        if(controller.Rows.Count!=0||store.Load("form",party.Id).Rows.Any(r=>r.GetValueOrDefault("F9")=="CUT-RECORD"))throw new InvalidOperationException("Undo restored a permanently cut record.");
         TryShortcut(Key.Y,ModifierKeys.Control);
         if(controller.Records.ToList().Count!=0||store.Load("form",party.Id).Rows.Any(r=>!r.ContainsKey("_metadata")&&r.GetValueOrDefault("_blank")!="1"))throw new InvalidOperationException("Redo did not remove the stored cut record.");
         grid.ClipboardWriter=null;ConfirmRecordDeletion=null;TryShortcut(Key.D2,ModifierKeys.Control);if(activePage!="agents")throw new InvalidOperationException("Ctrl+2 navigation failed.");TryShortcut(Key.D3,ModifierKeys.Control);if(activePage!="form")throw new InvalidOperationException("Ctrl+3 navigation failed.");TryShortcut(Key.D1,ModifierKeys.Control);if(activePage!="parties")throw new InvalidOperationException("Ctrl+1 navigation failed.");
@@ -563,7 +549,7 @@ public sealed partial class MainWindow : Window
         var other=controller.Add();Watch(other);other["F9"]="UNDO-TWO";other["F10"]="2026-06-02";other["F5"]="1000";other["F6"]="800";Save();
         other["F5"]="1200";Calculate();grid.SelectRecordRow(controller.Records.ToList()[0]);ConfirmRecordDeletion=_=>true;TryShortcut(Key.Delete,ModifierKeys.None);
         TryShortcut(Key.Z,ModifierKeys.Control);
-        if(controller.Records.ToList().Count!=2||controller.Records.ToList()[1]["F5"]!="1200"||store.Load("form",party.Id).Rows.Single(r=>r.GetValueOrDefault("F9")=="UNDO-TWO")["F5"]!="1000")throw new InvalidOperationException("Deletion undo saved unrelated draft edits.");
+        if(controller.Records.ToList().Count!=1||controller.Records.ToList()[0]["F5"]!="1200"||store.Load("form",party.Id).Rows.Single(r=>r.GetValueOrDefault("F9")=="UNDO-TWO")["F5"]!="1000")throw new InvalidOperationException("Deletion undo saved unrelated draft edits.");
         TryShortcut(Key.Y,ModifierKeys.Control);
         if(controller.Records.ToList().Count!=1||controller.Records.ToList()[0]["F5"]!="1200")throw new InvalidOperationException("Deletion redo lost unrelated drafts.");
         ConfirmRecordDeletion=null;Save();Open("form",party.Id);TryShortcut(Key.Z,ModifierKeys.Control);
@@ -573,31 +559,18 @@ public sealed partial class MainWindow : Window
         TryShortcut(Key.Z,ModifierKeys.Control);Save();TryShortcut(Key.Y,ModifierKeys.Control);
         if(store.Load("form",party.Id).Rows.Any(r=>r.GetValueOrDefault("F9")=="UNDO-DRAFT"))throw new InvalidOperationException("Redo of a cut saved draft was not persisted.");
         TryShortcut(Key.Z,ModifierKeys.Control);
-        if(!store.Load("form",party.Id).Rows.Any(r=>r.GetValueOrDefault("F9")=="UNDO-DRAFT"))throw new InvalidOperationException("Undo after saving a restored draft lost the stored record.");
+        if(store.Load("form",party.Id).Rows.Any(r=>r.GetValueOrDefault("F9")=="UNDO-DRAFT"))throw new InvalidOperationException("Undo restored a permanently cut draft.");
         ConfirmRecordDeletion=null;
         PreviewParty("form",Guid.Empty);
     }
     internal void CheckBlankRowInteractions()
     {
-        var party=store.CreateParty("Fixed worksheet positions UI test");PreviewParty("form",party.Id);
+        var party=store.CreateParty("Permanent deletion UI test");PreviewParty("form",party.Id);
         for(var i=1;i<=4;i++){var row=controller.Add();Watch(row);row["F9"]="POSITION-"+i;row["F10"]="2026-06-01";row["F5"]="15000";row["F6"]="10000";}
-        Save();var oldThird=controller.Rows[2]["_id"];var fourth=controller.Rows[3]["_id"];
-        grid!.SelectRecordRow(controller.Rows[2]);ConfirmRecordDeletion=_=>true;TryShortcut(Key.Delete,ModifierKeys.None);
-        CheckGap();TryShortcut(Key.Z,ModifierKeys.Control);
-        if(controller.Rows[2]["F9"]!="POSITION-3"||controller.Rows[3]["_id"]!=fourth)throw new InvalidOperationException("Undo shifted worksheet positions.");
-        TryShortcut(Key.Y,ModifierKeys.Control);CheckGap();Open("form",party.Id);CheckGap();
-        grid!.ClipboardWriter=_=>{};ConfirmRecordDeletion=_=>throw new InvalidOperationException("Cut requested confirmation.");grid.SelectRecordRow(controller.Rows[3]);TryShortcut(Key.X,ModifierKeys.Control);
-        if(controller.Rows.Count!=4||controller.Rows[3]["_blank"]!="1"||controller.Records.Count()!=2)throw new InvalidOperationException("Cut did not leave its row blank.");
-        TryShortcut(Key.Z,ModifierKeys.Control);
-        if(controller.Rows[3]["F9"]!="POSITION-4"||controller.Rows[2]["_blank"]!="1")throw new InvalidOperationException("Cut undo restored the wrong row.");
-        var blank=controller.Rows[2];blank["F9"]="POSITION-NEW";blank["F10"]="2026-06-02";blank["F5"]="12000";blank["F6"]="8000";Save();
-        if(blank["_blank"]=="1"||blank["_id"]==oldThird||blank["_id"].Length==0||controller.Rows[3]["_id"]!=fourth)throw new InvalidOperationException("Reusing blank row kept the deleted identity or shifted another record.");
+        Save();grid!.SelectRecordRow(controller.Rows[2]);ConfirmRecordDeletion=_=>true;TryShortcut(Key.Delete,ModifierKeys.None);
+        Verify();TryShortcut(Key.Z,ModifierKeys.Control);Verify();TryShortcut(Key.Y,ModifierKeys.Control);Verify();Open("form",party.Id);Verify();
         ConfirmRecordDeletion=null;PreviewParty("form",Guid.Empty);
-        void CheckGap()
-        {
-            if(controller.Rows.Count!=4||controller.Rows[2]["_blank"]!="1"||controller.Rows[3]["_id"]!=fourth||controller.Fields.Any(f=>controller.Rows[2][f.Key]!=""))throw new InvalidOperationException("Record deletion shifted rows or left visible data behind.");
-            if(workflow.BuildCurrent(party.Id).Tables[0].Rows.Count!=3)throw new InvalidOperationException("Reports counted the blank worksheet row as an invoice.");
-        }
+        void Verify(){if(controller.Rows.Count!=3||controller.Rows[2]["F9"]!="POSITION-4"||controller.Rows.Any(r=>r["F9"]=="POSITION-3"||r["_blank"]=="1"))throw new InvalidOperationException("Permanent deletion left a gap or was undone.");}
     }
     internal void CheckThemeInteractions()
     {
@@ -609,8 +582,8 @@ public sealed partial class MainWindow : Window
             var save=saveButton.TranslatePoint(new(0,0),content);var toggle=themeButton.TranslatePoint(new(0,0),content);
             if(themeButton.ActualWidth!=32||themeButton.ActualHeight!=32||toggle.X<save.X+saveButton.ActualWidth||Math.Abs(toggle.Y-save.Y)>1)throw new InvalidOperationException("Theme button is not a compact square after Save.");
             themeButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));ThemeChecks.Flush();
-            if(!AppTheme.IsDark||themeButton.ToolTip?.ToString()!="Switch to light theme"||((SolidColorBrush)grid!.Table.Background).Color!=System.Windows.Media.Color.FromRgb(23,34,52))throw new InvalidOperationException("Dark theme did not update the existing worksheet.");
-            if(((SolidColorBrush)grid.Table.Foreground).Color!=System.Windows.Media.Color.FromRgb(229,236,246))throw new InvalidOperationException("Dark grid text is unreadable.");
+            if(!AppTheme.IsDark||themeButton.ToolTip?.ToString()!="Switch to light theme"||((SolidColorBrush)grid!.Table.Background).Color!=System.Windows.Media.Color.FromRgb(22,28,38))throw new InvalidOperationException("Dark theme did not update the existing worksheet.");
+            if(((SolidColorBrush)grid.Table.Foreground).Color!=System.Windows.Media.Color.FromRgb(230,237,243))throw new InvalidOperationException("Dark grid text did not use the primary text token.");
             themeButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));ThemeChecks.Flush();
             if(AppTheme.IsDark||((SolidColorBrush)grid.Table.Background).Color!=Colors.White)throw new InvalidOperationException("Second click did not restore light theme.");
             if(before!=controller.CaptureEditState().Signature||beforeRevision!=controller.Revision||history.UndoStep!=undo)throw new InvalidOperationException("Theme toggle changed worksheet data/history.");

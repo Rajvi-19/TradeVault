@@ -11,7 +11,7 @@ internal static class TestDataSeeder
             var names=new[]{"[TEST] Indigo Textile Imports — Workflow","[TEST] Crescent Dye Traders — Workflow","[TEST] Ocean Colour Distributors — Workflow"};
             var existing=store.GetParties().Select(p=>p.Name).ToHashSet();
             if(names.All(existing.Contains)){Console.WriteLine("Workflow sample parties already exist. No records changed.");return;}
-            var backup=store.CreateBackup();Console.WriteLine("Pre-seed backup: "+backup);
+            
             for(int p=0;p<names.Length;p++)
             {
                 if(existing.Contains(names[p]))continue;
@@ -46,7 +46,7 @@ internal static class TestDataSeeder
         var parties=new[]{("[TEST] Meridian Textile Trading","Malaysia"),("[TEST] Bengal Colour Mills","Bangladesh"),("[TEST] Gulf Fabric Industries","United Arab Emirates")};
         {
             if(store.GetParties().Any(p=>parties.Any(sample=>sample.Item1==p.Name)))throw new InvalidOperationException("Test parties already exist. Nothing was inserted; this prevents duplicate test records.");
-            var backup=database.CreateBackup();
+            
             for(int p=0;p<parties.Length;p++)
             {
                 var party=store.CreateParty(parties[p].Item1);
@@ -88,7 +88,7 @@ internal static class TestDataSeeder
                 }
                 sheet.Save();
             }
-            Console.WriteLine($"Inserted 3 TEST parties, 12 invoices, 12 detail rows and 27 ledger rows. Existing parties untouched. Backup: {backup}");
+            Console.WriteLine($"Inserted 3 TEST parties, 12 invoices, 12 detail rows and 27 ledger rows. Existing parties untouched.");
         }
     }
     private static string Money(decimal value)=>decimal.Round(value,2,MidpointRounding.AwayFromZero).ToString("0.00",System.Globalization.CultureInfo.InvariantCulture);

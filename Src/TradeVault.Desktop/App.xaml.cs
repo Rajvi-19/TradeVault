@@ -29,7 +29,7 @@ public partial class App : System.Windows.Application
 #if DEBUG
             if(e.Args.Contains("--refresh-demo-data")){Console.WriteLine(store.RefreshDemoData(DateOnly.FromDateTime(DateTime.Today),e.Args.Contains("--replace-all-data")));Shutdown(0);return;}
             if(e.Args.Contains("--seed-agent-workflow")){AgentWorkflowSeeder.Run(store,database);Shutdown(0);return;}
-            if(e.Args.Contains("--seed-agent-test-data")){var result=store.SeedAgentTestData();Console.WriteLine($"Test agents created: {result.AgentsCreated}; previously blank invoice agents assigned: {result.InvoicesAssigned}; backup: {result.Backup}");Shutdown(0);return;}
+            if(e.Args.Contains("--seed-agent-test-data")){var result=store.SeedAgentTestData();Console.WriteLine($"Test agents created: {result.AgentsCreated}; previously blank invoice agents assigned: {result.InvoicesAssigned}");Shutdown(0);return;}
             if(e.Args.Contains("--seed-workflow-data")){TestDataSeeder.RunWorkflow(store,database);Shutdown(0);return;}
             if(e.Args.Contains("--seed-test-data")){TestDataSeeder.Run(store,database);Shutdown(0);return;}
 #else

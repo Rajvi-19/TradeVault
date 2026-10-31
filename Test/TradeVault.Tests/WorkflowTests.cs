@@ -10,21 +10,21 @@ namespace TradeVault.Tests;
 
 public sealed class WorkflowTests
 {
-    [Fact]public void ClearedRecordKeepsItsSlotAndSurvivesDatabaseReopen()
+    [Fact]public void DeletedRecordIsRemovedAndStaysRemovedAfterReopen()
     {
         using var f=new Fixture();var snapshot=f.Store.Load("form",f.Party);
         snapshot.Rows.Add(Fixture.Invoice("INV-003","three"));snapshot.Rows.Add(Fixture.Invoice("INV-004","four"));
         var saved=f.Store.Save("form",snapshot.Revision,snapshot.Rows,f.Party);
         var cleared=f.Store.DeleteWorksheetRecord("form",f.Party,saved,2,"three");
         var slots=f.Store.Load("form",f.Party).Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
-        Assert.Equal(4,slots.Count);Assert.Equal("1",slots[2]["_blank"]);Assert.Single(slots[2]);Assert.Equal("four",slots[3]["_id"]);
+        Assert.Equal(3,slots.Count);Assert.Equal("four",slots[2]["_id"]);
         Assert.Equal(3,f.Workflow.Invoices(f.Party).Count);Assert.Equal(45000m,f.Workflow.BuildCurrent(f.Party).Tables[1].Totals["E"]);
         var restored=f.Store.RestoreWorksheetRecord("form",f.Party,cleared,2,Fixture.Invoice("INV-003","three"));
         Assert.Equal(4,f.Workflow.Invoices(f.Party).Count);
         f.Store.DeleteWorksheetRecord("form",f.Party,restored,2,"three");f.Database.Dispose();
         using var reopened=new PortableDatabase(new(f.Root));var store=new WorkbookStore(reopened);
         slots=store.Load("form",f.Party).Rows.Where(r=>!r.ContainsKey("_metadata")).ToList();
-        Assert.Equal("1",slots[2]["_blank"]);Assert.Equal("four",slots[3]["_id"]);Assert.Equal(3,new ReportWorkflow(store).Invoices(f.Party).Count);
+        Assert.Equal(3,slots.Count);Assert.Equal("four",slots[2]["_id"]);Assert.Equal(3,new ReportWorkflow(store).Invoices(f.Party).Count);
     }
     [Fact]public void RemovedRecordRestoreIsTargetedRevisionCheckedAndValidated()
     {
@@ -200,12 +200,7 @@ public sealed class WorkflowTests
     {
         using var f=new Fixture();var saved=f.Store.Load("form",f.Party);saved.Rows.Add(Fixture.Invoice("INV-001","three"));Assert.Throws<BusinessRuleException>(()=>f.Store.Save("form",saved.Revision,saved.Rows,f.Party));
     }
-    [Fact]public void VerifiedBackupRestorePreservesRecords()
-    {
-        using var f=new Fixture();var backup=f.Store.CreateBackup();f.Store.CreateParty("AFTER BACKUP");
-        f.Store.RestoreBackup(backup);Assert.NotEmpty(f.Store.GetParties());
-        Assert.DoesNotContain(f.Store.GetParties(),p=>p.Name=="AFTER BACKUP");Assert.Equal(2,f.Store.GetParties().Count);
-    }
+    
     [Fact]public void AdvanceCanBeAllocatedLaterThroughAtomicCorrection()
     {
         using var f=new Fixture();var advance=f.Workflow.RecordReceipt(f.Party,new(2026,5,1),5000,"Advance",[]);
@@ -222,19 +217,6 @@ public sealed class WorkflowTests
         Assert.Single(f.Workflow.Receipts(f.Party));Assert.Equal(29900,f.Workflow.Build(f.Party,new(2026,7,2),true).Tables[1].Totals["E"]);
     }
 
-    [Fact]public void PreviousSchemaBackupCanBeRestoredAndUpgraded()
-    {
-        using var f=new Fixture();var backup=f.Store.CreateBackup();
-        using(var c=new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder{DataSource=backup,Pooling=false}.ToString()))
-        {c.Open();using var cmd=c.CreateCommand();cmd.CommandText="DROP TABLE IF EXISTS account_recovery;DROP TABLE workflow_documents;DROP TABLE workflow_audit;DELETE FROM schema_migrations WHERE version>=4";cmd.ExecuteNonQuery();}
-        f.Store.RestoreBackup(backup);Assert.NotNull(f.Store.Load("form",f.Party));
-
-        Assert.Equal(30000,new ReportWorkflow(f.Store).Build(f.Party,new(2026,10,27),true).Tables[1].Totals["E"]);
-    }
-    [Fact]public void IncompleteBackupIsRejectedWithoutReplacingWorkingData()
-    {
-        using var f=new Fixture();var backup=f.Store.CreateBackup();
-        using(var c=new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder{DataSource=backup,Pooling=false}.ToString())){c.Open();using var cmd=c.CreateCommand();cmd.CommandText="DROP TABLE workflow_documents";cmd.ExecuteNonQuery();}
-        Assert.Throws<BusinessRuleException>(()=>f.Store.RestoreBackup(backup));Assert.Equal(30000,f.Workflow.Build(f.Party,new(2026,10,27),true).Tables[1].Totals["E"]);
-    }
+    
+    
 }

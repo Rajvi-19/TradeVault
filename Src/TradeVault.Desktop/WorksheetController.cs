@@ -32,6 +32,7 @@ public sealed class WorksheetController(WorkbookStore store)
                 if(data.TryGetValue("asOf",out var asOf)&&DateOnly.TryParseExact(asOf,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var reportDate))AsOf=reportDate;
                 continue;
             }
+            if(data.GetValueOrDefault("_blank")=="1")continue;
             var row = new GridRow(); foreach (var cell in data) row[cell.Key] = cell.Value;
             if(name=="form"&&row["_blank"]!="1"){if(row["_id"].Length==0)row["_id"]=ReportWorkflow.InvoiceKey(PartyId,data);if(row["_terms"].Length==0)row["_terms"]=Terms.ToString();}
             row["_autoDue"]=row["F19"];Rows.Add(row);
@@ -139,7 +140,7 @@ public sealed class WorksheetController(WorkbookStore store)
     {
         var index=Rows.IndexOf(row);if(index<0)throw new BusinessRuleException("Select a stored record or draft row first.");
         Revision=store.DeleteWorksheetRecord(Name,PartyId,Revision,index,Name=="form"?ReportWorkflow.InvoiceKey(PartyId,row.Snapshot()):null);
-        var blank=new GridRow();blank["_blank"]="1";Rows[index]=blank;Calculate();
+        Rows.RemoveAt(index);Calculate();
         return HasSavedDifferences();
     }
     internal void ActivateBlank(GridRow row)

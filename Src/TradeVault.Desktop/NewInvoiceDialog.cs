@@ -48,7 +48,7 @@ internal sealed class NewInvoiceDialog:Window
             }
             catch(Exception ex){error.Text=ex.Message;error.Visibility=Visibility.Visible;}
         },"PrimaryButton");addRecord=add;add.IsDefault=true;actions.Children.Add(add);panel.Children.Add(actions);
-        Ui.WindowFrame(this,new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto},"New Invoice");Loaded+=(_,_)=>country.Focus();
+        Ui.WindowFrame(this,new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto},"New Invoice");Loaded+=(_,_)=>agent.Focus();
     }
     internal void FillForCheck(NewRegisterInvoice input){country.Text=input.CountryName;agent.SelectedItem=agent.Items.Cast<AgentMasterEntry>().FirstOrDefault(a=>string.Equals(a.Name,input.AgentName,StringComparison.OrdinalIgnoreCase));proforma.Text=input.ProformaInvoiceNumber;date.Value=input.ProformaInvoiceDate.ToString("yyyy-MM-dd");}
     internal void SubmitForCheck()=>addRecord.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

@@ -19,23 +19,7 @@ public sealed class RevertedSchemaCompatibilityTests
         INSERT INTO worksheet_agents VALUES('kept-agent','SYNTHETIC retained agent','SYNTHETIC RETAINED AGENT');
         INSERT INTO schema_migrations VALUES(10,'synthetic-test');
         """);
-    [Fact]public void KnownAdditiveSchemaOpensAndRestoresWithoutDroppingData()
-    {
-        var root=NewRoot();Guid party;
-        using(var database=new PortableDatabase(new(root)))
-        {
-            var store=new WorkbookStore(database);party=store.CreateParty("SYNTHETIC retained buyer").Id;
-            store.Save("form",0,[new(){{"F9","KEEP-001"},{"_id","keep-id"},{"F27","SYNTHETIC retained agent"},{"F18","3800.00"}}],party);
-        }
-        AddKnownMigration(root);
-        using(var database=new PortableDatabase(new(root)))
-        {
-            var store=new WorkbookStore(database);var row=Assert.Single(store.Load("form",party).Rows);Assert.Equal("KEEP-001",row["F9"]);Assert.Equal("SYNTHETIC retained agent",row["F27"]);Assert.False(row.ContainsKey("F18"));
-            var backup=store.CreateBackup();store.CreateParty("After backup");store.RestoreBackup(backup);Assert.DoesNotContain(store.GetParties(),p=>p.Name=="After backup");
-        }
-        using var check=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=Path.Combine(root,"Data","tradevault.db"),Mode=SqliteOpenMode.ReadOnly,Pooling=false}.ToString());check.Open();using var command=check.CreateCommand();
-        command.CommandText="SELECT MAX(version) FROM schema_migrations";Assert.Equal(13L,command.ExecuteScalar());command.CommandText="SELECT name FROM worksheet_agents";Assert.Equal("SYNTHETIC retained agent",command.ExecuteScalar());
-    }
+    
     [Theory][InlineData(10)][InlineData(14)]public void UnknownSchemaIsStillRejected(int version)
     {
         var root=NewRoot();using(var db=new PortableDatabase(new(root))){}

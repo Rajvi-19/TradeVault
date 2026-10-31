@@ -17,6 +17,8 @@ public sealed partial class MainWindow
         }
         Field[] fields=party?[new("A","Party name",Width:230),new("E","Receiving agent",Width:230),new("B","Payment date",Width:140),new("C","Receipt amount / USD",Width:170),new("R","USD value",Width:230,DataType:"text"),new("D","Reference / description",Width:340)]:[new("A","Agent name",Width:250),new("B","Payment date",Width:160),new("C","Receipt amount (USD)",Width:200),new("R","USD value",Width:230,DataType:"text"),new("D","Reference / description",Width:440)];
         grid=new ExcelGrid(fields,rows,true,frozenColumns:1);
+        grid.Table.Columns[^1].Width=new System.Windows.Controls.DataGridLength(1,System.Windows.Controls.DataGridLengthUnitType.Star);
+        grid.Table.Columns[^1].MinWidth=party?340:440;
         sheetArea.Children.Add(grid);
     }
     private void CreateTransferReceipt()

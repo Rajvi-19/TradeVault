@@ -53,7 +53,6 @@ public sealed class PortableDatabase : IDisposable
             {
                 inspect.CommandText="SELECT COALESCE(MAX(version),0) FROM schema_migrations";
                 var previous=Convert.ToInt32(inspect.ExecuteScalar());
-                if(previous is >0 and <13)CreateBackup();
             }
         }
         using (var setup = connection.CreateCommand())
@@ -259,22 +258,7 @@ public sealed class PortableDatabase : IDisposable
         return columns.SequenceEqual(new[]{"id|TEXT|1|1","name|TEXT|1|0","name_key|TEXT|1|0"});
     }
 
-    /// <summary>Consistent snapshot under this USB's Backups directory; never raw-copy a live DB.</summary>
-    public string CreateBackup()
-    {
-        var destinationPath = Path.Combine(Paths.Backups,
-            $"tradevault-{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.db");
-        using var source = Open();
-        using var destination = new SqliteConnection(new SqliteConnectionStringBuilder
-        { DataSource = destinationPath, Pooling = false }.ToString());
-        destination.Open();
-        source.BackupDatabase(destination);
-        using var check = destination.CreateCommand();
-        check.CommandText = "PRAGMA integrity_check;";
-        if (!string.Equals(check.ExecuteScalar()?.ToString(), "ok", StringComparison.Ordinal))
-            throw new IOException("The backup failed its integrity check.");
-        return destinationPath;
-    }
+
 
     public void Dispose()
     {
@@ -282,11 +266,5 @@ public sealed class PortableDatabase : IDisposable
         disposed = true;
         lease.Dispose();
     }
-    internal void RestoreVerified(string path)
-    {
-        var rollback=CreateBackup();
-        void Copy(string sourcePath){using var source=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=sourcePath,Mode=SqliteOpenMode.ReadOnly,Pooling=false}.ToString());source.Open();using var destination=Open();source.BackupDatabase(destination);}
-        try{Copy(path);Initialize();}
-        catch{Copy(rollback);throw;}
-    }
+
 }

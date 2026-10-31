@@ -779,3 +779,66 @@ Files: Infrastructure/CompanyReports.cs; Desktop/LiveMainWindow.cs and Ui.cs; Te
 Expanded each master to five columns: name, invoice count and three financial columns. Party Master: Original invoice total / USD (all original invoice debits), Paid by party to agent / USD (Party Ledger credits), Party still owes agent / USD (final Party Ledger balance). Agent Master: Received from parties / USD (Agent Ledger incoming), Sent to company / USD (Agent Ledger remittances), Agent still owes company / USD (final Agent Ledger balance). All remain ledger-backed read-only projections and export as numbers. Negative advances/balances remain visible; incomplete original amounts produce blank original total/pending instead of a misleading partial total. Amounts stay USD as agreed.
 
 Files: Infrastructure/CompanyReports.cs (extended MasterLedgerAmounts projection); Desktop/LiveMainWindow.cs, Ui.cs; Test/TradeVault.Tests/CompanyReportTests.cs and README. Name/invoice count columns retained; widths adjusted for three financial columns. No schema or data changes. Main app rebuilt after user confirmed closure. Verification: 86 backend tests passed, none failed/skipped; build zero warnings/errors; live WPF checks passed with five-column master pages and exports. Updated tests verify original total 18,000, party paid 20,000/advance -2,000, agent incoming 20,000/remitted 15,000/pending 5,000, empty accounts and missing-original handling. Existing opening-balance/bank-charge exclusions remain. Next: reopen master pages to review the three clearly named USD amounts.
+
+
+### 2026-10-31 — Current-source analysis after receipt/report and master changes
+
+Reviewed commit 61fc646 and the receipt/report changes since 9894eef. Current source is UI 2026.10.31.23, schema 13. Added [current project review](Docs/Project-Review-2026-10-31.md) describing all six pages, separate party/agent payment legs, FIFO, financial master projections, database layout, exports and limitations. This review supersedes stale current-state descriptions above where they conflict; historical entries are retained.
+
+Verification used isolated .build/current-review output and synthetic databases: build zero warnings/errors; 86 backend tests passed; live WPF checks passed; 52/52 acceptance checks passed; generic UI rendering succeeded and selected screenshots were inspected. Focused probes reproduced allocation to incomplete drafts breaking reminders and inconsistent F4/F10 payment chronology/protection. Fresh-demo rendering fails on an obsolete Atlas agent lookup. New transfer receipts still lack correction/reversal and advance-assignment UI. Details and priorities are in the linked review. Application source, normal executable and company data were unchanged; no test-data refresh was executed against the normal workspace. Next: address allocation/report eligibility and date consistency before adding more accounting features.
+
+
+### 2026-10-31 — Full active-data reset and backup module removal (UI 2026.10.31.24)
+
+User authorized deleting all existing active records, including manually entered records. Replaced 7 parties, 4 agents and 16 invoices with 3 fictional demo parties, 3 agents, 9 linked invoices, 4 Party Receipts and 3 Agent Receipts. Removed old normalized records and audit snapshots from the active database and vacuumed it. Removed title-bar backup action, backup window, create/list/restore backend APIs, automatic upgrade/seed backups, backup directory creation and obsolete backup-specific tests. Historical backup files already on disk are retained; no new backup was created. Build: zero warnings/errors; 73 remaining backend tests and live WPF checks passed. Database integrity and foreign-key checks passed. Current review documentation predates this reset/removal.
+
+
+### 2026-10-31 — Permanent invoice deletion and cleaner exports (UI 2026.10.31.25)
+
+Confirmed whole-record Delete/Cut now physically removes the row instead of storing a blank slot. It establishes a new undo baseline so Ctrl+Z/Ctrl+Y cannot restore deleted records; other unsaved cell values remain intact. Older deleted blank slots are omitted when loading. Ordinary cell editing/paste undo remains available, and allocated invoice deletion protections remain. Current-page Excel exports start at row 1 with column headings: removed the four metadata rows, corrected filters/frozen header, hid grid lines, widened columns and added navy/white wrapped headings, taller rows and alternating shading. PDF uses larger type and alternating row shading; wide exports still split into column groups with repeated identifiers. Updated regression checks cover row removal/reopen, permanent deletion/cut through undo/redo, unrelated drafts and metadata-free exports. No company records were deleted during verification.
+
+
+### 2026-10-31 — Minimal header, centered tables and monochrome exports (UI 2026.10.31.26)
+
+Replaced caption controls with consistent vector icons, compact rounded hover surfaces and no hover tooltips while retaining accessible names. Applied controls to main and dialog headers. Party Receipt uses a receipt outline; Agent Receipt uses a bank outline. Centered grid text, editing text, column headings and row-number headers. Excel exports now use white backgrounds, black text, fine gray borders, wrapped bold headings and centered values, retaining typed dates/amounts and frozen headers without metadata lines. PDF keeps all columns together on a content-sized wide landscape page, uses monochrome styling and centered text, and paginates rows only. Wide reports require zoom/large-format paper rather than horizontal column groups. Verification: 73 backend tests, live WPF checks and 52 acceptance checks passed; generic UI renders inspected. Company data unchanged.
+
+
+### 2026-10-31 — Reference-style Excel and refined PDF headers (UI 2026.10.31.27)
+
+Current-page Excel now follows the supplied reference: merged report title and account/USD subtitle bands, dark indigo wrapped column headers with white text, compact white body rows, fine borders, content-based column widths and left-aligned text/right-aligned money. Internal submission IDs/revisions/generated timestamps remain excluded. Freeze/filter and repeat-print headings now use row 6; data starts at row 7. PDF retains its full-width layout and centered content, with body font increased from 10 to 11, header font to 11.5 and subtle gray header shading with a stronger baseline. App table styling and company data unchanged.
+Verification: isolated build zero warnings/errors; 73 backend tests including title-band/header/filter assertions passed; live WPF regression and 52 acceptance checks passed. Main executable installation is pending closure of the running TradeVault instance.
+
+
+### 2026-10-31 — Table-only Excel export (UI 2026.10.31.28)
+
+Removed Excel title/subtitle bands. Export contains only column headings and data starting at A1, without colored fills. Headers use bold black 12-point text versus 10-point data; compact rows, fine borders and content-based widths remain. Filter/frozen/repeat-print header starts at row 1. PDF styling unchanged. Updated export regression checks for table-only structure, fill-free styles and larger bold headers.
+\n### 2026-10-31 � Visible Excel cell outlines (UI 2026.10.31.29)\nRestored worksheet gridlines and added explicit thin gray borders using a dedicated non-default border style on every exported table cell, including empty cells. Table-only output, larger bold headings and uncolored backgrounds remain. PDF unchanged. Added regression assertions for gridline visibility and applied borders.
+
+
+### 2026-10-31 — Account Details balance and grid cleanup (UI 2026.10.31.30)
+
+Empty cell error tooltips now return null instead of an empty string, preventing blank hover boxes while keeping real validation messages. Master tables expand the last real column into remaining width to eliminate the apparent trailing filler column. Account Details places party-to-agent receipts before agent-to-company receipts, removes Difference Amount, and calculates pending as total allocated party receipts minus allocated company receipts. Both sides include bank plus difference for consistency; Received difference remains a subset, not an additional receipt. Negative pending is retained. These projections also drive Excel/PDF exports; allocations and stored amounts are unchanged.
+
+
+### 2026-10-31 — Compact reports and shared dropdown styling (UI 2026.10.31.31)
+
+Added distinct building/briefcase vector icons for Party/Agent Master. Shared dropdowns now use rounded popup surfaces, padded highlighted items, consistent typography and the same default style across the app. Reports place report tabs and the account picker in one compact toolbar and remove the explanatory receipt notice. Account Details and Party Ledger share the same party selection; Agent Ledger retains its independent agent selection because it reports a different master type. Switching through Agent Ledger preserves the party selection on return. Caption maximize button now changes to overlapping restore rectangles when maximized and changes back when restored, with accessible state names and no tooltip. Company data and report calculations unchanged.
+Verification: build zero warnings/errors; 73 backend tests, live WPF checks (including shared party selection and round-trip through Agent Ledger), and 52 acceptance checks passed. Synthetic UI renders inspected; no company data changed.
+
+
+### 2026-10-31 — Graphite dark theme redesign (UI 2026.10.31.32)
+
+Replaced the blue-heavy dark palette with layered graphite workspace/surface/header tones, subtle neutral borders, clear off-white primary text, muted secondary labels, restrained blue selection/calculated-cell accents, and coordinated success/error surfaces. Shared live brushes apply to navigation, tables, locked fields, dialogs, dropdowns and scrollbars without restarting. Theme toggle now uses a geometric split-circle appearance icon in light mode and a refined sun in dark mode, on a quiet themed surface. Light theme, export styles and company data unchanged. Updated live theme regression to the new surface color; existing contrast/preference checks retained.
+Verification: zero build warnings/errors; 73 backend tests and live WPF checks passed, including contrast across workspace, header, locked, selected and calculated surfaces; dark register, receipt and dialog renders inspected. Light-theme restoration and preference persistence checks passed.
+
+
+### 2026-10-31 — Theme action and report section separation (UI 2026.10.31.33)
+
+Replaced the hatched appearance glyph with a clean crescent/sun pair. Theme action uses a dedicated borderless template with subtle hover/keyboard-focus surfaces instead of a bright outline. Softened neutral dark panel borders. Reports now has a tinted toolbar with a lower separator, a spacing gutter and a separately outlined table/search region, preserving the compact layout and shared party selection. Company data and exported reports unchanged.
+
+
+### 2026-10-31 — Flat report sections and receipt table width (UI 2026.10.31.34)
+
+Reports now removes the enclosing worksheet border and uses the same workspace-colored gutter between separate white toolbar and table surfaces as Invoice Register, without nested outlines/inset table margins. Other pages retain their worksheet framing. Party/Agent Receipt tables expand the final real description column into available width with minimum readable widths, eliminating the apparent trailing filler column. Stored data, export columns and report calculations unchanged.
+### 2026-10-31 � Report spacing and invoice focus (UI 2026.10.31.35)
+Added an 8-pixel gap between main navigation and Reports toolbar. New Invoice now focuses Agent name on opening instead of Country name. Data and calculations unchanged.

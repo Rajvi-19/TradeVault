@@ -92,12 +92,12 @@ public sealed class ExcelGrid : UserControl
             if(field.IsDate&&!field.IsReadOnly&&!readOnly)
             {
                 var factory=new FrameworkElementFactory(typeof(DateCellEditor));
-                factory.SetBinding(DateCellEditor.ValueProperty,new Binding($"[{field.Key}]"){Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged,ValidatesOnNotifyDataErrors=false});
+                factory.SetValue(TextBox.TextAlignmentProperty,TextAlignment.Center);factory.SetBinding(DateCellEditor.ValueProperty,new Binding($"[{field.Key}]"){Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged,ValidatesOnNotifyDataErrors=false});
                 var template=new DataTemplate{VisualTree=factory};
                 Table.Columns.Add(new DataGridTemplateColumn{Header=field.Label,Width=CompactWidth(field),CellTemplate=template,CellEditingTemplate=template,ClipboardContentBinding=new Binding($"[{field.Key}]"){Mode=BindingMode.OneWay,Converter=new DateCellConverter()},SortMemberPath=$"[{field.Key}]",CellStyle=cellStyle});
                 continue;
             }
-            var style = new Style(typeof(TextBlock)); style.Setters.Add(new Setter(TextBlock.PaddingProperty,new Thickness(8,3,8,3)));
+            var style = new Style(typeof(TextBlock));style.Setters.Add(new Setter(TextBlock.TextAlignmentProperty,TextAlignment.Center));style.Setters.Add(new Setter(VerticalAlignmentProperty,VerticalAlignment.Center)); style.Setters.Add(new Setter(TextBlock.PaddingProperty,new Thickness(8,3,8,3)));
             if (field.Calculated){style.Setters.Add(new Setter(TextBlock.BackgroundProperty,Ui.Color("#F0F5FF")));var selected=new DataTrigger{Binding=new Binding("IsSelected"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGridCell),1)},Value=true};selected.Setters.Add(new Setter(TextBlock.BackgroundProperty,Brushes.Transparent));style.Triggers.Add(selected);}
             Table.Columns.Add(new DataGridTextColumn {
                 Header = field.Label, Width = field.Width==240?CompactWidth(field):field.Width, IsReadOnly = field.IsReadOnly,
@@ -329,7 +329,7 @@ public sealed class ExcelGrid : UserControl
     }
     private static Style EditingStyle()
     {
-        var style=new Style(typeof(TextBox));style.Setters.Add(new Setter(TextBox.MinHeightProperty,0d));
+        var style=new Style(typeof(TextBox));style.Setters.Add(new Setter(TextBox.TextAlignmentProperty,TextAlignment.Center));style.Setters.Add(new Setter(TextBox.MinHeightProperty,0d));
         style.Setters.Add(new Setter(TextBox.PaddingProperty,new Thickness(8,2,8,2)));style.Setters.Add(new Setter(TextBox.VerticalContentAlignmentProperty,VerticalAlignment.Center));return style;
     }
     private void AddBlankRows()
@@ -415,7 +415,7 @@ internal sealed class FieldErrorConverter:IValueConverter
     {
         var key=parameter.ToString()!;var boolean=key.EndsWith('?');if(boolean)key=key[..^1];
         var error=value is IReadOnlyDictionary<string,string> errors?errors.GetValueOrDefault(key,""):"";
-        return boolean?(object)(error.Length>0):error;
+        return boolean?(object)(error.Length>0):string.IsNullOrWhiteSpace(error)?null!:error;
     }
     public object ConvertBack(object value,Type targetType,object parameter,System.Globalization.CultureInfo culture)=>throw new NotSupportedException();
 }

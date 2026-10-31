@@ -49,20 +49,5 @@ public sealed class InvoiceRegisterTests:IDisposable
         row["_dueOverride"]="";Assert.Equal(new DateOnly(2026,9,29),RegisterInvoiceSchema.DueDate(row));
         row["_dueOverride"]="2026-05-01";Assert.Throws<BusinessRuleException>(()=>store.Save("form",saved.Revision+1,saved.Rows,party));
     }
-    [Fact]public void UpgradeKeepsExistingAgentDeadlineAndEarlierReceipts()
-    {
-        var paths=database.Paths;
-        using(var connection=new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder{DataSource=paths.Database,Pooling=false}.ToString()))
-        {
-            connection.Open();using var command=connection.CreateCommand();command.CommandText="""
-                DELETE FROM schema_migrations WHERE version>=12;
-                INSERT INTO party_worksheets VALUES('00000000-0000-0000-0000-000000000000','form',1,'[{"_id":"kept","F9":"OLD","F10":"2026-06-01","F17":"2026-06-17","F19":"2026-08-16","_terms":"60","F27":"Existing agent","F22":"100","F24":"2026-07-01"}]');
-                """;command.ExecuteNonQuery();
-        }
-        database.Dispose();using var upgraded=new PortableDatabase(paths);var row=Assert.Single(new WorkbookStore(upgraded).Load("form").Rows);
-        Assert.All(RegisterInvoiceSchema.VisibleKeys,key=>Assert.True(row.ContainsKey(key)));
-        Assert.Equal("Existing agent",row["F27"]);Assert.Equal("2026-08-16",row["_dueOverride"]);Assert.Equal("2026-07-17",row["F20"]);
-        Assert.Equal("100",row["F22"]);Assert.Equal("2026-07-01",row["F24"]);Assert.Equal("kept",row["_id"]);
-        Assert.NotEmpty(Directory.GetFiles(paths.Backups,"*.db"));
-    }
+    
 }

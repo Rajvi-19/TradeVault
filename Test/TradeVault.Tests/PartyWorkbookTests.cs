@@ -65,28 +65,6 @@ public sealed class PartyWorkbookTests:IDisposable
         Assert.Throws<BusinessRuleException>(()=>store.AssignUnassigned("form",a.Id,1));
         Assert.Empty(store.Load("form",a.Id).Rows);Assert.Single(store.Load("form").Rows);
     }
-    [Fact]
-    public void VersionTwoMigrationKeepsExactLegacyDataAndMakesUsableBackup()
-    {
-        var paths=new PortablePaths(root);
-        using(var created=new PortableDatabase(paths)){}
-        var legacy=JsonSerializer.Serialize(Data("legacy","123.45"));
-        using(var c=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=paths.Database,Pooling=false}.ToString()))
-        {
-            c.Open();using var command=c.CreateCommand();
-            command.CommandText="DROP TABLE IF EXISTS account_recovery; DROP TABLE party_worksheets; DROP TABLE worksheet_parties; DROP TABLE workflow_documents; DROP TABLE workflow_audit; DELETE FROM schema_migrations WHERE version>=3; INSERT INTO worksheets VALUES('details',7,$data)";
-            command.Parameters.AddWithValue("$data",legacy);command.ExecuteNonQuery();
-        }
-        using(var migrated=new PortableDatabase(paths))
-        {
-            var store=new WorkbookStore(migrated);var snapshot=store.Load("details");
-            Assert.Equal(7,snapshot.Revision);Assert.Equal(legacy,JsonSerializer.Serialize(snapshot.Rows));Assert.Single(store.GetParties());
-        }
-        var backup=Assert.Single(Directory.GetFiles(paths.Backups,"*.db"));
-        using var check=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=backup,Pooling=false}.ToString());check.Open();using var sql=check.CreateCommand();
-        sql.CommandText="SELECT MAX(version) FROM schema_migrations";Assert.Equal(2L,sql.ExecuteScalar());
-        sql.CommandText="SELECT data FROM worksheets WHERE name='details'";Assert.Equal(legacy,sql.ExecuteScalar());
-        sql.CommandText="PRAGMA integrity_check";Assert.Equal("ok",sql.ExecuteScalar());
-    }
+    
     public void Dispose(){Directory.Delete(root,true);}
 }

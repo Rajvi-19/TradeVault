@@ -19,8 +19,8 @@ public sealed class CompanyReportTests:IDisposable
     {
         var (store,party,agent)=Fixture();store.AddTransferReceipt(TransferReceiptKind.Party,party.ToString(),new(2026,7,1),5000,"Transfer to agent",agent);
         var snapshot=store.Load("form",party);var report=new CompanyReports(store).Build(CompanyReportKind.AccountDetails,party.ToString());var row=Assert.Single(report.Table.Rows);
-        Assert.Equal(14,report.Table.Columns.Count);Assert.Equal("18000.00",row["C"]);Assert.Equal("12000.00",row["D"]);Assert.Equal("6000.00",row["G"]);Assert.Equal("2026-09-18",row["N"]);Assert.Equal("90",row["M"]);
-        Assert.Equal("5000.00",row["E"]);Assert.Equal("7000.00",row["F"]);Assert.Equal("0.00",row["J"]);foreach(var key in new[]{"H","I","K"})Assert.Equal("",row[key]);Assert.Contains("0.00",report.Summary["Unallocated receipts / advance"]);Assert.Equal(snapshot.Revision,store.Load("form",party).Revision);
+        Assert.Equal(13,report.Table.Columns.Count);Assert.Equal("18000.00",row["C"]);Assert.Equal("12000.00",row["D"]);Assert.DoesNotContain(report.Table.Columns,c=>c.Key=="G");Assert.True(report.Table.Columns.FindIndex(c=>c.Key=="E")<report.Table.Columns.FindIndex(c=>c.Key=="O"));Assert.Equal("2026-09-18",row["N"]);Assert.Equal("90",row["M"]);
+        Assert.Equal("5000.00",row["E"]);Assert.Equal("5000.00",row["F"]);Assert.Equal("0.00",row["J"]);foreach(var key in new[]{"H","I","K"})Assert.Equal("",row[key]);Assert.Contains("0.00",report.Summary["Unallocated receipts / advance"]);Assert.Equal(snapshot.Revision,store.Load("form",party).Revision);
     }
     [Fact]public void PartyLedgerDebitsInvoicesAndCreditsOnlyThatPartysPaymentBook()
     {
