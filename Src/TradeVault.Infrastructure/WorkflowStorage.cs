@@ -16,13 +16,27 @@ public sealed partial class WorkbookStore
             if(issues.Count>0)throw new BusinessRuleException($"Row {i+1}: "+string.Join("\n",issues.Select(issue=>issue.Message)));
         }
         if(rows.Where(r=>!string.IsNullOrWhiteSpace(r.GetValueOrDefault("F9"))).GroupBy(r=>r["F9"].Trim(),StringComparer.OrdinalIgnoreCase).Any(g=>g.Count()>1))throw new BusinessRuleException("Duplicate invoice reference for this party.");
+        var savedRows=Load("form",party).Rows.Where(r=>!r.ContainsKey("_metadata")&&r.GetValueOrDefault("_blank")!="1").ToDictionary(r=>ReportWorkflow.InvoiceKey(party,r));
+        foreach(var row in rows)
+        {
+            if(savedRows.TryGetValue(ReportWorkflow.InvoiceKey(party,row),out var saved))
+                foreach(var key in RegisterInvoiceSchema.IdentityKeys)
+                    if(row.GetValueOrDefault(key,"")!=saved.GetValueOrDefault(key,""))throw new BusinessRuleException("Country, agent and proforma invoice details cannot be changed after creation.");
+            if(row.GetValueOrDefault("_newInvoice")=="1")
+            {
+                RegisterInvoiceSchema.Required(row.GetValueOrDefault("F2", ""),"Country name",200);
+                var agent=RequireAgent(row.GetValueOrDefault("F27", ""),row.GetValueOrDefault("_agentId"));row["_agentId"]=agent.Id;
+                RegisterInvoiceSchema.Required(row.GetValueOrDefault("F3", ""),"Proforma invoice number",100);
+                if(string.IsNullOrWhiteSpace(row.GetValueOrDefault("F4")))throw new BusinessRuleException("Proforma invoice date is required.");
+            }
+        }
         var receipts=Document<TradeVault.Application.ReceiptBook>("receipts",party.ToString())?.Receipts??[];
         if(receipts.Count==0)return;
         var old=Load("form",party).Rows.Where(r=>!r.ContainsKey("_metadata")&&r.GetValueOrDefault("_blank")!="1").ToList();
         foreach(var id in receipts.SelectMany(r=>r.Allocations).Select(a=>a.InvoiceId).Distinct())
         {
             var previous=old.Single(r=>ReportWorkflow.InvoiceKey(party,r)==id);var next=rows.SingleOrDefault(r=>ReportWorkflow.InvoiceKey(party,r)==id)??throw new BusinessRuleException("Invoices with receipt history cannot be deleted.");
-            foreach(var field in new[]{"F5","F6","F7","F22","F23","F25","F24","F26","F18","F10"})
+            foreach(var field in new[]{"F5","F6","F7","F22","F23","F25","F24","F26","F10"})
                 if(previous.GetValueOrDefault(field,"")!=next.GetValueOrDefault(field,""))throw new BusinessRuleException("Invoice amounts/dates with receipt history are protected. Use a documented correction workflow rather than changing historical inputs.");
         }
     }
@@ -72,9 +86,10 @@ public sealed partial class WorkbookStore
         using(var source=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=full,Mode=SqliteOpenMode.ReadOnly,Pooling=false}.ToString()))
         {
             source.Open();using var cmd=source.CreateCommand();cmd.CommandText="PRAGMA integrity_check";if(!Equals(cmd.ExecuteScalar(),"ok"))throw new BusinessRuleException("Backup integrity check failed.");
-            cmd.CommandText="SELECT MAX(version) FROM schema_migrations";var version=Convert.ToInt32(cmd.ExecuteScalar());if(version is <2 or >9)throw new BusinessRuleException("Backup version is not supported by this application.");
+            cmd.CommandText="SELECT MAX(version) FROM schema_migrations";var version=Convert.ToInt32(cmd.ExecuteScalar());if(version is <2 or >13||version==10&&!PortableDatabase.IsCompatibleRevertedSchema(source))throw new BusinessRuleException("Backup version is not supported by this application.");
             cmd.CommandText="SELECT name FROM sqlite_master WHERE type='table'";var tables=new HashSet<string>();using(var reader=cmd.ExecuteReader())while(reader.Read())tables.Add(reader.GetString(0));
             var required=new List<string>{"schema_migrations","app_instance","worksheets","audit_events","parties","invoices","receipts","receipt_allocations"};if(version>=3)required.AddRange(["worksheet_parties","party_worksheets"]);if(version>=4)required.AddRange(["workflow_documents","workflow_audit"]);
+            if(version>=13)required.Add("worksheet_agents");
             if(required.Any(name=>!tables.Contains(name)))throw new BusinessRuleException("Backup schema is incomplete.");
             cmd.CommandText="PRAGMA foreign_key_check";using(var reader=cmd.ExecuteReader())if(reader.Read())throw new BusinessRuleException("Backup contains broken relationships.");
         }

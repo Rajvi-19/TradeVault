@@ -100,7 +100,7 @@ public sealed partial class ReportWorkflow(WorkbookStore store)
     public int? SettlementAwareOverdue(Guid party,Dictionary<string,string> row,DateOnly asOf)
     {
         if(string.IsNullOrWhiteSpace(row.GetValueOrDefault("F5"))||string.IsNullOrWhiteSpace(row.GetValueOrDefault("F6")))return null;
-        var due=DueDates.Calculate(Date(row,"F17"),int.TryParse(row.GetValueOrDefault("_terms"),out var terms)?terms:90);if(due==null)return 0;
+        var due=RegisterInvoiceSchema.DueDate(row);if(due==null)return 0;
         var bank=Amount(row,"F25");var diff=Amount(row,"F23");
         var bankDate=bank==0?(DateOnly?)null:Date(row,"F26");var diffDate=diff==0?(DateOnly?)null:Date(row,"F24");
         if(bank>0&&bankDate==null||diff>0&&diffDate==null)return null;
@@ -137,40 +137,41 @@ public sealed partial class ReportWorkflow(WorkbookStore store)
     private ReportBundle BuildGenerated(Guid party,DateOnly asOf,List<PartyReceipt> receipts,bool validationOnly)
     {
         Party(party);
-        var rows=Invoices(party);var duplicates=rows.GroupBy(r=>r.GetValueOrDefault("F9","").Trim(),StringComparer.OrdinalIgnoreCase).FirstOrDefault(g=>g.Key.Length==0||g.Count()>1);
+        var allRows=Invoices(party);var rows=allRows.Where(r=>r.GetValueOrDefault("_newInvoice")!="1"||new[]{"F9","F10","F5","F6"}.All(k=>!string.IsNullOrWhiteSpace(r.GetValueOrDefault(k)))).ToList();var duplicates=rows.GroupBy(r=>r.GetValueOrDefault("F9","").Trim(),StringComparer.OrdinalIgnoreCase).FirstOrDefault(g=>g.Key.Length==0||g.Count()>1);
         if(duplicates!=null)throw new BusinessRuleException("Register has missing or duplicate invoice numbers. Use a unique invoice/container reference.");
         var details=new List<Dictionary<string,string>>();var entries=new List<(DateOnly Date,string Key,string Text,decimal Debit,decimal Credit)>();
-        var notes=new List<string>{"Generated from saved invoice register and dated receipt allocations. Independent legacy worksheets are preserved.","Bank contract: Our customs invoice amount. Earlier bank payments: Nemichem receipts, using Nemichem receipt date. No automatic shipping deduction or opening-balance adjustment.","Historical results use current invoice values, filtered by effective dates. Corrected invoice versions are not reconstructed.","Existing cumulative receipts are treated as single baseline movements on their recorded dates; earlier payment history is not invented."};
+        var notes=new List<string>{"Generated from saved invoice register and dated receipt allocations. Independent legacy worksheets are preserved.","Bank contract: Our customs invoice amount. Earlier bank payments: Nemichem receipts, using Nemichem receipt date. No opening-balance adjustment.","Historical results use current invoice values, filtered by effective dates. Corrected invoice versions are not reconstructed.","Existing cumulative receipts are treated as single baseline movements on their recorded dates; earlier payment history is not invented."};
+        if(rows.Count!=allRows.Count)notes.Add($"{allRows.Count-rows.Count} new invoice draft(s) excluded: complete India invoice number/date and original/customs amounts to include them in financial reports.");
         decimal runningDifference=0;
         foreach(var row in rows.OrderBy(r=>r.GetValueOrDefault("F10","")).ThenBy(r=>r.GetValueOrDefault("F9",""),StringComparer.Ordinal))
         {
             var key=InvoiceKey(party,row);var invoice=row.GetValueOrDefault("F9","");var date=Date(row,"F10",true)!.Value;
-            var original=Amount(row,"F5",true);var contract=Amount(row,"F6",true);decimal shipping=0;
-            if(original-contract-shipping<0)throw new BusinessRuleException(invoice+": Our customs invoice amount exceeds the original invoice amount.");
+            var original=Amount(row,"F5",true);var contract=Amount(row,"F6",true);
+            if(original-contract<0)throw new BusinessRuleException(invoice+": Our customs invoice amount exceeds the original invoice amount.");
             var baselineBank=Amount(row,"F25");var baselineDiff=Amount(row,"F23");
             var bankDate=baselineBank==0?(DateOnly?)null:Date(row,"F26",true);
             var diffDate=baselineDiff==0?(DateOnly?)null:Date(row,"F24",true);
             if(bankDate<date||diffDate<date)throw new BusinessRuleException(invoice+": baseline receipt predates invoice.");
             var allocations=receipts.SelectMany(r=>r.Allocations.Where(a=>a.InvoiceId==key).Select(a=>(r.Date,a.Component,a.Amount))).ToList();
             var allBank=baselineBank+allocations.Where(a=>a.Component=="Bank").Sum(a=>a.Amount);var allDiff=baselineDiff+allocations.Where(a=>a.Component=="Difference").Sum(a=>a.Amount);
-            if(allBank>contract||allDiff>original-contract-shipping||allBank<0||allDiff<0)throw new BusinessRuleException(invoice+": receipts exceed an outstanding component.");
+            if(allBank>contract||allDiff>original-contract||allBank<0||allDiff<0)throw new BusinessRuleException(invoice+": receipts exceed an outstanding component.");
             // Validate every effective-date checkpoint, not only the final balance after future reversals.
             foreach(var component in new[]{"Bank","Difference"})
             {
                 var movements=allocations.Where(a=>a.Component==component).Select(a=>(a.Date,a.Amount)).ToList();
                 var baseline=component=="Bank"?baselineBank:baselineDiff;var effective=component=="Bank"?bankDate:diffDate;
                 if(effective is {} baselineDate)movements.Add((baselineDate,baseline));
-                decimal paid=0;var ceiling=component=="Bank"?contract:original-contract-shipping;
+                decimal paid=0;var ceiling=component=="Bank"?contract:original-contract;
                 foreach(var day in movements.GroupBy(a=>a.Date).OrderBy(g=>g.Key))
                 {paid+=day.Sum(a=>a.Amount);if(paid<0||paid>ceiling)throw new BusinessRuleException($"{invoice}: {component} receipts exceed the component balance on {day.Key:dd-MM-yyyy}.");}
             }
             if(date>asOf)continue;
             var bank=(bankDate<=asOf?baselineBank:0)+allocations.Where(a=>a.Date<=asOf&&a.Component=="Bank").Sum(a=>a.Amount);
             var diff=(diffDate<=asOf?baselineDiff:0)+allocations.Where(a=>a.Date<=asOf&&a.Component=="Difference").Sum(a=>a.Amount);
-            var terms=int.TryParse(row.GetValueOrDefault("_terms","90"),out var days)?days:90;var due=DueDates.Calculate(Date(row,"F17"),terms);
-            runningDifference+=original-contract-shipping-diff;
-            details.Add(new(){["A"]=(details.Count+1).ToString(),["B"]=invoice,["C"]=F(original),["D"]=F(contract),["E"]=F(bank),["F"]=F(contract-bank),["G"]=F(original-contract),["H"]=F(shipping),["I"]=F(original-contract-shipping),["J"]=F(diff),["K"]=F(runningDifference),["L"]=row.GetValueOrDefault("F17",""),["M"]=terms.ToString(),["N"]=due?.ToString("yyyy-MM-dd")??""});
-            entries.Add((date,key+"1",invoice,original,0));if(shipping!=0)entries.Add((date,key+"2","Approved shipping / "+invoice,0,shipping));
+            var terms=int.TryParse(row.GetValueOrDefault("_terms","90"),out var days)?days:90;var due=RegisterInvoiceSchema.DueDate(row);
+            runningDifference+=original-contract-diff;
+            details.Add(new(){["A"]=(details.Count+1).ToString(),["B"]=invoice,["C"]=F(original),["D"]=F(contract),["E"]=F(bank),["F"]=F(contract-bank),["G"]=F(original-contract),["I"]=F(original-contract),["J"]=F(diff),["K"]=F(runningDifference),["L"]=row.GetValueOrDefault("F17",""),["M"]=terms.ToString(),["N"]=due?.ToString("yyyy-MM-dd")??""});
+            entries.Add((date,key+"1",invoice,original,0));
             if(bankDate<=asOf)entries.Add((bankDate!.Value,key+"3","Baseline bank receipt / "+invoice,0,baselineBank));
             if(diffDate<=asOf)entries.Add((diffDate!.Value,key+"4","Baseline difference receipt / "+invoice,0,baselineDiff));
             foreach(var allocation in allocations.Where(a=>a.Date<=asOf))entries.Add((allocation.Date,key+"5"+allocation.Component,allocation.Component+" receipt / "+invoice,0,allocation.Amount));
@@ -193,13 +194,13 @@ public sealed partial class ReportWorkflow(WorkbookStore store)
     public static List<ReportColumn> Columns(string name)
     {
         var details=name=="Account Details";
-        var keys=details?new[]{"A","B","C","D","E","F","G","H","I","J","K","L","M","N"}:new[]{"B","C","D","E","G","H","I","J","K"};
-        var labels=details?new[]{"SR. NO.","OUR CUSTOMS INVOICE NO & DATE","ORIGINAL AMOUNT $","BANK CONTRACT AMOUNT $","REC. INVOICE  PAYMENT IN MALAYSIA A/C","PENDING INVOICE PAYMENT IN MALAYSIA A/C","DIFFRENCE AMAOUNT $","SHIPMENT PAYMENT $","PER BILL DIFF. AFTER SHIPMENT PAYMENT  USD","REC. DIFF. AMOUNT","TOTAL DIFF. AMOUNT PENDING $","BL DATE. MLY TO PAK","TERMS","DUE DATE"}:new[]{"Transaction description","Amount added / USD (Debit)","Amount deducted / USD (Credit)","Running amount owed / USD","Payment due date","Bank amount / USD","Bill of lading date","Payment terms / days","Payment due date"};
+        var keys=details?new[]{"A","B","C","D","E","F","G","I","J","K","L","M","N"}:new[]{"B","C","D","E","G","I","J","K"};
+        var labels=details?new[]{"SR. NO.","OUR CUSTOMS INVOICE NO & DATE","ORIGINAL AMOUNT $","BANK CONTRACT AMOUNT $","REC. INVOICE  PAYMENT IN MALAYSIA A/C","PENDING INVOICE PAYMENT IN MALAYSIA A/C","DIFFRENCE AMAOUNT $","PER BILL DIFFERENCE USD","REC. DIFF. AMOUNT","TOTAL DIFF. AMOUNT PENDING $","BL DATE. MLY TO PAK","TERMS","DUE DATE"}:new[]{"Transaction description","Amount added / USD (Debit)","Amount deducted / USD (Credit)","Running amount owed / USD","Payment due date","Bank amount / USD","Bill of lading date","Payment terms / days","Payment due date"};
         return keys.Select((k,i)=>new ReportColumn(k,labels[i],(details?k is "L" or "N":k is "G" or "I" or "K")?"date":(details?k is not("B"):k is "C" or "D" or "E" or "H" or "J")?"number":"text")).ToList();
     }
     private static ReportTable Table(string name,List<Dictionary<string,string>> rows)
     {
-        var totals=new Dictionary<string,decimal>();foreach(var key in name=="Account Details"?new[]{"C","D","E","F","G","H","I","J"}:new[]{"C","D"})
+        var totals=new Dictionary<string,decimal>();foreach(var key in name=="Account Details"?new[]{"C","D","E","F","G","I","J"}:new[]{"C","D"})
         {decimal sum=0;foreach(var row in rows){var text=row.GetValueOrDefault(key,"");if(text.Length>0){if(!decimal.TryParse(text,NumberStyles.Number,Culture,out var n))throw new BusinessRuleException("Invalid numeric report cell: "+key);sum+=n;}}totals[key]=sum;}
         var balanceKey=name=="Account Details"?"K":"E";if(rows.Count>0&&decimal.TryParse(rows.Last().GetValueOrDefault(balanceKey),NumberStyles.Number,Culture,out var balance))totals[balanceKey]=balance;
         return new(name,Columns(name),rows,totals);

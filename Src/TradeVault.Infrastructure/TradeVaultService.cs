@@ -36,8 +36,8 @@ public sealed class TradeVaultService(PortableDatabase database) : ITradeVaultSe
     private static Invoice ReadInvoice(SqliteDataReader r) => new(Guid.Parse(r.GetString(0)),
         Guid.Parse(r.GetString(1)), r.GetString(2), ParseDate(r.GetString(3)),
         new(r.GetInt64(4)), new(r.GetInt64(5)), r.IsDBNull(6) ? null : ParseDate(r.GetString(6)),
-        r.GetInt32(7), new(r.GetInt64(8)), r.GetInt32(9));
-    private const string InvoiceColumns = "id,party_id,number,invoice_date,original_cents,bank_contract_cents,final_leg_bl_date,terms_days,shipping_cents,version";
+        r.GetInt32(7), r.GetInt32(8));
+    private const string InvoiceColumns = "id,party_id,number,invoice_date,original_cents,bank_contract_cents,final_leg_bl_date,terms_days,version";
     private static Party PartyById(SqliteConnection c, SqliteTransaction? t, Guid id)
     {
         using var command = Command(c, t, "SELECT id,name,country_code,default_terms_days FROM parties WHERE id=$id", ("$id", id.ToString()));
@@ -52,11 +52,10 @@ public sealed class TradeVaultService(PortableDatabase database) : ITradeVaultSe
         if (!r.Read()) throw new BusinessRuleException("Invoice does not exist.");
         return ReadInvoice(r);
     }
-    private static void ValidateInvoice(Usd original, Usd contract, Usd shipping, DateOnly? bl, int terms)
+    private static void ValidateInvoice(Usd original, Usd contract, DateOnly? bl, int terms)
     {
         original.RequireNonNegative("Original amount");
         contract.RequireNonNegative("Bank contract amount");
-        shipping.RequireNonNegative("Shipping charge");
         DueDates.Calculate(bl, terms);
     }
     private static void CheckNumber(SqliteConnection c, SqliteTransaction t, Guid party, string number, Guid except)
@@ -102,17 +101,16 @@ public sealed class TradeVaultService(PortableDatabase database) : ITradeVaultSe
         using var t = c.BeginTransaction();
         var party = PartyById(c, t, request.PartyId);
         var terms = request.TermsDays ?? party.DefaultTermsDays;
-        var shipping = request.ShippingCharge ?? Usd.FromDecimal(3800);
-        ValidateInvoice(request.OriginalAmount, request.BankContractAmount, shipping, request.FinalLegBlDate, terms);
+        ValidateInvoice(request.OriginalAmount, request.BankContractAmount, request.FinalLegBlDate, terms);
         var id = Guid.NewGuid();
         CheckNumber(c, t, party.Id, number, id);
         using var cmd = Command(c, t, """
-            INSERT INTO invoices (id,party_id,number,invoice_date,original_cents,bank_contract_cents,final_leg_bl_date,terms_days,shipping_cents,version)
-            VALUES ($id,$party,$number,$date,$original,$bank,$bl,$terms,$shipping,1)
+            INSERT INTO invoices (id,party_id,number,invoice_date,original_cents,bank_contract_cents,final_leg_bl_date,terms_days,version)
+            VALUES ($id,$party,$number,$date,$original,$bank,$bl,$terms,1)
             """, ("$id", id.ToString()), ("$party", party.Id.ToString()), ("$number", number),
             ("$date", Date(request.InvoiceDate)), ("$original", request.OriginalAmount.Cents),
             ("$bank", request.BankContractAmount.Cents), ("$bl", request.FinalLegBlDate is { } bl ? Date(bl) : null),
-            ("$terms", terms), ("$shipping", shipping.Cents));
+            ("$terms", terms));
         cmd.ExecuteNonQuery();
         Audit(c, t, id, "InvoiceCreated");
         var invoice = InvoiceById(c, t, id);
@@ -123,7 +121,7 @@ public sealed class TradeVaultService(PortableDatabase database) : ITradeVaultSe
     public Invoice UpdateInvoice(UpdateInvoice request)
     {
         var number = Text(request.Number, "Invoice number", 100);
-        ValidateInvoice(request.OriginalAmount, request.BankContractAmount, request.ShippingCharge, request.FinalLegBlDate, request.TermsDays);
+        ValidateInvoice(request.OriginalAmount, request.BankContractAmount, request.FinalLegBlDate, request.TermsDays);
         using var c = database.Open();
         using var t = c.BeginTransaction();
         var previous = InvoiceById(c, t, request.Id);
@@ -145,11 +143,11 @@ public sealed class TradeVaultService(PortableDatabase database) : ITradeVaultSe
         }
         using var cmd = Command(c, t, """
             UPDATE invoices SET number=$number,invoice_date=$date,original_cents=$original,
-                bank_contract_cents=$bank,final_leg_bl_date=$bl,terms_days=$terms,shipping_cents=$shipping,version=version+1
+                bank_contract_cents=$bank,final_leg_bl_date=$bl,terms_days=$terms,version=version+1
             WHERE id=$id AND version=$version
             """, ("$number", number), ("$date", Date(request.InvoiceDate)), ("$original", request.OriginalAmount.Cents),
             ("$bank", request.BankContractAmount.Cents), ("$bl", request.FinalLegBlDate is { } bl ? Date(bl) : null),
-            ("$terms", request.TermsDays), ("$shipping", request.ShippingCharge.Cents),
+            ("$terms", request.TermsDays),
             ("$id", request.Id.ToString()), ("$version", request.ExpectedVersion));
         if (cmd.ExecuteNonQuery() != 1) throw new BusinessRuleException("Invoice changed. Refresh before saving.");
         Audit(c, t, request.Id, "InvoiceUpdated");
@@ -249,7 +247,7 @@ public sealed class TradeVaultService(PortableDatabase database) : ITradeVaultSe
             while (r.Read())
             {
                 var invoice = ReadInvoice(r);
-                var allocated = r.GetInt64(10);
+                var allocated = r.GetInt64(9);
                 var outstanding = invoice.BankContractAmount.Cents - allocated;
                 var overdue = outstanding > 0 && invoice.DueDate is { } due ? Math.Max(0, asOf.DayNumber - due.DayNumber) : 0;
                 result.Add(new(invoice, new(allocated), new(outstanding), overdue));

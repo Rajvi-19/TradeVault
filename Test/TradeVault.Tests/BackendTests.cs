@@ -23,7 +23,7 @@ public sealed class BackendTests : IDisposable
         service.CreateInvoice(new(party.Id, number, Start, Money(15000), Money(bank), new DateOnly(2026, 6, 17)));
     private static UpdateInvoice Change(Invoice i, int? terms = null, Usd? contract = null) =>
         new(i.Id, i.Version, i.Number, i.InvoiceDate, i.OriginalAmount, contract ?? i.BankContractAmount,
-            i.FinalLegBlDate, terms ?? i.TermsDays, i.ShippingCharge);
+            i.FinalLegBlDate, terms ?? i.TermsDays);
 
     [Fact]
     public void DefaultsAndChangesPersistAcrossReopen()
@@ -31,8 +31,7 @@ public sealed class BackendTests : IDisposable
         var party = Party();
         var invoice = Invoice(party);
         Assert.Equal(new DateOnly(2026, 9, 15), invoice.DueDate);
-        Assert.Equal(Money(3800), invoice.ShippingCharge);
-        var updated = service.UpdateInvoice(Change(invoice, 60) with { ShippingCharge = Money(4100) });
+        var updated = service.UpdateInvoice(Change(invoice, 60));
         database.Dispose();
         using var reopened = new PortableDatabase(new(root));
         var saved = Assert.Single(new TradeVaultService(reopened).GetInvoices(party.Id));

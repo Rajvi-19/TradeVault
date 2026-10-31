@@ -26,6 +26,7 @@ public partial class App : System.Windows.Application
             var store=new WorkbookStore(database);
             if(e.Args.Length==2&&e.Args[0]=="--seed-excel-demo"){ExcelDemoSeeder.Run(store,e.Args[1]);Shutdown(0);return;}
 #if DEBUG
+            if(e.Args.Contains("--seed-agent-test-data")){var result=store.SeedAgentTestData();Console.WriteLine($"Test agents created: {result.AgentsCreated}; previously blank invoice agents assigned: {result.InvoicesAssigned}; backup: {result.Backup}");Shutdown(0);return;}
             if(e.Args.Contains("--seed-workflow-data")){TestDataSeeder.RunWorkflow(store,database);Shutdown(0);return;}
             if(e.Args.Contains("--seed-test-data")){TestDataSeeder.Run(store,database);Shutdown(0);return;}
 #else
@@ -35,6 +36,6 @@ public partial class App : System.Windows.Application
             new MainWindow(store,database.Paths.Database).ShowDialog();
             Shutdown(0);
         }
-        catch(Exception ex){Console.Error.WriteLine(ex);if(!e.Args.Any(a=>a is "--audit-pages" or "--self-test" or "--qa-report" or "--render-ui" or "--seed-test-data" or "--seed-workflow-data"))MessageBox.Show(ex.Message,"TradeVault startup failed");Shutdown(1);}
+        catch(Exception ex){Console.Error.WriteLine(ex);if(!e.Args.Any(a=>a is "--audit-pages" or "--self-test" or "--qa-report" or "--render-ui" or "--seed-test-data" or "--seed-workflow-data" or "--seed-agent-test-data"))MessageBox.Show(ex.Message,"TradeVault startup failed");Shutdown(1);}
     }
 }

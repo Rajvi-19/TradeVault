@@ -34,7 +34,7 @@ public sealed class WorksheetController(WorkbookStore store)
             }
             var row = new GridRow(); foreach (var cell in data) row[cell.Key] = cell.Value;
             if(name=="form"&&row["_blank"]!="1"){if(row["_id"].Length==0)row["_id"]=ReportWorkflow.InvoiceKey(PartyId,data);if(row["_terms"].Length==0)row["_terms"]=Terms.ToString();}
-            Rows.Add(row);
+            row["_autoDue"]=row["F19"];Rows.Add(row);
         }
         Calculate();
     }
@@ -43,8 +43,7 @@ public sealed class WorksheetController(WorkbookStore store)
         var row = draft??new GridRow();
         if(Name=="form"){row["_id"]=Guid.NewGuid().ToString();row["_terms"]=Terms.ToString();}
         if(Name=="form"&&PartyId!=Guid.Empty&&string.IsNullOrWhiteSpace(row["F1"]))row["F1"]=PartyName;
-        if (Name == "form" && string.IsNullOrEmpty(row["F18"])) row["F18"] = "3800.00";
-        if (Name == "details") { if(string.IsNullOrEmpty(row["H"]))row["H"] = "3800.00"; if(string.IsNullOrEmpty(row["M"]))row["M"] = "90"; }
+        if (Name == "details") { if(string.IsNullOrEmpty(row["M"]))row["M"] = "90"; }
         if (Name == "ledger" && string.IsNullOrEmpty(row["J"])) row["J"] = "90";
         Rows.Add(row); return row;
     }
@@ -59,28 +58,29 @@ public sealed class WorksheetController(WorkbookStore store)
     }
     public IReadOnlyList<string> Validate(bool requiredFields=true,bool publish=true)
     {
+        if(Name=="form")foreach(var row in Records)if(row.Snapshot().ContainsKey("_autoDue")&&row["F19"]!=row["_autoDue"])row["_dueOverride"]=row["F19"];
         var errors = new List<string>();
-        var money = Name switch { "form" => new[] { "F5","F6","F7","F8","F18","F22","F23","F25" }, "details" => ["C","D","E","H","J"], _ => ["C","D","H"] };
-        var dates = Name switch { "form" => new[] { "F4","F10","F13","F14","F17","F24","F26" }, "details" => ["L"], _ => ["I","G"] };
+        var money = Name switch { "form" => new[] { "F5","F6","F7","F8","F22","F23","F25" }, "details" => ["C","D","E","J"], _ => ["C","D","H"] };
+        var dates = Name switch { "form" => new[] { "F4","F10","F13","F14","F17","F19","F24","F26" }, "details" => ["L"], _ => ["I","G"] };
         for (var i = 0; i < Rows.Count; i++)
         {
             var row = Rows[i];ActivateBlank(row);if(row["_blank"]=="1"){if(publish)row.SetIssues([]);continue;} var issues = new List<CellIssue>();
-            var required = Name == "form" ? new[] {"F1","F9"} : new[] {"B"};
-            foreach (var key in required) if (requiredFields && string.IsNullOrWhiteSpace(row[key])) issues.Add(new(key, $"{Fields.First(f=>f.Key==key).Label} is required."));
+            var required = Name == "form" ? (row["_newInvoice"]=="1"?new[]{"F1","F2","F27","F3","F4"}:new[] {"F1","F9"}) : new[] {"B"};
+            foreach (var key in required) if (requiredFields && string.IsNullOrWhiteSpace(row[key])) issues.Add(new(key, $"{(Fields.FirstOrDefault(f=>f.Key==key)?.Label ?? key)} is required."));
             if(requiredFields&&Name=="form"&&PartyId!=Guid.Empty&&!string.IsNullOrWhiteSpace(row["F1"])&&!string.Equals(row["F1"].Trim(),PartyName,StringComparison.OrdinalIgnoreCase))issues.Add(new("F1","Party name must match the selected party. Switch the party selector to enter other parties."));
             foreach (var key in money)
             {
                 if (string.IsNullOrWhiteSpace(row[key])) continue;
                 if (!decimal.TryParse(row[key], NumberStyles.Number, CultureInfo.InvariantCulture, out var amount) || amount < 0 || decimal.Round(amount,2) != amount || amount > 1_000_000_000_000m)
-                    issues.Add(new(key, $"{Fields.First(f=>f.Key==key).Label}: enter non-negative USD with at most two decimals (maximum 1 trillion)."));
+                    issues.Add(new(key, $"{(Fields.FirstOrDefault(f=>f.Key==key)?.Label ?? key)}: enter non-negative USD with at most two decimals (maximum 1 trillion)."));
             }
-            foreach (var key in dates) if (!string.IsNullOrWhiteSpace(row[key]) && !DateOnly.TryParseExact(row[key], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _)) issues.Add(new(key, $"{Fields.First(f=>f.Key==key).Label}: use yyyy-MM-dd; leave unknown dates blank."));
+            foreach (var key in dates) if (!string.IsNullOrWhiteSpace(row[key]) && !DateOnly.TryParseExact(row[key], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _)) issues.Add(new(key, $"{(Fields.FirstOrDefault(f=>f.Key==key)?.Label ?? key)}: use yyyy-MM-dd; leave unknown dates blank."));
             var term = Name == "details" ? "M" : Name == "ledger" ? "J" : "";
             if (term != "" && (!int.TryParse(row[term],out var days) || days < 0 || days > 3650)) issues.Add(new(term,"Terms must be 0–3650 calendar days."));
             var blKey=Name=="form"?"F17":Name=="details"?"L":"I";
             if(DateOnly.TryParseExact(row[blKey],"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var bl))
             {
-                var termDays=term==""?(int.TryParse(row["_terms"],out var savedTerms)?savedTerms:Terms):int.TryParse(row[term],out var entered)?entered:90;
+                var termDays=term==""?90:int.TryParse(row[term],out var entered)?entered:90;
                 try{DueDates.Calculate(bl,termDays);}catch(BusinessRuleException ex){issues.Add(new(blKey,ex.Message));}
             }
             if(requiredFields&&Name=="form")issues.AddRange(InvoiceRules.Validate(row.Snapshot()).Select(issue=>new CellIssue(issue.Field,issue.Message)));
@@ -111,7 +111,7 @@ public sealed class WorksheetController(WorkbookStore store)
                 var hasOriginal=!string.IsNullOrWhiteSpace(row["C"]);
                 if(hasContract)Set(row,"F",Number(row,"D")-Number(row,"E"));else row["F"]="";
                 if(hasOriginal&&hasContract)Set(row,"G",Number(row,"C")-Number(row,"D"));else row["G"]="";
-                if(hasOriginal&&hasContract&&!string.IsNullOrWhiteSpace(row["H"]))Set(row,"I",Number(row,"C")-Number(row,"D")-Number(row,"H"));else{row["I"]="";runningKnown=false;}
+                if(hasOriginal&&hasContract)Set(row,"I",Number(row,"C")-Number(row,"D"));else{row["I"]="";runningKnown=false;}
                 if(runningKnown){running += Number(row,"I")-Number(row,"J");Set(row,"K",running);}else row["K"]="";
                 Due(row,"L","M","N");
             }
@@ -119,7 +119,7 @@ public sealed class WorksheetController(WorkbookStore store)
             else
             {
                 var difference=workflow!.RegisterDifference(row.Snapshot());if(difference is {} calculated)Set(row,"F8",calculated);else row["F8"]="";
-                Due(row,"F17","_terms","F19",Terms);
+                row["F19"]=RegisterInvoiceSchema.DueDate(row.Snapshot())?.ToString("yyyy-MM-dd")??"";row["_autoDue"]=row["F19"];
                 var due = Date(row,"F19");
                 row["F20"] = due is {} d && d.DayNumber >= 30 ? d.AddDays(-30).ToString("yyyy-MM-dd") : "";
                 row["F21"] = due is {} deadline ? (new ReportWorkflow(store).SettlementAwareOverdue(PartyId,row.Snapshot(),AsOf)??Math.Max(0,AsOf.DayNumber-deadline.DayNumber)).ToString() : "";
@@ -129,10 +129,10 @@ public sealed class WorksheetController(WorkbookStore store)
     public void Save()
     {
         var errors = Validate(); if (errors.Count > 0) throw new BusinessRuleException(string.Join("\n",errors.Take(8)));
-        if(Name=="form"&&Records.GroupBy(r=>r["F9"].Trim(),StringComparer.OrdinalIgnoreCase).Any(g=>g.Count()>1))throw new BusinessRuleException("Duplicate invoice references. Include financial year/container suffix when distinct.");
+        if(Name=="form"&&Records.Where(r=>r["F9"].Trim().Length>0).GroupBy(r=>r["F9"].Trim(),StringComparer.OrdinalIgnoreCase).Any(g=>g.Count()>1))throw new BusinessRuleException("Duplicate invoice references. Include financial year/container suffix when distinct.");
         Calculate();
         var data = new List<Dictionary<string,string>> { new() { ["_metadata"]="1", ["opening"]=Opening.ToString(CultureInfo.InvariantCulture), ["terms"]=Terms.ToString(CultureInfo.InvariantCulture),["asOf"]=AsOf.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture) } };
-        data.AddRange(Rows.Select(row => {if(row["_blank"]=="1")return new Dictionary<string,string>{{"_blank","1"}};var data=Fields.ToDictionary(f=>f.Key,f=>row[f.Key]);if(Name=="form"){data["_id"]=row["_id"];data["_terms"]=row["_terms"];}return data;}));
+        data.AddRange(Rows.Select(row => {if(row["_blank"]=="1")return new Dictionary<string,string>{{"_blank","1"}};var data=Fields.ToDictionary(f=>f.Key,f=>row[f.Key]);if(Name=="form"){data["_id"]=row["_id"];data["_terms"]=row["_terms"];PreserveRevertedMetadata(row,data);}return data;}));
         Revision = store.Save(Name,Revision,data,PartyId);
     }
     public bool DeleteImmediately(GridRow row)
@@ -150,20 +150,23 @@ public sealed class WorksheetController(WorkbookStore store)
         {
             row["_id"]=Guid.NewGuid().ToString();row["_terms"]=Terms.ToString();
             if(PartyId!=Guid.Empty)row["F1"]=PartyName;
-            if(row["F18"].Length==0)row["F18"]="3800.00";
         }
-        else if(Name=="details"){row["H"]="3800.00";row["M"]="90";}
+        else if(Name=="details"){row["M"]="90";}
         else row["J"]="90";
     }
     internal WorksheetEditState CaptureEditState()
     {
         var keys=Fields.Where(f=>!f.Calculated).Select(f=>f.Key).Concat(Name=="form"?new[]{"_id","_terms"}:Array.Empty<string>()).Append("_blank").ToArray();
-        return new(Rows.Select(row=>keys.ToDictionary(key=>key,key=>row[key])).ToList(),Opening,Terms);
+        return new(Rows.Select(row=>{var data=keys.ToDictionary(key=>key,key=>row[key]);if(Name=="form")PreserveRevertedMetadata(row,data);return data;}).ToList(),Opening,Terms);
+    }
+    private static void PreserveRevertedMetadata(GridRow row,Dictionary<string,string> data)
+    {
+        var snapshot=row.Snapshot();foreach(var key in new[]{"F22","F23","F24","F25","F26","F27","_agentId","_dueOverride","_newInvoice"})if(snapshot.TryGetValue(key,out var value))data[key]=value;
     }
     internal void RestoreEditState(WorksheetEditState state,int revision)
     {
         Rows.Clear();Opening=state.Opening;Terms=state.Terms;Revision=revision;
-        foreach(var data in state.Rows){var row=new GridRow();foreach(var cell in data)row[cell.Key]=cell.Value;Rows.Add(row);}
+        foreach(var data in state.Rows){var row=new GridRow();foreach(var cell in data)row[cell.Key]=cell.Value;row["_autoDue"]=row["F19"];Rows.Add(row);}
         Calculate();
     }
     internal bool HasSavedDifferences()

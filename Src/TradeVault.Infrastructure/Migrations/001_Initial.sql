@@ -16,7 +16,6 @@ CREATE TABLE invoices (
     bank_contract_cents INTEGER NOT NULL CHECK(bank_contract_cents >= 0),
     final_leg_bl_date TEXT,
     terms_days INTEGER NOT NULL CHECK(terms_days BETWEEN 0 AND 3650),
-    shipping_cents INTEGER NOT NULL DEFAULT 380000 CHECK(shipping_cents >= 0),
     version INTEGER NOT NULL DEFAULT 1 CHECK(version > 0),
     UNIQUE(party_id, number)
 ) STRICT;

@@ -154,7 +154,7 @@ public sealed class WorkflowTests
         using var f=new Fixture();var report=f.Workflow.BuildCurrent(f.Party);
         Assert.Equal("10000.00",report.Tables[0].Rows[0]["D"]);
         Assert.Equal("5000.00",report.Tables[0].Rows[0]["I"]);
-        Assert.Equal("0.00",report.Tables[0].Rows[0]["H"]);
+        Assert.DoesNotContain(report.Tables[0].Columns,c=>c.Key=="H");
         Assert.Equal(20000m,report.Tables[0].Totals["F"]);
         Assert.Equal(10000m,report.Tables[0].Totals["K"]);
         Assert.Equal(30000m,report.Tables[1].Totals["E"]);

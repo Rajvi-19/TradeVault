@@ -16,7 +16,7 @@ public sealed class FixedReportingTests
         Assert.Equal("0.00",service.Build(party,new(2026,6,30),true).Tables[0].Rows[0]["E"]);
         var july=service.Build(party,new(2026,7,31),true).Tables[0].Rows[0];
         Assert.Equal("10000.00",july["D"]);Assert.Equal("3000.00",july["E"]);Assert.Equal("7000.00",july["F"]);
-        Assert.Equal("0.00",july["H"]);Assert.Equal("5000.00",july["I"]);Assert.Equal("0.00",july["J"]);
+        Assert.False(july.ContainsKey("H"));Assert.Equal("5000.00",july["I"]);Assert.Equal("0.00",july["J"]);
         var august=service.Build(party,new(2026,8,1),true);
         Assert.Equal("200.00",august.Tables[0].Rows[0]["J"]);Assert.Equal(11800m,august.Tables[1].Totals["E"]);
         Assert.DoesNotContain(august.Tables[1].Rows,r=>r["B"].Contains("Opening")||r["B"].Contains("shipping"));

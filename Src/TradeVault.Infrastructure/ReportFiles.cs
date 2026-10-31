@@ -28,7 +28,12 @@ public sealed partial class ReportWorkflow
 
     private static void WriteNew(string path,byte[] bytes)
     {var pending=path+".partial";using(var stream=new FileStream(pending,FileMode.CreateNew,FileAccess.Write,FileShare.None)){stream.Write(bytes);stream.Flush(true);}File.Move(pending,path);}
-    private static byte[] Workbook(ReportBundle report,ReportTable table)
+    public static byte[] ExportPageWorkbook(ReportBundle report)
+    {
+        if(report.Tables.Count!=1)throw new BusinessRuleException("A page export must contain exactly one worksheet.");
+        return Workbook(report,report.Tables[0],false);
+    }
+    private static byte[] Workbook(ReportBundle report,ReportTable table,bool includeTotals=true)
     {
         XNamespace ns="http://schemas.openxmlformats.org/spreadsheetml/2006/main";XNamespace rel="http://schemas.openxmlformats.org/officeDocument/2006/relationships";
         using var memory=new MemoryStream();using(var zip=new ZipArchive(memory,ZipArchiveMode.Create,true))
@@ -42,12 +47,12 @@ public sealed partial class ReportWorkflow
             var data=new XElement(ns+"sheetData");int number=0;
             void Row(IEnumerable<(string Text,string Type)> cells,bool heading=false)
             {var r=new XElement(ns+"row",new XAttribute("r",++number));if(heading)r.Add(new XAttribute("ht",52),new XAttribute("customHeight",1));int column=0;foreach(var (text,type) in cells){column++;string letters="";for(int n=column;n>0;n=(n-1)/26)letters=(char)('A'+(n-1)%26)+letters;var cell=new XElement(ns+"c",new XAttribute("r",letters+number));
-                if(type=="number"&&decimal.TryParse(text,NumberStyles.Number,CultureInfo.InvariantCulture,out var amount)){cell.Add(new XAttribute("s",1),new XElement(ns+"v",amount.ToString(CultureInfo.InvariantCulture)));}
+                if(type is "number" or "integer"&&decimal.TryParse(text,NumberStyles.Number,CultureInfo.InvariantCulture,out var amount)){cell.Add(new XAttribute("s",type=="integer"?0:1),new XElement(ns+"v",amount.ToString(CultureInfo.InvariantCulture)));}
                 else if(type=="date"&&DateOnly.TryParseExact(text,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var date)&&date.Year>=1900){cell.Add(new XAttribute("s",2),new XElement(ns+"v",date.ToDateTime(TimeOnly.MinValue).ToOADate().ToString(CultureInfo.InvariantCulture)));}
                 else{cell.Add(new XAttribute("t","inlineStr"),new XAttribute("s",heading?3:0),new XElement(ns+"is",new XElement(ns+"t",new XAttribute(XNamespace.Xml+"space","preserve"),text)));}r.Add(cell);}data.Add(r);}
             Row([(report.PartyName+" · "+table.Name,"text")]);Row([($"USD · {(report.Mode=="All saved records"?"Prepared":"As of")} {report.AsOf:dd-MM-yyyy} · {report.Mode}","text")]);Row([($"Submission {report.SubmissionId} · revision {report.Revision} · {report.CalculationVersion}","text")]);Row([("Generated "+report.CreatedAt.ToString("O"),"text")]);Row(table.Columns.Select(c=>(c.Label,"text")),true);
             foreach(var row in table.Rows)Row(table.Columns.Select(c=>(row.GetValueOrDefault(c.Key,""),c.Type)));
-            Row(table.Columns.Select((c,i)=>(i==0?"TOTAL / CLOSING":table.Totals.TryGetValue(c.Key,out var total)?total.ToString("0.00",CultureInfo.InvariantCulture):"",i==0?"text":"number")));
+            if(includeTotals)Row(table.Columns.Select((c,i)=>(i==0?"TOTAL / CLOSING":table.Totals.TryGetValue(c.Key,out var total)?total.ToString("0.00",CultureInfo.InvariantCulture):"",i==0?"text":"number")));
 
             var sheet=new XElement(ns+"worksheet",new XElement(ns+"sheetViews",new XElement(ns+"sheetView",new XAttribute("workbookViewId",0),new XElement(ns+"pane",new XAttribute("ySplit",5),new XAttribute("topLeftCell","A6"),new XAttribute("state","frozen")))),new XElement(ns+"cols",new XElement(ns+"col",new XAttribute("min",1),new XAttribute("max",table.Columns.Count),new XAttribute("width",18),new XAttribute("customWidth",1))),data,new XElement(ns+"autoFilter",new XAttribute("ref",$"A5:{(char)('A'+table.Columns.Count-1)}{table.Rows.Count+5}")),new XElement(ns+"pageMargins",new XAttribute("left",0.25),new XAttribute("right",0.25),new XAttribute("top",0.4),new XAttribute("bottom",0.4),new XAttribute("header",0.2),new XAttribute("footer",0.2)),new XElement(ns+"pageSetup",new XAttribute("paperSize",8),new XAttribute("orientation","landscape"),new XAttribute("fitToWidth",1),new XAttribute("fitToHeight",0)));
             var last=(char)('A'+table.Columns.Count-1);var merged=new XElement(ns+"mergeCells");foreach(var r in Enumerable.Range(1,4))merged.Add(new XElement(ns+"mergeCell",new XAttribute("ref",$"A{r}:{last}{r}")));sheet.Element(ns+"autoFilter")!.AddAfterSelf(merged);Put("xl/worksheets/sheet1.xml",sheet.ToString());

@@ -27,7 +27,7 @@ public sealed record Party(Guid Id, string Name, string CountryCode, int Default
 // This milestone supports one final-leg BL date per invoice; multi-BL scheduling is deferred.
 public sealed record Invoice(Guid Id, Guid PartyId, string Number, DateOnly InvoiceDate,
     Usd OriginalAmount, Usd BankContractAmount, DateOnly? FinalLegBlDate, int TermsDays,
-    Usd ShippingCharge, int Version)
+    int Version)
 {
     public DateOnly? DueDate => DueDates.Calculate(FinalLegBlDate, TermsDays);
 }
@@ -52,6 +52,6 @@ public sealed record Receipt(Guid Id, Guid PartyId, DateOnly ReceiptDate, Usd Am
     public Usd Unallocated => new(checked(Amount.Cents - Allocations.Sum(a => a.Amount.Cents)));
 }
 
-// Explicitly bank-contract receivables only, not the unresolved difference/shipping calculation.
+// Explicitly bank-contract receivables only, not the unresolved difference calculation.
 public sealed record InvoiceBalance(Invoice Invoice, Usd AllocatedReceipts, Usd Outstanding,
     int OverdueDays);

@@ -64,7 +64,19 @@ public sealed partial class WorkbookStore
     public int Save(string name, int expectedRevision, List<Dictionary<string,string>> rows,Guid? partyId=null)
     {
         ValidateSheet(name);
+        rows=rows.Select(row=>row.Where(cell=>!(name=="form"&&cell.Key=="F18")&&!(name=="details"&&cell.Key=="H")).ToDictionary(cell=>cell.Key,cell=>cell.Value)).ToList();
+        if(name=="form")foreach(var row in rows.Where(row=>!row.ContainsKey("_metadata")&&row.GetValueOrDefault("_blank")!="1"))
+        {
+            foreach(var key in RegisterInvoiceSchema.VisibleKeys)row.TryAdd(key,"");
+            row.TryAdd("_dueOverride","");
+        }
         if(name=="form")GuardRegister(partyId??Guid.Empty,rows);
+        if(name=="form")foreach(var row in rows.Where(row=>!row.ContainsKey("_metadata")&&row.GetValueOrDefault("_blank")!="1"))
+        {
+            var due=RegisterInvoiceSchema.DueDate(row);
+            row["F19"]=due?.ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture)??"";
+            row["F20"]=due is {} deadline&&deadline.DayNumber>=30?deadline.AddDays(-30).ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture):"";
+        }
         using var c = database.Open(); using var t = c.BeginTransaction();
         var party=partyId??Guid.Empty;EnsureParty(c,t,party);
         using var cmd = c.CreateCommand(); cmd.Transaction = t;

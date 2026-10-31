@@ -41,7 +41,7 @@ internal sealed class ReportPaginator : DocumentPaginator
         }
         Text("TRADEVAULT",left,18,width,25,12,true);
         Text(report.PartyName+"  /  "+page.Table.Name,left,44,width,30,18,true);
-        Text($"All amounts USD  •  {(report.Mode=="All saved records"?"Prepared":"As of")} {report.AsOf:dd-MM-yyyy}",left,76,width,24,10);
+        Text($"All amounts USD  •  {(report.Mode=="Page export"?"Exported":report.Mode=="All saved records"?"Prepared":"As of")} {report.AsOf:dd-MM-yyyy}",left,76,width,24,10);
         void Row(IEnumerable<string> values,double y,double height,bool header=false,bool total=false)
         {
             int index=0;foreach(var value in values){double x=left+index*cw;
@@ -53,7 +53,7 @@ internal sealed class ReportPaginator : DocumentPaginator
         {
             Row(page.Table.Columns.Select(c=>{var value=row.GetValueOrDefault(c.Key,"");if(c.Type=="date"&&DateOnly.TryParseExact(value,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var date))return date.ToString("dd-MM-yyyy",CultureInfo.InvariantCulture);return c.Type=="number"&&decimal.TryParse(value,NumberStyles.Number,CultureInfo.InvariantCulture,out var amount)?amount.ToString(page.Table.Name=="Account Details"&&c.Key is "A" or "M"?"0":"N2",CultureInfo.InvariantCulture):value;}),y,38);y+=38;
         }
-        if(page.Total)Row(page.Table.Columns.Select((c,i)=>i==0?"TOTAL":page.Table.Totals.TryGetValue(c.Key,out var total)?total.ToString("N2",CultureInfo.InvariantCulture):""),y,28,total:true);
+        if(page.Total&&page.Table.Totals.Count>0)Row(page.Table.Columns.Select((c,i)=>i==0?"TOTAL":page.Table.Totals.TryGetValue(c.Key,out var total)?total.ToString("N2",CultureInfo.InvariantCulture):""),y,28,total:true);
         Text($"TradeVault  •  {page.Table.Name}  •  Page {pageNumber+1} of {PageCount}",left,PageSize.Height-24,width,22,8);
         return new DocumentPage(visual,PageSize,new Rect(PageSize),new Rect(PageSize));
     }

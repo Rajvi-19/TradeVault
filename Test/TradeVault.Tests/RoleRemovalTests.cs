@@ -64,7 +64,7 @@ public sealed class RoleRemovalTests
         cmd.CommandText="SELECT COUNT(*) FROM sqlite_master WHERE name IN ('credentials','account_recovery','workspace_settings')";Assert.Equal(0L,cmd.ExecuteScalar());
         cmd.CommandText="SELECT COUNT(*) FROM workflow_documents WHERE kind='import'";Assert.Equal(0L,cmd.ExecuteScalar());
         cmd.CommandText="SELECT COUNT(*) FROM workflow_audit WHERE action='import'";Assert.Equal(0L,cmd.ExecuteScalar());
-        cmd.CommandText="SELECT MAX(version) FROM schema_migrations";Assert.Equal(9L,cmd.ExecuteScalar());
+        cmd.CommandText="SELECT MAX(version) FROM schema_migrations";Assert.Equal(13L,cmd.ExecuteScalar());
         cmd.CommandText="PRAGMA integrity_check";Assert.Equal("ok",cmd.ExecuteScalar());
     }
 }

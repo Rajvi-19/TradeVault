@@ -53,7 +53,7 @@ public sealed class PortableDatabase : IDisposable
             {
                 inspect.CommandText="SELECT COALESCE(MAX(version),0) FROM schema_migrations";
                 var previous=Convert.ToInt32(inspect.ExecuteScalar());
-                if(previous is >0 and <9)CreateBackup();
+                if(previous is >0 and <13)CreateBackup();
             }
         }
         using (var setup = connection.CreateCommand())
@@ -71,7 +71,8 @@ public sealed class PortableDatabase : IDisposable
             SELECT COALESCE(MAX(version), 0) FROM schema_migrations;
             """;
         var version = Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
-        if (version > 9) throw new InvalidOperationException("This database requires a newer TradeVault application.");
+        if (version > 13 || version==10&&!IsCompatibleRevertedSchema(connection,transaction))
+            throw new InvalidOperationException("This database requires a newer TradeVault application.");
         if (version == 0)
         {
             using var stream = typeof(PortableDatabase).Assembly.GetManifestResourceStream(
@@ -164,7 +165,98 @@ public sealed class PortableDatabase : IDisposable
         {
             command.Parameters.Clear();command.CommandText="INSERT INTO schema_migrations VALUES(9,strftime('%Y-%m-%dT%H:%M:%fZ','now'))";command.ExecuteNonQuery();
         }
+        if(version<11)
+        {
+            command.Parameters.Clear();command.CommandText="PRAGMA table_info(invoices)";
+            bool hasShipping=false;
+            using(var reader=command.ExecuteReader())while(reader.Read())if(reader.GetString(1)=="shipping_cents")hasShipping=true;
+            if(hasShipping){command.CommandText="ALTER TABLE invoices DROP COLUMN shipping_cents";command.ExecuteNonQuery();}
+            foreach(var table in new[]{"worksheets","party_worksheets"})
+            {
+                command.CommandText=$"SELECT rowid,name,data FROM {table} WHERE name IN ('form','details')";
+                var updates=new List<(long Id,string Data)>();
+                using(var reader=command.ExecuteReader())while(reader.Read())
+                {
+                    var rows=System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string,string>>>(reader.GetString(2))!;
+                    var key=reader.GetString(1)=="form"?"F18":"H";
+                    if(rows.Any(row=>row.ContainsKey(key)))
+                    {
+                        foreach(var row in rows)row.Remove(key);
+                        if(key=="H")
+                        {
+                            decimal running=0;bool known=true;
+                            var metadata=rows.FirstOrDefault(row=>row.ContainsKey("_metadata"));
+                            if(metadata!=null)decimal.TryParse(metadata.GetValueOrDefault("opening"),System.Globalization.NumberStyles.Number,CultureInfo.InvariantCulture,out running);
+                            foreach(var row in rows.Where(row=>!row.ContainsKey("_metadata")&&row.GetValueOrDefault("_blank")!="1"))
+                            {
+                                if(decimal.TryParse(row.GetValueOrDefault("C"),System.Globalization.NumberStyles.Number,CultureInfo.InvariantCulture,out var original)&&decimal.TryParse(row.GetValueOrDefault("D"),System.Globalization.NumberStyles.Number,CultureInfo.InvariantCulture,out var contract))
+                                {
+                                    var difference=original-contract;row["I"]=difference.ToString("0.00",CultureInfo.InvariantCulture);
+                                    var receiptText=row.GetValueOrDefault("J","");
+                                    if(receiptText.Length==0)receiptText="0";
+                                    if(!decimal.TryParse(receiptText,System.Globalization.NumberStyles.Number,CultureInfo.InvariantCulture,out var received))known=false;
+                                    if(known)running+=difference-received;
+                                }
+                                else {row["I"]="";known=false;}
+                                row["K"]=known?running.ToString("0.00",CultureInfo.InvariantCulture):"";
+                            }
+                        }
+                        updates.Add((reader.GetInt64(0),System.Text.Json.JsonSerializer.Serialize(rows)));
+                    }
+                }
+                foreach(var update in updates){command.Parameters.Clear();command.CommandText=$"UPDATE {table} SET data=$data WHERE rowid=$id";command.Parameters.AddWithValue("$data",update.Data);command.Parameters.AddWithValue("$id",update.Id);command.ExecuteNonQuery();}
+            }
+            command.Parameters.Clear();command.CommandText="INSERT INTO schema_migrations VALUES(11,strftime('%Y-%m-%dT%H:%M:%fZ','now'))";command.ExecuteNonQuery();
+        }
+        if(version<12)
+        {
+            foreach(var table in new[]{"worksheets","party_worksheets"})
+            {
+                command.Parameters.Clear();command.CommandText=$"SELECT rowid,data FROM {table} WHERE name='form'";
+                var updates=new List<(long Id,string Data)>();
+                using(var reader=command.ExecuteReader())while(reader.Read())
+                {
+                    var rows=System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string,string>>>(reader.GetString(1))!;
+                    foreach(var row in rows.Where(r=>!r.ContainsKey("_metadata")&&r.GetValueOrDefault("_blank")!="1"))
+                    {
+                        foreach(var key in RegisterInvoiceSchema.VisibleKeys)row.TryAdd(key,"");
+                        row.TryAdd("_dueOverride","");
+                        // Preserve any previously configured nonstandard deadline as an explicit override.
+                        if(row["_dueOverride"].Length==0&&DateOnly.TryParseExact(row["F19"],"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var oldDue))
+                        {
+                            DateOnly? automatic=DateOnly.TryParseExact(row["F17"],"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var bl)&&bl.DayNumber<=DateOnly.MaxValue.DayNumber-90?bl.AddDays(90):null;
+                            if(oldDue!=automatic)row["_dueOverride"]=row["F19"];
+                        }
+                        var due=RegisterInvoiceSchema.DueDate(row);
+                        row["F19"]=due?.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)??"";
+                        row["F20"]=due is {} deadline&&deadline.DayNumber>=30?deadline.AddDays(-30).ToString("yyyy-MM-dd",CultureInfo.InvariantCulture):"";
+                    }
+                    updates.Add((reader.GetInt64(0),System.Text.Json.JsonSerializer.Serialize(rows)));
+                }
+                foreach(var update in updates){command.Parameters.Clear();command.CommandText=$"UPDATE {table} SET data=$data WHERE rowid=$id";command.Parameters.AddWithValue("$data",update.Data);command.Parameters.AddWithValue("$id",update.Id);command.ExecuteNonQuery();}
+            }
+            command.Parameters.Clear();command.CommandText="INSERT INTO schema_migrations VALUES(12,strftime('%Y-%m-%dT%H:%M:%fZ','now'))";command.ExecuteNonQuery();
+        }
+        if(version<13)
+        {
+            WorkbookStore.UpgradeAgentMaster(connection,transaction);
+            command.Parameters.Clear();command.CommandText="INSERT INTO schema_migrations VALUES(13,strftime('%Y-%m-%dT%H:%M:%fZ','now'))";command.ExecuteNonQuery();
+        }
         transaction.Commit();
+    }
+
+    /// <summary>Recognizes only the additive table from the reverted version-10 feature.</summary>
+    internal static bool IsCompatibleRevertedSchema(SqliteConnection connection,SqliteTransaction? transaction=null)
+    {
+        // The reverted version-10 change only added this unused master table. Keep it and its
+        // records intact; never lower the migration version or accept arbitrary future schemas.
+        using var command=connection.CreateCommand();command.Transaction=transaction;
+        command.CommandText="SELECT COUNT(*) FROM schema_migrations WHERE version=9";
+        if(Convert.ToInt32(command.ExecuteScalar())!=1)return false;
+        command.CommandText="PRAGMA table_info(worksheet_agents)";
+        using var reader=command.ExecuteReader();var columns=new List<string>();
+        while(reader.Read())columns.Add($"{reader.GetString(1)}|{reader.GetString(2)}|{reader.GetInt32(3)}|{reader.GetInt32(5)}");
+        return columns.SequenceEqual(new[]{"id|TEXT|1|1","name|TEXT|1|0","name_key|TEXT|1|0"});
     }
 
     /// <summary>Consistent snapshot under this USB's Backups directory; never raw-copy a live DB.</summary>

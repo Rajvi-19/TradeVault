@@ -10,9 +10,9 @@ internal static class GridInteractionChecks
 {
     internal static void CopyDates()
     {
-        var fields=ExcelFields.For("form").Where(f=>f.Key!="F1").ToArray();
+        var fields=ExcelFields.For("form").ToArray();
         var original=new GridRow();var target=new GridRow();
-        foreach(var field in fields.Where(f=>f.IsDate&&!f.Calculated))original[field.Key]="2026-10-29";
+        foreach(var field in fields.Where(f=>f.IsDate&&!f.IsReadOnly))original[field.Key]="2026-10-29";
         original["F9"]="COPY-DATES";original["F19"]="2027-01-27";
         var grid=new ExcelGrid(fields,new ObservableCollection<GridRow>{original,target});
         Layout(grid);
@@ -20,9 +20,9 @@ internal static class GridInteractionChecks
         var clipboard=string.Join('\t',grid.Table.Columns.Select(c=>Convert.ToString(c.OnCopyingCellClipboardContent(original),CultureInfo.InvariantCulture)??""));
         grid.Table.CurrentCell=new(target,grid.Table.Columns[0]);
         if(!grid.Paste(clipboard))throw new InvalidOperationException("Copied record could not be pasted.");
-        foreach(var field in fields.Where(f=>f.IsDate&&!f.Calculated))
+        foreach(var field in fields.Where(f=>f.IsDate&&!f.IsReadOnly))
             if(target[field.Key]!=original[field.Key])throw new InvalidOperationException("Copy lost date: "+field.Key);
-        if(target["F19"]!="")throw new InvalidOperationException("Paste overwrote calculated due date.");
+        if(target["F2"]!=""||target["F4"]!="")throw new InvalidOperationException("Paste overwrote locked identity fields.");
     }
     internal static void MultipleRows()
     {

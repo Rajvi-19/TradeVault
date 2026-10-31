@@ -5,10 +5,10 @@ namespace TradeVault.Application;
 public sealed record CreateParty(string Name, string CountryCode, int DefaultTermsDays = 90);
 public sealed record CreateInvoice(Guid PartyId, string Number, DateOnly InvoiceDate,
     Usd OriginalAmount, Usd BankContractAmount, DateOnly? FinalLegBlDate = null,
-    int? TermsDays = null, Usd? ShippingCharge = null);
+    int? TermsDays = null);
 public sealed record UpdateInvoice(Guid Id, int ExpectedVersion, string Number,
     DateOnly InvoiceDate, Usd OriginalAmount, Usd BankContractAmount,
-    DateOnly? FinalLegBlDate, int TermsDays, Usd ShippingCharge);
+    DateOnly? FinalLegBlDate, int TermsDays);
 public sealed record CreateReceipt(Guid PartyId, DateOnly ReceiptDate, Usd Amount,
     string Reference, IReadOnlyList<ReceiptAllocation> Allocations);
 

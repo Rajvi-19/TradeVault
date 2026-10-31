@@ -10,13 +10,16 @@ internal static class LiveChecks
         try
         {
             using var database=new PortableDatabase(new(root));var store=new WorkbookStore(database);
-            AcceptanceChecks.Seed(store);var window=new MainWindow(store,database.Paths.Database);
-            foreach(var name in new[]{"form","details","ledger"}){window.PreviewSheet(name);Capture(window,System.IO.Path.Combine(directory,name+".png"),1480,920);if(name=="form")Capture(window,System.IO.Path.Combine(directory,"form-minimum.png"),1100,720);}
+            AcceptanceChecks.Seed(store);
+            var masterAgent=store.CreateAgent("QA Regional Trading");var masterParty=store.CreateParty("QA Master Buyer");store.CreateRegisterInvoice(masterParty.Id,0,new("India",masterAgent.Name,"QA-MASTER-PI",new(2026,5,1),masterAgent.Id));
+            var window=new MainWindow(store,database.Paths.Database);
+            foreach(var name in new[]{"parties","agents","form","partyReceipt","agentReceipt","reports","details","ledger"}){window.PreviewSheet(name);Capture(window,System.IO.Path.Combine(directory,name+".png"),1480,920);if(name=="form")Capture(window,System.IO.Path.Combine(directory,"form-minimum.png"),1100,720);}
             Capture(window,System.IO.Path.Combine(directory,"compact-window.png"),1000,600);
             var partyDialog=new PartyDialog(store);var partySurface=(System.Windows.FrameworkElement)partyDialog.Content;partySurface.Measure(new(440,double.PositiveInfinity));Capture(partyDialog,System.IO.Path.Combine(directory,"new-party.png"),440,(int)Math.Ceiling(partySurface.DesiredSize.Height));partyDialog.Close();
+            var invoiceDialog=new NewInvoiceDialog(store,Guid.Empty,store.Load("form").Revision);invoiceDialog.FillForCheck(new("India",masterAgent.Name,"QA-NEW-PI",DateOnly.FromDateTime(DateTime.Today)));var invoiceSurface=(System.Windows.FrameworkElement)invoiceDialog.Content;invoiceSurface.Measure(new(480,double.PositiveInfinity));Capture(invoiceDialog,System.IO.Path.Combine(directory,"new-invoice.png"),480,(int)Math.Ceiling(invoiceSurface.DesiredSize.Height));invoiceDialog.Close();
             var deleteDialog=new ConfirmDeleteWindow(window,"TEST-INV-006","[TEST] Sample party");var deleteSurface=(System.Windows.FrameworkElement)deleteDialog.Content;deleteSurface.Measure(new(560,double.PositiveInfinity));Capture(deleteDialog,System.IO.Path.Combine(directory,"delete-confirmation.png"),560,(int)Math.Ceiling(deleteSurface.DesiredSize.Height));deleteDialog.Close();
             AppTheme.SetDark(true);
-            foreach(var name in new[]{"form","details","ledger"}){window.PreviewSheet(name);Capture(window,System.IO.Path.Combine(directory,name+"-dark.png"),1100,720);}
+            foreach(var name in new[]{"parties","agents","form","partyReceipt","agentReceipt","reports","details","ledger"}){window.PreviewSheet(name);Capture(window,System.IO.Path.Combine(directory,name+"-dark.png"),1100,720);}
             var darkParty=new PartyDialog(store);var darkSurface=(System.Windows.FrameworkElement)darkParty.Content;darkSurface.Measure(new(440,double.PositiveInfinity));Capture(darkParty,System.IO.Path.Combine(directory,"new-party-dark.png"),440,(int)Math.Ceiling(darkSurface.DesiredSize.Height));darkParty.Close();
             AppTheme.SetDark(false);
             window.Close();
@@ -54,15 +57,16 @@ internal static class LiveChecks
             {
                 var store=new WorkbookStore(db);
                 FixRegressionChecks.Run(store);
+                InvoiceRegisterChecks.Run(store);
                 var sheet=new WorksheetController(store);sheet.Load("details");Require(sheet.Rows.Count==0,"No dummy rows");
                 var row=sheet.Add();row["B"]="TEST ONLY";row["C"]="15000";row["D"]="10000";row["E"]="3000";row["J"]="1200";row["L"]="2026-06-17";sheet.Save();
-                Require(row["F"]=="7000.00"&&row["K"]=="0.00"&&row["N"]=="2026-09-15","Details calculations");
+                Require(row["F"]=="7000.00"&&row["K"]=="3800.00"&&row["N"]=="2026-09-15","Details calculations");
                 var stale=new WorksheetController(store);stale.Load("details");row["E"]="4000";sheet.Save();
                 try{stale.Save();throw new Exception("Stale save accepted");}catch(BusinessRuleException){}
                 sheet.Load("ledger");row=sheet.Add();row["B"]="TEST ONLY";row["C"]="100";row["D"]="25";row["I"]="2026-06-17";sheet.Opening=10;sheet.Save();Require(row["E"]=="85.00","Ledger calculation");
                 sheet.Load("form");row=sheet.Add();row["F1"]="TEST ONLY";row["F9"]="TEST-1";row["F17"]="2026-06-17";sheet.Save();Require(row["F19"]=="2026-09-15"&&row["F20"]=="2026-08-16","Due and reminder");
-                Require(ExcelFields.For("form").Count==26&&ExcelFields.For("details").Count==14&&ExcelFields.For("ledger").Count==9,"Exact field counts");
-                var grid=new ExcelGrid(sheet.Fields,sheet.Rows);Require(grid.Table.Columns[18].IsReadOnly,"Calculated field lock");
+                Require(ExcelFields.For("form").Count==21&&ExcelFields.For("details").Count==13&&ExcelFields.For("ledger").Count==9,"Exact field counts");
+                var grid=new ExcelGrid(sheet.Fields,sheet.Rows);Require(grid.Table.Columns[19].IsReadOnly,"Calculated field lock");
                 Require(DateCellConverter.Normalize("26/10/2026")=="2026-10-26","Indian date input");
                 Require(DateCellConverter.Normalize("1-2-26")=="2026-02-01","Short date input uses day first");
                 Require(DateCellConverter.Normalize("26-Oct-2026")=="2026-10-26","Named month input");
@@ -71,17 +75,17 @@ internal static class LiveChecks
                 var sheetGrid=new ExcelGrid(sheet.Fields,sheet.Rows,promote:draft=>sheet.Add(draft));
                 Require(sheetGrid.Table.Items.Count>=101&&sheet.Rows.Count==1,"Blank worksheet does not create records");
                 var draft=(GridRow)sheetGrid.Table.Items[1];draft["F1"]="BLANK ROW TEST";draft["F9"]="BLANK-2";
-                Require(sheet.Rows.Count==2&&draft["F18"]=="3800.00","Typing promotes row with defaults");
-                sheetGrid.Table.CurrentCell=new System.Windows.Controls.DataGridCellInfo(draft,sheetGrid.Table.Columns[3]);
-                sheetGrid.Paste("26/10/2026");Require(draft["F4"]=="2026-10-26","Pasted dates normalized");
+                Require(sheet.Rows.Count==2&&draft["_terms"]=="90","Typing promotes row with defaults");
+                sheetGrid.Table.CurrentCell=new System.Windows.Controls.DataGridCellInfo(draft,sheetGrid.Table.Columns[17]);
+                sheetGrid.Paste("26/10/2026");Require(draft["F17"]=="2026-10-26","Pasted dates normalized");
                 var dateInput=new System.Windows.Controls.TextBox();
-                dateInput.SetBinding(System.Windows.Controls.TextBox.TextProperty,new System.Windows.Data.Binding("[F4]"){Source=draft,Mode=System.Windows.Data.BindingMode.TwoWay,UpdateSourceTrigger=System.Windows.Data.UpdateSourceTrigger.Explicit,Converter=new DateCellConverter()});
+                dateInput.SetBinding(System.Windows.Controls.TextBox.TextProperty,new System.Windows.Data.Binding("[F17]"){Source=draft,Mode=System.Windows.Data.BindingMode.TwoWay,UpdateSourceTrigger=System.Windows.Data.UpdateSourceTrigger.Explicit,Converter=new DateCellConverter()});
                 dateInput.Text="5/11/2026";dateInput.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty)!.UpdateSource();
-                Require(draft["F4"]=="2026-11-05","Typed dates normalized through WPF binding");
+                Require(draft["F17"]=="2026-11-05","Typed dates normalized through WPF binding");
                 draft["F17"]=DateCellConverter.Normalize("17/6/2026");sheet.Save();
                 Require(draft["F19"]=="2026-09-15","Derived due remains calculated");
                 Require(store.Load("form").Rows.Count==3,"Only two entered rows and metadata persisted");
-                var window=new MainWindow(store,db.Paths.Database);window.Measure(new System.Windows.Size(1440,880));window.Arrange(new System.Windows.Rect(0,0,1440,880));window.UpdateLayout();window.CheckInteractions();window.CheckPartyInteractions();window.CheckWorkflowInteractions();window.CheckShortcutInteractions();window.CheckUndoRedoInteractions();window.CheckBlankRowInteractions();window.CheckThemeInteractions();window.Close();
+                var window=new MainWindow(store,db.Paths.Database);window.Measure(new System.Windows.Size(1440,880));window.Arrange(new System.Windows.Rect(0,0,1440,880));window.UpdateLayout();window.CheckMasterPages();window.CheckInvoiceFilters();window.CheckInteractions();window.CheckPartyInteractions();window.CheckWorkflowInteractions();window.CheckShortcutInteractions();window.CheckUndoRedoInteractions();window.CheckBlankRowInteractions();window.CheckThemeInteractions();window.Close();
             }
             using var reopened=new PortableDatabase(new(root));var s=new WorkbookStore(reopened);Require(s.Load("details").Rows.Count==2,"Persistence after reopen");
         }

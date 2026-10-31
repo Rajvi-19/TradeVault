@@ -33,9 +33,31 @@ TradeVault replaces scattered export-tracking worksheets with party-specific inv
 
 The application runs locally without an application server or internet connection. Owner and Operator use separate application folders and databases. The Operator exports an Excel report; the Owner imports a frozen copy for review. Working databases are independent.
 
-**Current source build:** `UI 2026.10.29.3` · **Database schema:** `5`
+**Current source build:** `UI 2026.10.31.8` · **Database schema:** `13`. Upgrades schemas 9, 11, 12 and the recognized additive schema 10 with an automatic pre-upgrade backup.
+
+**Reusable design reference:** [design.md](design.md) describes the general visual system without project-specific information, so it can be used for other applications. The October 30 interface opens directly into the workspace and no longer includes the earlier authentication/role/inbox screens or Report setup toolbar action; descriptions of those features below belong to the earlier functional baseline.
 
 ### Recent changes reflected in this documentation
+
+- **Current-page export:** one Export dropdown provides Export to Excel and Export to PDF. It exports only the visible rows/columns of the open page, respecting filters, search and sort. Party/Agent Masters export their own two-column tables. Empty placeholder pages have Export disabled.
+- **Invoice identity:** Party name is now the first visible, locked/frozen column, followed by the previous 20 columns. New Invoice includes a required Party Master selector and can be opened from the All parties view. The first five identity columns are locked/frozen.
+- **Header and filters:** the active page name appears beside TradeVault in the title bar. The row below shows the applied party/agent criteria, with refreshed dropdown styling. Unassigned is no longer offered in the Party dropdown; existing legacy records remain available under All parties. Reports and Backups have new document-chart/archive icons.
+
+- **Invoice filters:** Party and Agent dropdowns combine with AND semantics. Start with All parties / All agents, select an agent to view it across parties, or select both to narrow to their intersection. Text search further narrows the result. All parties is a read-only overview; select a specific party to edit or use party-scoped invoice actions.
+
+- **Locked columns:** country, agent and proforma identity columns now use shaded cells and blue headers, with theme-aware colors and normal selection highlighting.
+- **Agent display:** the agent selector renders only the agent name, including after selection. Three clearly marked `[TEST]` agents were added on request and assigned to previously blank invoice agent fields, with a safety backup. Existing assignments and payment data were preserved.
+- **Backups:** moved to the title bar, immediately left of Minimize, available from every tab.
+
+- **Six tabs:** Party Master, Agent Master, Invoice Register, Party Receipt, Agent Receipt, Reports. The two receipt tabs and Reports are intentionally empty placeholders for this phase. Existing receipt/report tools remain on the Invoice Register toolbar.
+- **Masters:** create parties only in Party Master and agents only in Agent Master. Each master has a read-only Excel-style name/invoice-count table. Counts include saved draft invoices and exclude deleted blank rows. New Invoice uses a non-editable dropdown of saved agents; no free-text agent creation is available in the register.
+- **Hover UI:** removed the Invoice Register heading tooltip and disabled navigation-tab hover tooltips.
+
+- **New Invoice:** opens a four-field modal for country, agent, proforma number and proforma date. Add record stores the draft under the selected party. These identity fields are read-only and the first four columns remain frozen while scrolling. Fill in amounts and shipment details in the grid, then Save changes.
+- **Deadline override:** the editable payment due date drives reminder date, overdue days, payment balances and reports. A custom date remains fixed if the agent BL date changes; clear it to restore BL + 90. Incomplete new drafts are excluded from financial reports until India invoice number/date and original/customs amounts are complete.
+
+- **Register simplification (October 31):** removed Shipping Charge and the five earlier receipt/payment columns. Earlier receipt values/dates remain stored for existing payment balances; new payments use Receipts. The register now has 20 visible columns plus its row header; party is selected above the grid.
+- **Shipping removal:** schema 11 drops `invoices.shipping_cents` and removes `F18` from active register JSON. Backend invoice contracts, defaults, validations and report deductions no longer include shipping. Account Details also omits its shipment-payment column; historical audit snapshots and safety backups remain intact.
 
 - **Customer payments:** a dedicated screen shows unpaid bank/difference portions, editable payment allocations, live totals, advances and payment history.
 - **Reporting:** the main UI no longer exposes As of, Recalculate, row density or Selected terms. Generated tabs, previews and main Excel exports include **all saved records**, including future-dated entries. Reminders and payment-entry balances still use their own effective dates.
@@ -51,7 +73,7 @@ Current instructions in this README take precedence over older dated work logs a
 | Authentication | Predefined Owner/Operator accounts, case-sensitive sign-in, password visibility toggle and offline single-use recovery codes |
 | Party workspaces | Separate registers, balances and report settings per party; selected party inherited by new invoices |
 | Excel-style entry | Keyboard navigation, search, frozen identifiers, copy/cut/paste, row selection and protected calculated cells |
-| Shipment tracking | Proforma/invoice references, containers, BL dates, arrival dates, shipping and payment terms |
+| Shipment tracking | Proforma/invoice references, containers, BL dates, arrival dates and payment terms |
 | Payments | Partial receipts, one payment allocated across invoices, bank/difference portions, unallocated advances and dated corrections/reversals |
 | Reports | Account Details and Debit & Credit derived from saved records; automatic recalculation and current all-record views |
 | Reminders | Party and invoice references, outstanding amounts, due-soon/overdue status and settled/BL-pending cases |
@@ -59,7 +81,7 @@ Current instructions in this README take precedence over older dated work logs a
 | PDF and print | Direct paginated PDF output plus Windows printing, with PDF fallback when Windows printing fails |
 | Data safeguards | Transactional SQLite saves, stale-revision protection, date/USD validation, backups, verified restore and migrations |
 
-All financial amounts are **USD**. New invoices default to **90 calendar days** from the Malaysia-to-Pakistan BL date and **USD 3,800** shipping; defaults are editable. Changing new-record terms does not rewrite existing invoices.
+All financial amounts are **USD**. New invoices default to **agent country BL date + 90 calendar days**. The payment due date is editable; clearing it restores the automatic default. Shipping charges have been removed. Changing new-record terms does not rewrite existing invoices.
 
 ## Screenshots
 
@@ -369,6 +391,7 @@ The verification script also accepts `-Configuration Release -OutputFolder .buil
 
 | Document | Purpose |
 |---|---|
+| [Reusable UI design system](design.md) | Product-independent light/dark palette, typography, layouts, components and interaction patterns for reuse in other applications |
 | [Workflow guide](Docs/Workflow-Guide.md) | Detailed operational notes and feature changes; earlier sections may describe superseded controls |
 | [Party workspaces](Docs/Party-Workspaces.md) | Party isolation and legacy assignment context |
 | [Offline account recovery](Docs/Offline-Account-Recovery.md) | Recovery-code setup, reset and backup limitations |
@@ -382,6 +405,34 @@ Reference spreadsheets are retained in `Docs/` for field/report alignment. Do no
 ## Development record
 
 Every development session must update this README with the date, concrete changes, verification, limitations and next action. Preserve previous entries and distinguish completed work from proposals. Do not record credentials or company transaction details.
+
+### 2026-10-31 — Startup compatibility after the seven-tab rollback
+
+- Investigated the “This database requires a newer TradeVault application” alert. A read-only inspection found a healthy schema-10 working database with the additive `worksheet_agents` table; reverted sources supported schema 9 only. The source rollback did not account for a database already upgraded by a later run.
+- Added narrowly scoped compatibility for that exact additive schema-10 table shape, including backup restore. The app keeps the schema version and agent records intact; it does not reinstate seven-tab features, delete migration entries or downgrade the database. Unknown higher schemas and unrecognized version-10 layouts remain rejected. Fresh databases still use schema 9.
+- Added regression coverage for invoice/hidden-field/agent preservation, backup restore, unsupported schemas and fresh-database version. Isolated build passed with zero warnings/errors and all 59 backend tests passed; live checks and final rebuild are verified before completion. Working company database was only read for diagnosis, not edited by this repair.
+- Next: run the rebuilt normal application. The retained extra agent table is intentionally unused by the reverted UI.
+- Final verification: normal Debug rebuild passed with zero warnings/errors; all 59 backend tests and live checks passed. The restored worksheet preserves hidden agent metadata during ordinary saves and undo-state restoration. No direct edits were made to the working database.
+
+### 2026-10-31 — Reverted seven-tab work at user request
+
+- Reverted the interrupted Party/Agent Master, seven-tab navigation and 20-column register implementation, including its proposed schema-10 migration and new tests. Restored the preceding application sources and schema-9 behavior.
+- Preserved the earlier README/design documentation edits. Only isolated synthetic databases were used during the reverted work; the working company database was not opened or migrated.
+- Verification: checked the remaining source diff to ensure none of the reverted changes remain. Next: retain the existing interface until revised instructions are provided.
+
+### 2026-10-30 — Generalized reusable design reference
+
+- Rewrote `design.md` as a standalone, product-independent design system. Removed project identity, business workflows, source paths, screenshots, build/version references and development history from that file.
+- Retained reusable light/dark tokens, typography, spacing, window/workspace structure, components, input/table states, accessibility and implementation/review guidance. Technology choices remain independent of the design specification.
+- Verified the project's technology stack from project files for the accompanying explanation. Documentation-only change; no application code, company data or binaries changed and no application tests were rerun.
+
+### 2026-10-30 — Current UI and styling reference
+
+- Created root `design.md` from the current UI source (`UI 2026.10.30.2`), shared XAML styles, live theme mapping and synthetic light/dark worksheet/receipt screenshots.
+- Documented palette tokens, fixed action fills, typography, dimensions, chrome, navigation, save/validation states, clipboard/undo behavior, date entry, receipt entry/history, dialogs, branding, report output, accessibility and maintenance guidance.
+- Marked removed screens/controls and older design notes as historical. Added README navigation/documentation references and updated the source build label without deleting earlier development history.
+- Verification: reviewed the implementation and representative screenshots; validated referenced files/images, Markdown fences and document links. Documentation-only change; no application tests were rerun and no code, settings, database or binaries were modified.
+- Next: keep the design reference aligned with future UI changes and perform client-PC DPI/keyboard/printer acceptance separately from rendered screenshot checks.
 
 ### 2026-10-29 — Source review and operational/technical documentation
 
@@ -496,3 +547,92 @@ Every development work session must update this README before handoff. Record th
 5. Reports: both report views, as-of filtering and Excel export reconciliation.
 6. Owner import: package validation, preview, duplicate/revision handling and preserved submissions.
 7. Release: historical migration, recovery, upgrades, USB failure tests, user guide and acceptance.
+
+### 2026-10-31 — Remove obsolete invoice columns and shipping
+
+- Removed F22–F26 from the visible Invoice Register and retained their existing values during edit/save/undo, so earlier payments continue to reconcile.
+- Removed shipping F18 from the register, normalized invoice API/domain/storage, defaults, seeding and validation. Removed the shipment-payment column/deduction from Account Details and exports; retained ledger credits as recorded transaction history.
+- Added transactional schema-11 migration: automatic backup, drop shipping_cents, remove active worksheet shipping keys, recalculate saved manual difference balances without shipping, preserve invoice IDs, other values, receipts and allocations. Supported backup restore also runs the upgrade. Historical audits and backups intentionally retain original evidence.
+- Validation: backend tests include upgrade/restore, database integrity, normalized allocation preservation and hidden earlier receipts; WPF checks cover current field counts, input defaults, copy/paste, themes and preservation of hidden receipt values through edit/save/undo. Full acceptance checks cover spreadsheet, report and export workflows.
+- Completed normal Debug rebuild (zero warnings/errors), 60 passing backend tests, live WPF checks and 52/52 acceptance checks. Upgraded the normal Debug application's existing database to schema 11 after its automatic backup; compared fingerprints with that backup to verify preservation of non-shipping invoice fields, earlier receipts, receipt books, normalized receipts/allocations and party records. SQLite integrity and foreign-key checks passed.
+
+### 2026-10-31 — Twenty-column register and New Invoice workflow
+
+- Replaced country-specific shipment labels with India/agent country labels and added Agent name immediately after Country name. Party remains a selector/context field, not a register column.
+- Added New Invoice modal and Ctrl+N workflow: four required identity fields, valid typed date, inline errors and Cancel. Add record stores a draft immediately, then focuses the first amount cell. It saves pending valid edits before opening and rejects stale revisions. New records reuse a deleted blank slot when available.
+- Locked country, agent and proforma number/date in the grid, paste/cut/clear paths and backend updates. Froze the first four columns and disabled reordering those columns. Register creation uses the modal; blank deleted rows cannot be populated through typing/paste.
+- Added a shared backend register schema and due-date resolver. Default is agent BL + 90 calendar days; an explicit deadline is stored as `_dueOverride`. Blank clears the override. Reports, receipt balances, reminders and settlement-aware overdue use the same deadline. Difference, reminder and overdue remain calculated.
+- Added schema-12 migration and backup/restore support. Active JSON rows contain all 20 visible keys; existing values, receipt history, invoice identifiers and agent metadata are retained. Missing old agent names remain blank rather than invented. Existing nonstandard deadlines are preserved as explicit overrides. No SQL column renumbering is required: the desktop's authoritative register is `party_worksheets.data`, not the earlier normalized `invoices` API.
+- Added backend and live WPF coverage for new record validation, immutable identity, exact column order/frozen columns, explicit due-date save/reload/reset/undo, cross-feature deadlines, modal Add/Cancel/error behavior and draft exclusion from financial reports. Updated prior interaction tests to edit shipment fields instead of locked identity values.
+
+Current register storage mapping (stable keys preserve existing data and allocations):
+
+| Order | Column | Stored JSON key |
+|---|---|---|
+| 1 | Country name | `F2` |
+| 2 | Agent name | `F27` |
+| 3 | Proforma invoice number | `F3` |
+| 4 | Proforma invoice date | `F4` |
+| 5 | Original amount ($) | `F5` |
+| 6 | Our customs invoice amount ($) | `F6` |
+| 7 | Pakistan customs invoice amount ($) | `F7` |
+| 8 | Difference amount ($) | `F8` |
+| 9 | India invoice number | `F9` |
+| 10 | India invoice date | `F10` |
+| 11 | Container number from India | `F11` |
+| 12 | India BL number | `F12` |
+| 13 | India BL date | `F13` |
+| 14 | Agent country arrival date | `F14` |
+| 15 | Container number from agent country | `F15` |
+| 16 | Agent country BL number | `F16` |
+| 17 | Agent country BL date | `F17` |
+| 18 | Payment due date | `F19` |
+| 19 | Reminder 30 days before due date | `F20` |
+| 20 | Overdue days | `F21` |
+
+Party ownership, invoice ID, override state and prior receipt history remain internal metadata outside these 20 visible columns. Historical audits and backups retain their original evidence.
+
+Verification completed for `UI 2026.10.31.4`: normal Debug rebuild with zero warnings/errors, **64 backend tests**, live WPF regression checks (including the actual modal Add/error/Cancel paths), and **52/52 acceptance checks** passed. Reviewed synthetic screenshots of the compact register and New Invoice modal. Upgraded the normal Debug application's existing database to schema 12 after an automatic backup; preservation fingerprints confirmed unchanged existing invoice values, party records, receipt books and allocations. All 20 register keys are present; SQLite integrity and foreign-key checks passed. No test invoices were inserted into the normal company database.
+
+### 2026-10-31 — Party/Agent Masters and six-tab navigation
+
+- Replaced the three navigation buttons with six tabs, in this exact order: Party Master, Agent Master, Invoice Register, Party Receipt, Agent Receipt, Reports. Receipt and Reports pages have an empty content area and no page actions in this phase. Existing financial functionality and stored records are retained.
+- Moved New Party to Party Master. Added New Agent to Agent Master. Each page displays a read-only Excel-style table: Party Name / Invoices or Agent Name / Invoices. Counts are derived from active stored register rows across party workspaces; saved drafts count as invoices, `_metadata` and deleted `_blank` rows do not. Unassigned records remain a legacy bucket rather than a named Party Master entry.
+- Added normalized, duplicate-checked agent creation and a selection-only Agent name dropdown in New Invoice. The backend resolves a saved agent, stores its stable `_agentId` alongside the display name F27, and rejects unknown agents or mismatched IDs. Blank/overlength/duplicate master names are rejected. The four invoice identity values remain read-only.
+- Party Master reuses the existing `worksheet_parties` SQLite table; it is the same party list used by the invoice selector. Agent Master uses `worksheet_agents(id TEXT PRIMARY KEY, name TEXT NOT NULL, name_key TEXT NOT NULL UNIQUE)`. Counts are derived, not duplicated as editable database counters. Agent IDs are application-validated references in the existing JSON register storage.
+- Schema 13 creates/reuses the agent master table and carries existing nonblank invoice agent names into it, linking invoice metadata to those agents without changing invoice values, receipt history or ownership. Recognized additive schema-10 agent records remain supported. Automatic pre-upgrade backups and supported backup restore include the master records.
+- Removed the Invoice Register heading/formula tooltip and disabled tab tooltips. Invoice Register has no party or agent creation button. Ctrl+Shift+N opens Party Master before party creation; Ctrl+1 through Ctrl+6 follow the six-tab order. Invoice-editing shortcuts do not modify master/placeholder pages.
+- Added backend tests for master name validation, required agent selection, stable agent IDs, invoice counts across parties, draft/deletion/blank-row reuse and backup/restore. Live WPF checks verify tab order, master headers/counts, creation-button placement, empty placeholders and rejection of an unlisted agent in the actual invoice modal. Updated schema compatibility and keyboard tests.
+- Verified `UI 2026.10.31.5`: normal Debug rebuild completed with zero warnings/errors; **67 backend tests**, live WPF checks and **52/52 acceptance checks** passed. Reviewed synthetic screenshots of the six-tab workspace, both master tables and agent dropdown. Upgraded the normal application's database to schema 13 with an automatic backup, confirmed preservation fingerprints for existing invoice values/party records/receipt history, verified agent references resolve to the master, and passed SQLite integrity/foreign-key checks. No synthetic records were inserted into the company database.
+
+Current setup flow: **Party Master → New Party**, then **Agent Master → New Agent**, then **Invoice Register → select party → New Invoice → select an existing agent → Add record**. Existing named parties and carried-forward agent names are already available; the receipt and Reports tabs intentionally remain empty.
+
+### 2026-10-31 — Locked-column styling, agent selector display and test agents
+
+- Styled all four fixed identity columns with gray-blue cells and blue headers, preserving read-only/frozen behavior, selection highlighting and light/dark theme support. Other headers retain their existing styling.
+- Fixed the selected agent showing a record dump/ID instead of its name. The ComboBox now has an explicit Name item template and name-based text search; AgentMasterEntry also provides a safe name-only ToString fallback. A live WPF test inspects the selected label actually rendered by the modal.
+- Moved Backups from the invoice toolbar to the main title bar immediately before Minimize. Kept its Save-first protection and enabled click handling inside the window chrome. Added a UI check for placement and hit testing.
+- Added an explicit, repeatable test-data maintenance command, available through the Debug application as `--seed-agent-test-data`. It creates/reuses three marked test agents: `[TEST] Meridian Trading Malaysia`, `[TEST] Pacific Colour Logistics`, `[TEST] Straits Export Partners`. It assigns them only where an active existing invoice has a blank agent, writes stable agent IDs, increments changed worksheet revisions and records before/after audit entries in one transaction. It creates a database backup before changes. Normal startup never runs this command, and ordinary invoice identity editing remains blocked.
+- Ran the authorized test-data update against the normal application database after closing the app. Preservation fingerprints confirmed unchanged existing agent assignments, non-agent invoice fields, party records and receipt history. SQLite integrity and foreign-key checks passed. No invoices or parties were added by this operation. Schema remains 13.
+- Added backend coverage for repeat runs, backup creation, preservation of payments/existing assignments, name-only display fallback and continued identity immutability; live UI checks cover the selected agent label, locked styling and title-bar Backups location. Reviewed synthetic screenshots showing a selected agent and the revised register.
+- Final verification for `UI 2026.10.31.6`: normal Debug rebuild with zero warnings/errors, **68 backend tests**, live WPF checks and **52/52 acceptance checks** passed. The application files are updated and the requested test agents/blank invoice assignments are present in its existing database, with a pre-change backup in the executable folder's `Backups` directory.
+
+### 2026-10-31 — Combined Party and Agent invoice filters
+
+- Added an Agent dropdown next to Party in Invoice Register, populated from Agent Master with an All agents option. Added All parties to the party selector; the initial view uses All parties / All agents.
+- Agent alone shows that agent's invoices across every saved party workspace, including the legacy Unassigned bucket. A specific party plus agent shows only invoices belonging to both. Agent selection persists when switching parties, and clearing a selection uses All parties or All agents. Text search is combined with the dropdown criteria, and the count shows visible versus total records.
+- Kept normal party-specific records editable. Filtering changes the grid view, not the controller's underlying record collection; saving cannot delete or omit invoices hidden by the agent filter. All parties is an explicitly read-only aggregate with party-scoped invoice actions disabled; select a specific party to edit or create invoices. Backups remains available in the title bar.
+- Preserved filters across Reload and refresh. New Invoice preselects the active agent; if a different agent is chosen in the modal, the filter follows the newly created record so it remains visible. Agent references use stable master IDs, with a name fallback for older rows without an ID.
+- Added live WPF coverage for party/agent intersections, no-match cases, agent-only results across parties, combined text search, clearing filters, reload, filtered saves preserving hidden invoices, restored editing after selecting a party and visibility after creating an invoice for another agent. No database schema or company-record changes are required; schema remains 13.
+- Verified and installed `UI 2026.10.31.7`: normal Debug rebuild with zero warnings/errors, **68 backend tests**, live WPF regression checks including the new combined-filter scenarios, and **52/52 acceptance checks** passed. Reviewed the compact two-dropdown register layout. No test seeding or company-database migration was performed for this update.
+
+### 2026-10-31 — Page-scoped exports, party identity and refreshed header/filter UI
+
+- Replaced Preview / Print and Export Excel toolbar actions with one global Export dropdown: Export to Excel and Export to PDF. Export is available on Invoice Register and the two master pages, including filtered all-party invoice views; placeholder pages without a table disable it. Ctrl+E exports the current page to Excel; Ctrl+P exports it to PDF.
+- Snapshot export copies only the current grid's visible rows and visible column order, combining party/agent filters and search, excluding deleted blanks and internal metadata. Excel contains one worksheet for this page, no other reports or embedded report payload, and no descriptive footer or TOTAL/CLOSING row. Dates/amounts remain typed cells. Master invoice counts export as integers.
+- PDF export uses the current page snapshot. Wide invoice exports split into readable column groups, repeating party, proforma and India invoice identifiers for reference. No financial-account worksheets are added. Files receive meaningful page/filter/date names, default to the application-local Exports/page folder, use a save picker with overwrite confirmation, and open after successful saving. Excel writes through a flushed temporary file before replacement; PDF retains its existing temporary-file mechanism.
+- Added Party name before Country name. It uses the existing F1 value and ownership context; no new database schema is needed. Party, country, agent, proforma number and proforma date are locked/frozen and protected by backend identity checks. The current register has 21 visible columns. New Invoice has a selection-only Party Master field, saves under the chosen party, validates the worksheet revision captured when the modal opened, and selects the new record's party afterward.
+- Removed Unassigned from the party filter and New Invoice party choices without deleting legacy records. All parties still includes existing legacy/unassigned records. New Invoice is available in All parties so its own modal can choose a named party.
+- Moved the active page name beside TradeVault in the title bar; the lower row displays applied filters. Added small field labels and cleaner dropdown item styling. Updated Reports and title-bar Backups icons. Master/placeholder pages keep their requested contents and no longer repeat page titles below the header.
+- Added a single-page Excel package test and live checks for current-page rows/columns, filtered export scope, locked party identity, PDF column coverage, generated Excel/PDF files, export-menu choices and party-filter options. Updated prior spreadsheet/keyboard tests for the fifth locked identity field. Database schema remains 13 and no company-data migration/seeding is performed by this update.
+- Verified and installed `UI 2026.10.31.8`: normal Debug rebuild with zero warnings/errors, **69 backend tests**, live WPF checks (including choosing another party in New Invoice and generating page-scoped Excel/PDF artifacts), and **52/52 acceptance checks** passed. Reviewed synthetic screenshots of the compact register, header, master page and five-field invoice modal. Existing company records remain unchanged.

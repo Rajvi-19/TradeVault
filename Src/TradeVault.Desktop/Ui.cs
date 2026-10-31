@@ -5,7 +5,7 @@ using System.Windows.Shell;
 namespace TradeVault.Desktop;
 internal static class Ui
 {
-    public const string BuildLabel="UI 2026.10.30.2";
+    public const string BuildLabel="UI 2026.10.31.8";
     internal static Size WorkspaceSize(Rect workArea)=>new(Math.Min(1440,workArea.Width),Math.Min(880,workArea.Height));
     public static void WindowFrame(Window window,UIElement body,string title,bool embeddedControls=false)
     {
@@ -59,7 +59,8 @@ internal static class Ui
             "invoice"=>"M2,2 H14 V14 H2 Z M2,6 H14 M6,6 V14",
             "details"=>"M4,1.5 H10 L14,5.5 V14.5 H4 Z M10,1.5 V5.5 H14 M7,8 H11 M7,11 H11",
             "ledger"=>"M2,5 H14 M11,2 L14,5 L11,8 M14,11 H2 M5,8 L2,11 L5,14",
-            "reports"=>"M2,9 V14 H14 V9 M8,1 V10 M4.5,6.5 L8,10 L11.5,6.5",
+            "reports"=>"M2,1 H11 L14,4 V15 H2 Z M10,1 V5 H14 M5,12 V9 M8,12 V7 M11,12 V6",
+            "backup"=>"M1,3 H15 V7 H1 Z M2.5,7 V14 H13.5 V7 M6,10 H10",
             _=>"M6,7 A2.5,2.5 0 1 0 6,2 A2.5,2.5 0 1 0 6,7 M1.5,14 V12 A4.5,4.5 0 0 1 10.5,12 M13,7 V13 M10,10 H16"};
         var panel=new StackPanel{Orientation=Orientation.Horizontal};var path=new System.Windows.Shapes.Path{Data=Geometry.Parse(geometry),Width=16,Height=16,Stretch=Stretch.Uniform,StrokeThickness=1.5,StrokeStartLineCap=PenLineCap.Round,StrokeEndLineCap=PenLineCap.Round,StrokeLineJoin=PenLineJoin.Round,Margin=new(0,0,8,0),VerticalAlignment=VerticalAlignment.Center};path.SetBinding(System.Windows.Shapes.Shape.StrokeProperty,new System.Windows.Data.Binding("Foreground"){Source=button});panel.Children.Add(path);
         var text=new TextBlock{Text=label,VerticalAlignment=VerticalAlignment.Center};text.SetBinding(TextBlock.ForegroundProperty,new System.Windows.Data.Binding("Foreground"){Source=button});panel.Children.Add(text);button.Content=panel;return button;

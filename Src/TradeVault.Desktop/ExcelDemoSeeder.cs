@@ -8,7 +8,7 @@ namespace TradeVault.Desktop;
 /// <summary>Explicit creation of a separate workbook-derived test database only.</summary>
 internal static class ExcelDemoSeeder
 {
-    internal sealed record Entry(int SourceRow,string Reference,string InvoiceDate,bool AssumedInvoiceDate,string BlDate,string Original,string Contract,string Bank,string Shipping,string DifferenceReceived,string Terms);
+    internal sealed record Entry(int SourceRow,string Reference,string InvoiceDate,bool AssumedInvoiceDate,string BlDate,string Original,string Contract,string Bank,string DifferenceReceived,string Terms);
     internal static void Run(WorkbookStore store,string fixture)
     {
         var entries=JsonSerializer.Deserialize<List<Entry>>(File.ReadAllText(fixture))??throw new InvalidOperationException("Missing fixture.");
@@ -26,7 +26,7 @@ internal static class ExcelDemoSeeder
                 {
                     var row=sheet.Add();row["F2"]="Malaysia / Pakistan (TEST)";row["F3"]="DEMO-PI-"+entry.SourceRow;
                     row["F5"]=entry.Original;row["F6"]=entry.Contract; // Workbook D explicitly supplies the configured contract. F7 remains unknown.
-                    row["F9"]=entry.Reference;row["F10"]=entry.InvoiceDate;row["F17"]=entry.BlDate;row["F18"]=entry.Shipping;row["_terms"]=entry.Terms;
+                    row["F9"]=entry.Reference;row["F10"]=entry.InvoiceDate;row["F17"]=entry.BlDate;row["_terms"]=entry.Terms;
                     row["F22"]=lab?"0.00":entry.Bank;row["F23"]=lab?"0.00":entry.DifferenceReceived;
                     var assumed=DateOnly.ParseExact(entry.InvoiceDate,"yyyy-MM-dd",CultureInfo.InvariantCulture);
                     if(DateOnly.TryParseExact(entry.BlDate,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var bl)&&bl>assumed)assumed=bl;
@@ -44,7 +44,7 @@ internal static class ExcelDemoSeeder
                     sheet.Load("details",party.Id);sheet.AsOf=new(2026,10,27);
                     foreach(var entry in entries)
                     {
-                        var row=sheet.Add();row["B"]=entry.Reference+" / source row "+entry.SourceRow;row["C"]=entry.Original;row["D"]=entry.Contract;row["E"]=entry.Bank;row["H"]=entry.Shipping;row["J"]=entry.DifferenceReceived;row["L"]=entry.BlDate;row["M"]=entry.Terms;
+                        var row=sheet.Add();row["B"]=entry.Reference+" / source row "+entry.SourceRow;row["C"]=entry.Original;row["D"]=entry.Contract;row["E"]=entry.Bank;row["J"]=entry.DifferenceReceived;row["L"]=entry.BlDate;row["M"]=entry.Terms;
                         if(entry.SourceRow==7){var rounding=sheet.Add();rounding["B"]="SOURCE round-off row 8 (legacy only)";rounding["C"]="0";rounding["D"]="0";rounding["H"]="0";rounding["J"]="0.25";}
                     }
                     sheet.Save();

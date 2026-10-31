@@ -16,6 +16,7 @@ public sealed class ExcelGrid : UserControl
     private readonly TextBlock feedback = new() { TextWrapping = TextWrapping.Wrap, Margin = new(8,3,8,3), FontSize=11, Foreground=Ui.Color("#B42318"),Visibility=Visibility.Collapsed };
     private string Feedback{set{feedback.Text=value;feedback.Visibility=string.IsNullOrWhiteSpace(value)?Visibility.Collapsed:Visibility.Visible;}}
     private readonly CollectionViewSource source;
+    private Func<GridRow,bool>? rowFilter;
     private readonly ObservableCollection<GridRow> displayRows;
     private readonly HashSet<GridRow> blanks=[];
     private readonly Action<GridRow>? promote;
@@ -26,21 +27,22 @@ public sealed class ExcelGrid : UserControl
     internal event Action? BeforeChange;
     private bool clipboardPaste;
     internal Action<string>? ClipboardWriter{get;set;}
+    internal Func<GridRow,bool>? CanEditRecord{get;set;}
     private const string RecordFormat="TradeVault.Record.v1";
     private sealed record RecordClipboard(string[] Fields,string Terms);
     internal GridRow? WholeSelectedRecord
     {
         get{var cells=Table.SelectedCells;var selected=cells.Select(c=>c.Item).Distinct().ToArray();return selected.Length==1&&selected[0] is GridRow row&&rows.Contains(row)&&row["_blank"]!="1"&&Table.Columns.Where(c=>c.Visibility==Visibility.Visible).All(c=>cells.Any(cell=>ReferenceEquals(cell.Item,row)&&cell.Column==c))?row:null;}
     }
-    public ExcelGrid(IReadOnlyList<Field> fields, ObservableCollection<GridRow> rows, bool readOnly = false,Action<GridRow>? promote=null)
+    public ExcelGrid(IReadOnlyList<Field> fields, ObservableCollection<GridRow> rows, bool readOnly = false,Action<GridRow>? promote=null,int frozenColumns=2)
     {
         this.fields = fields; this.rows = rows;this.promote=promote;
         displayRows=new(rows);
         if(promote!=null&&!readOnly)
         {
             AddBlankRows();
-            System.Collections.Specialized.CollectionChangedEventManager.AddHandler(rows,OnRowsChanged);
         }
+        System.Collections.Specialized.CollectionChangedEventManager.AddHandler(rows,OnRowsChanged);
         var root = new DockPanel();
         var search = new TextBox { Width=200,MinHeight=28, Padding = new(8,3,8,3), ToolTip = "Filter visible rows across all columns" };
         System.Windows.Automation.AutomationProperties.SetName(search, "Filter rows");
@@ -52,7 +54,7 @@ public sealed class ExcelGrid : UserControl
         DockPanel.SetDock(tools,Dock.Top);root.Children.Add(tools);
         DockPanel.SetDock(feedback,Dock.Top); root.Children.Add(feedback);
         source = new CollectionViewSource { Source = displayRows };
-        source.Filter += (_,e) => e.Accepted = e.Item is GridRow r && fields.Any(f => r[f.Key].Contains(search.Text,StringComparison.OrdinalIgnoreCase));
+        source.Filter += (_,e) => e.Accepted = e.Item is GridRow r && (rowFilter?.Invoke(r)??true) && fields.Any(f => r[f.Key].Contains(search.Text,StringComparison.OrdinalIgnoreCase));
         search.TextChanged += (_,_) => { Table.CommitEdit(); Table.CommitEdit(DataGridEditingUnit.Row,true); source.View.Refresh();RefreshRecordCount(); };
         Table.FontFamily=new("Segoe UI Variable Text, Segoe UI");
         Table.AutoGenerateColumns = false; Table.CanUserAddRows = false; Table.CanUserDeleteRows = false;
@@ -79,7 +81,15 @@ public sealed class ExcelGrid : UserControl
             cellStyle.Setters.Add(new Setter(ToolTipProperty,fieldError));
             var invalid=new DataTrigger{Binding=new Binding(nameof(GridRow.Errors)){Converter=new FieldErrorConverter(),ConverterParameter=field.Key+"?"},Value=true};
             invalid.Setters.Add(new Setter(Border.BorderBrushProperty,Ui.Color("#C2413C")));cellStyle.Triggers.Add(invalid);
-            if(field.IsDate&&!field.Calculated&&!readOnly)
+            Style? lockedHeader=null;
+            if(field.Locked)
+            {
+                cellStyle.Setters.Add(new Setter(BackgroundProperty,Ui.Color("#EDF1F6")));cellStyle.Setters.Add(new Setter(ForegroundProperty,Ui.Color("#52627A")));
+                var selected=new Trigger{Property=DataGridCell.IsSelectedProperty,Value=true};selected.Setters.Add(new Setter(BackgroundProperty,Ui.Color("#E7EFFF")));selected.Setters.Add(new Setter(ForegroundProperty,Ui.Color("#18243B")));cellStyle.Triggers.Add(selected);
+                lockedHeader=new Style(typeof(System.Windows.Controls.Primitives.DataGridColumnHeader),(Style)FindResource(typeof(System.Windows.Controls.Primitives.DataGridColumnHeader)));
+                lockedHeader.Setters.Add(new Setter(BackgroundProperty,Ui.Color("#E8EFFD")));
+            }
+            if(field.IsDate&&!field.IsReadOnly&&!readOnly)
             {
                 var factory=new FrameworkElementFactory(typeof(DateCellEditor));
                 factory.SetBinding(DateCellEditor.ValueProperty,new Binding($"[{field.Key}]"){Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged,ValidatesOnNotifyDataErrors=false});
@@ -90,17 +100,17 @@ public sealed class ExcelGrid : UserControl
             var style = new Style(typeof(TextBlock)); style.Setters.Add(new Setter(TextBlock.PaddingProperty,new Thickness(8,3,8,3)));
             if (field.Calculated){style.Setters.Add(new Setter(TextBlock.BackgroundProperty,Ui.Color("#F0F5FF")));var selected=new DataTrigger{Binding=new Binding("IsSelected"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGridCell),1)},Value=true};selected.Setters.Add(new Setter(TextBlock.BackgroundProperty,Brushes.Transparent));style.Triggers.Add(selected);}
             Table.Columns.Add(new DataGridTextColumn {
-                Header = field.Label, Width = field.Width==240?CompactWidth(field):field.Width, IsReadOnly = field.Calculated,
-                SortMemberPath = $"[{field.Key}]", ElementStyle = style, CellStyle=cellStyle,
-                Binding = new Binding($"[{field.Key}]") { Mode = field.Calculated || readOnly ? BindingMode.OneWay : BindingMode.TwoWay,
+                Header = field.Label, Width = field.Width==240?CompactWidth(field):field.Width, IsReadOnly = field.IsReadOnly,
+                SortMemberPath = $"[{field.Key}]", ElementStyle = style, CellStyle=cellStyle, HeaderStyle=lockedHeader??(Style)FindResource(typeof(System.Windows.Controls.Primitives.DataGridColumnHeader)),
+                Binding = new Binding($"[{field.Key}]") { Mode = field.IsReadOnly || readOnly ? BindingMode.OneWay : BindingMode.TwoWay,
                     UpdateSourceTrigger = field.IsDate?UpdateSourceTrigger.LostFocus:UpdateSourceTrigger.PropertyChanged,
                     Converter=field.IsDate?new DateCellConverter():null, ValidatesOnNotifyDataErrors = false },
                 EditingElementStyle=EditingStyle()
             });
         }
-        Table.FrozenColumnCount = Math.Min(2,fields.Count);
+        Table.FrozenColumnCount = Math.Min(frozenColumns,fields.Count);
         Table.ItemsSource = source.View;
-        if(promote!=null)Table.Sorting+=(_,e)=> {
+        Table.Sorting+=(_,e)=> {
             e.Handled=true;var direction=e.Column.SortDirection==System.ComponentModel.ListSortDirection.Ascending?System.ComponentModel.ListSortDirection.Descending:System.ComponentModel.ListSortDirection.Ascending;
             foreach(var column in Table.Columns)column.SortDirection=null;e.Column.SortDirection=direction;
             var key=fields[Table.Columns.IndexOf(e.Column)].Key;
@@ -124,6 +134,14 @@ public sealed class ExcelGrid : UserControl
         RefreshRecordCount();
     }
     internal void RefreshRecordCount(){var known=rows.Where(r=>r["_blank"]!="1").ToHashSet();var total=known.Count;var visible=Table.Items.Cast<GridRow>().Count(known.Contains);recordCount.Text=visible==total?$"{total} record{(total==1?"":"s")}":$"{visible} of {total} records";}
+    internal void SetRowFilter(Func<GridRow,bool>? filter){rowFilter=filter;source.View.Refresh();RefreshRecordCount();}
+    internal TradeVault.Application.ReportTable PageSnapshot(string name)
+    {
+        var ordered=Table.Columns.Where(column=>column.Visibility==Visibility.Visible).OrderBy(column=>column.DisplayIndex).Select(column=>fields[Table.Columns.IndexOf(column)]).ToList();
+        var columns=ordered.Select(field=>new TradeVault.Application.ReportColumn(field.Key,field.Label,field.IsDate?"date":field.Key=="F21"||field.Label=="Invoices"?"integer":field.IsNumeric?"number":"text")).ToList();
+        var records=Table.Items.Cast<GridRow>().Where(row=>row["_blank"]!="1").Select(row=>ordered.ToDictionary(field=>field.Key,field=>row[field.Key])).ToList();
+        return new(name,columns,records,new());
+    }
     private static TextBox? FindInput(DependencyObject root)
     {
         if(root is TextBox input)return input;
@@ -250,7 +268,7 @@ public sealed class ExcelGrid : UserControl
         if(Table.IsReadOnly)throw new ArgumentException("This report is read-only. Edit the invoice register instead.");
         var cells=Table.SelectedCells.ToList();if(cells.Count==0&&Table.CurrentCell.IsValid)cells.Add(Table.CurrentCell);
         if(cells.Count==0)throw new ArgumentException("Select an editable cell first.");
-        if(cells.Any(c=>c.Column.IsReadOnly))throw new ArgumentException("Calculated cells are locked. Select only editable cells.");
+        if(cells.Any(c=>c.Column.IsReadOnly))throw new ArgumentException("Invoice identity and calculated cells are locked. Select only editable cells.");
         return cells;
     }
     internal void ClearSelectedCells()
@@ -377,6 +395,7 @@ public sealed class ExcelGrid : UserControl
         var ordered = Table.Columns.OrderBy(c => c.DisplayIndex).Select(c => fields[Table.Columns.IndexOf(c)]).ToArray();
         try {
             var changes = PastePlan.Create(text,row,col,visible.Count,ordered);
+            if(changes.Any(change=>CanEditRecord?.Invoke(visible[change.Row])==false))throw new ArgumentException("Use New Invoice to create a record before pasting its amounts or shipment details.");
             foreach(var change in changes){var field=ordered.First(f=>f.Key==change.Key);if(field.IsDate&&!DateCellEditor.IsValidDate(change.Value))throw new ArgumentException("Paste contains an invalid date. No cells were changed.");}
             BeforeChange?.Invoke();
             foreach (var change in changes) {
@@ -415,8 +434,8 @@ public static class PastePlan
         List<CellChange> result = [];
         for (int r=0;r<cells.Length;r++) for (int c=0;c<cells[r].Length;c++) {
             var field = fields[startColumn+c];
-            if (field.Calculated && startColumn==0 && cells[r].Length==fields.Count) continue;
-            if (field.Calculated) throw new ArgumentException("Paste touches a locked calculated column. Select input columns only; no cells were changed.");
+            if (field.IsReadOnly && startColumn==0 && cells[r].Length==fields.Count) continue;
+            if (field.IsReadOnly) throw new ArgumentException("Paste touches a locked column. Select input columns only; no cells were changed.");
             result.Add(new(startRow+r,field.Key,cells[r][c]));
         }
         return result;
