@@ -31,6 +31,7 @@ public sealed partial class ReportWorkflow(WorkbookStore store)
     public static string InvoiceKey(Guid party,Dictionary<string,string> row)=>row.GetValueOrDefault("_id")??Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(party+"|"+row.GetValueOrDefault("F9","").Trim().ToUpperInvariant())));
     public List<Dictionary<string,string>> Invoices(Guid party)=>store.Load("form",party).Rows.Where(r=>!r.ContainsKey("_metadata")&&r.GetValueOrDefault("_blank")!="1").ToList();
     public List<PartyReceipt> Receipts(Guid party)=>store.Document<ReceiptBook>("receipts",party.ToString())?.Receipts??[];
+    private List<PartyReceipt> CurrentPaymentBook(Guid party)=>store.GetTransferReceipts(TransferReceiptKind.Party).Where(r=>r.MasterId==party.ToString()).Select(r=>new PartyReceipt(r.Id,r.PaymentDate,r.UsdAmount,r.Description,(r.Allocations??[]).SelectMany(a=>new[]{new ReceiptSplit(a.InvoiceId,"Bank",a.Bank),new ReceiptSplit(a.InvoiceId,"Difference",a.Difference)}).Where(a=>a.Amount!=0).ToList())).ToList();
     public void EnsureInvoiceCanDelete(Guid party,Dictionary<string,string> row)
     {
         Party(party);var key=InvoiceKey(party,row);
@@ -104,7 +105,7 @@ public sealed partial class ReportWorkflow(WorkbookStore store)
         var bank=Amount(row,"F25");var diff=Amount(row,"F23");
         var bankDate=bank==0?(DateOnly?)null:Date(row,"F26");var diffDate=diff==0?(DateOnly?)null:Date(row,"F24");
         if(bank>0&&bankDate==null||diff>0&&diffDate==null)return null;
-        var key=InvoiceKey(party,row);var allocated=Receipts(party).Where(r=>r.Date<=asOf).SelectMany(r=>r.Allocations.Where(a=>a.InvoiceId==key)).Sum(a=>a.Amount);
+        var key=InvoiceKey(party,row);var allocated=Receipts(party).Concat(CurrentPaymentBook(party)).Where(r=>r.Date<=asOf).SelectMany(r=>r.Allocations.Where(a=>a.InvoiceId==key)).Sum(a=>a.Amount);
         var outstanding=Amount(row,"F5",true)-(bankDate<=asOf?bank:0)-(diffDate<=asOf?diff:0)-allocated;
         return outstanding>0?Math.Max(0,asOf.DayNumber-due.Value.DayNumber):0;
     }
@@ -137,6 +138,7 @@ public sealed partial class ReportWorkflow(WorkbookStore store)
     private ReportBundle BuildGenerated(Guid party,DateOnly asOf,List<PartyReceipt> receipts,bool validationOnly)
     {
         Party(party);
+        receipts=[..receipts,..CurrentPaymentBook(party)];
         var allRows=Invoices(party);var rows=allRows.Where(r=>r.GetValueOrDefault("_newInvoice")!="1"||new[]{"F9","F10","F5","F6"}.All(k=>!string.IsNullOrWhiteSpace(r.GetValueOrDefault(k)))).ToList();var duplicates=rows.GroupBy(r=>r.GetValueOrDefault("F9","").Trim(),StringComparer.OrdinalIgnoreCase).FirstOrDefault(g=>g.Key.Length==0||g.Count()>1);
         if(duplicates!=null)throw new BusinessRuleException("Register has missing or duplicate invoice numbers. Use a unique invoice/container reference.");
         var details=new List<Dictionary<string,string>>();var entries=new List<(DateOnly Date,string Key,string Text,decimal Debit,decimal Credit)>();

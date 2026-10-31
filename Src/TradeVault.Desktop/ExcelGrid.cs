@@ -138,7 +138,7 @@ public sealed class ExcelGrid : UserControl
     internal TradeVault.Application.ReportTable PageSnapshot(string name)
     {
         var ordered=Table.Columns.Where(column=>column.Visibility==Visibility.Visible).OrderBy(column=>column.DisplayIndex).Select(column=>fields[Table.Columns.IndexOf(column)]).ToList();
-        var columns=ordered.Select(field=>new TradeVault.Application.ReportColumn(field.Key,field.Label,field.IsDate?"date":field.Key=="F21"||field.Label=="Invoices"?"integer":field.IsNumeric?"number":"text")).ToList();
+        var columns=ordered.Select(field=>new TradeVault.Application.ReportColumn(field.Key,field.Label,field.DataType??(field.IsDate?"date":field.Key=="F21"||field.Label=="Invoices"?"integer":field.IsNumeric?"number":"text"))).ToList();
         var records=Table.Items.Cast<GridRow>().Where(row=>row["_blank"]!="1").Select(row=>ordered.ToDictionary(field=>field.Key,field=>row[field.Key])).ToList();
         return new(name,columns,records,new());
     }

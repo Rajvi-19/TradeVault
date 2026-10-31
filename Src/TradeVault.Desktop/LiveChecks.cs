@@ -3,6 +3,20 @@ using TradeVault.Domain;
 namespace TradeVault.Desktop;
 internal static class LiveChecks
 {
+    internal static void RenderFreshDemo(string directory)
+    {
+        directory=System.IO.Path.GetFullPath(directory);System.IO.Directory.CreateDirectory(directory);var parent=System.IO.Path.Combine(AppContext.BaseDirectory,"TestData");var root=System.IO.Path.Combine(parent,Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var database=new PortableDatabase(new(root));var store=new WorkbookStore(database);store.RefreshDemoData(DateOnly.FromDateTime(DateTime.Today));var window=new MainWindow(store,database.Paths.Database);
+            Capture(window,System.IO.Path.Combine(directory,"fresh-register.png"),1180,760);
+            foreach(var page in new[]{"parties","agents","partyReceipt","agentReceipt"}){window.PreviewSheet(page);Capture(window,System.IO.Path.Combine(directory,"fresh-"+page+".png"),1180,760);}
+            var party=store.GetParties().First(p=>p.Name.Contains("Faisalabad"));var agent=store.GetAgents().First(a=>a.Name.Contains("Atlas"));
+            foreach(var kind in new[]{CompanyReportKind.AccountDetails,CompanyReportKind.PartyLedger,CompanyReportKind.AgentLedger}){window.PreviewCompanyReport(kind,kind==CompanyReportKind.AgentLedger?agent.Id:party.Id.ToString());Capture(window,System.IO.Path.Combine(directory,"fresh-"+kind+".png"),1180,760);}
+            window.Close();
+        }
+        finally{if(System.IO.Path.GetDirectoryName(root)==parent&&System.IO.Directory.Exists(root))System.IO.Directory.Delete(root,true);}
+    }
     internal static void Render(string directory)
     {
         directory=System.IO.Path.GetFullPath(directory);System.IO.Directory.CreateDirectory(directory);
@@ -12,11 +26,22 @@ internal static class LiveChecks
             using var database=new PortableDatabase(new(root));var store=new WorkbookStore(database);
             AcceptanceChecks.Seed(store);
             var masterAgent=store.CreateAgent("QA Regional Trading");var masterParty=store.CreateParty("QA Master Buyer");store.CreateRegisterInvoice(masterParty.Id,0,new("India",masterAgent.Name,"QA-MASTER-PI",new(2026,5,1),masterAgent.Id));
+            store.AddTransferReceipt(TransferReceiptKind.Party,masterParty.Id.ToString(),new(2026,10,29),12500.50m,"Shipment payment to intermediary",masterAgent.Id,"280 PKR");
+            store.AddTransferReceipt(TransferReceiptKind.Agent,masterAgent.Id,new(2026,10,30),10000m,"Transfer received from Malaysia");
+            AgentWorkflowSeeder.Run(store,database);
             var window=new MainWindow(store,database.Paths.Database);
+            foreach(var kind in new[]{CompanyReportKind.AccountDetails,CompanyReportKind.PartyLedger,CompanyReportKind.AgentLedger})
+            {
+                var reportParty=store.GetParties().First(p=>p.Name=="[TEST] Karachi Textile Colours");var reportAgent=store.GetAgents().First(a=>a.Name=="[TEST] Meridian Trading Malaysia");window.PreviewCompanyReport(kind,kind==CompanyReportKind.AgentLedger?reportAgent.Id:reportParty.Id.ToString());Capture(window,System.IO.Path.Combine(directory,kind+"-report.png"),1180,760);
+            }
             foreach(var name in new[]{"parties","agents","form","partyReceipt","agentReceipt","reports","details","ledger"}){window.PreviewSheet(name);Capture(window,System.IO.Path.Combine(directory,name+".png"),1480,920);if(name=="form")Capture(window,System.IO.Path.Combine(directory,"form-minimum.png"),1100,720);}
             Capture(window,System.IO.Path.Combine(directory,"compact-window.png"),1000,600);
             var partyDialog=new PartyDialog(store);var partySurface=(System.Windows.FrameworkElement)partyDialog.Content;partySurface.Measure(new(440,double.PositiveInfinity));Capture(partyDialog,System.IO.Path.Combine(directory,"new-party.png"),440,(int)Math.Ceiling(partySurface.DesiredSize.Height));partyDialog.Close();
             var invoiceDialog=new NewInvoiceDialog(store,Guid.Empty,store.Load("form").Revision);invoiceDialog.FillForCheck(new("India",masterAgent.Name,"QA-NEW-PI",DateOnly.FromDateTime(DateTime.Today)));var invoiceSurface=(System.Windows.FrameworkElement)invoiceDialog.Content;invoiceSurface.Measure(new(480,double.PositiveInfinity));Capture(invoiceDialog,System.IO.Path.Combine(directory,"new-invoice.png"),480,(int)Math.Ceiling(invoiceSurface.DesiredSize.Height));invoiceDialog.Close();
+            foreach(var kind in new[]{TransferReceiptKind.Party,TransferReceiptKind.Agent})
+            {
+                var receiptDialog=new TransferReceiptDialog(store,kind);receiptDialog.FillForCheck(kind==TransferReceiptKind.Party?masterParty.Id.ToString():masterAgent.Id,"2026-10-30","1250.50","Shipping charge",value:"280 PKR");var receiptSurface=(System.Windows.FrameworkElement)receiptDialog.Content;receiptSurface.Measure(new(470,double.PositiveInfinity));Capture(receiptDialog,System.IO.Path.Combine(directory,kind+"-receipt-dialog.png"),470,(int)Math.Ceiling(receiptSurface.DesiredSize.Height));receiptDialog.Close();
+            }
             var deleteDialog=new ConfirmDeleteWindow(window,"TEST-INV-006","[TEST] Sample party");var deleteSurface=(System.Windows.FrameworkElement)deleteDialog.Content;deleteSurface.Measure(new(560,double.PositiveInfinity));Capture(deleteDialog,System.IO.Path.Combine(directory,"delete-confirmation.png"),560,(int)Math.Ceiling(deleteSurface.DesiredSize.Height));deleteDialog.Close();
             AppTheme.SetDark(true);
             foreach(var name in new[]{"parties","agents","form","partyReceipt","agentReceipt","reports","details","ledger"}){window.PreviewSheet(name);Capture(window,System.IO.Path.Combine(directory,name+"-dark.png"),1100,720);}
@@ -83,7 +108,7 @@ internal static class LiveChecks
                 draft["F17"]=DateCellConverter.Normalize("17/6/2026");sheet.Save();
                 Require(draft["F19"]=="2026-09-15","Derived due remains calculated");
                 Require(store.Load("form").Rows.Count==3,"Only two entered rows and metadata persisted");
-                var window=new MainWindow(store,db.Paths.Database);window.Measure(new System.Windows.Size(1440,880));window.Arrange(new System.Windows.Rect(0,0,1440,880));window.UpdateLayout();window.CheckMasterPages();window.CheckInvoiceFilters();window.CheckInteractions();window.CheckPartyInteractions();window.CheckWorkflowInteractions();window.CheckShortcutInteractions();window.CheckUndoRedoInteractions();window.CheckBlankRowInteractions();window.CheckThemeInteractions();window.CheckWindowViewport();window.Close();
+                var window=new MainWindow(store,db.Paths.Database);window.Measure(new System.Windows.Size(1440,880));window.Arrange(new System.Windows.Rect(0,0,1440,880));window.UpdateLayout();window.CheckMasterPages();window.CheckTransferReceiptPages();window.CheckCompanyReportPages();window.CheckInvoiceFilters();window.CheckInteractions();window.CheckPartyInteractions();window.CheckWorkflowInteractions();window.CheckShortcutInteractions();window.CheckUndoRedoInteractions();window.CheckBlankRowInteractions();window.CheckThemeInteractions();window.CheckWindowViewport();window.Close();AgentWorkflowSeeder.Check(store,db);
             }
             using var reopened=new PortableDatabase(new(root));var s=new WorkbookStore(reopened);Require(s.Load("details").Rows.Count==2,"Persistence after reopen");
         }

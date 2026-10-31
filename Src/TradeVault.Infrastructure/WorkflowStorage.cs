@@ -30,6 +30,7 @@ public sealed partial class WorkbookStore
                 if(string.IsNullOrWhiteSpace(row.GetValueOrDefault("F4")))throw new BusinessRuleException("Proforma invoice date is required.");
             }
         }
+        GuardFifoInvoices(party,rows,savedRows);
         var receipts=Document<TradeVault.Application.ReceiptBook>("receipts",party.ToString())?.Receipts??[];
         if(receipts.Count==0)return;
         var old=Load("form",party).Rows.Where(r=>!r.ContainsKey("_metadata")&&r.GetValueOrDefault("_blank")!="1").ToList();

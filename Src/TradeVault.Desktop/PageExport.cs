@@ -26,7 +26,7 @@ public sealed partial class MainWindow
     }
     private void RefreshPageHeading()
     {
-        pageTitle.Text=PageName(activePage);
+        pageTitle.Text=activePage=="reports"?"Reports / "+CurrentReportName:PageName(activePage);
         var party=(partySelector.SelectedItem as WorksheetParty)?.Name??"All parties";
         var agent=(agentSelector.SelectedItem as AgentMasterEntry)?.Name??"All agents";
         title.FontSize=12;title.Text=activePage=="form"?$"Party: {party}  ·  Agent: {agent}":activePage=="parties"?"All parties":activePage=="agents"?"All agents":"";
@@ -36,8 +36,8 @@ public sealed partial class MainWindow
     private ReportBundle BuildPageExport()
     {
         if(grid==null)throw new ArgumentException("This page has no entries to export yet.");
-        var table=grid.PageSnapshot(PageName(activePage));
-        return new(1,"Current page",Guid.Empty,Guid.Empty,title.Text,DateOnly.FromDateTime(DateTime.Today),DateTimeOffset.Now,Guid.NewGuid(),0,"Page export",[table],[]);
+        var table=grid.PageSnapshot(activePage=="reports"?CurrentReportName:PageName(activePage));
+        return new(1,"Current page",Guid.Empty,Guid.Empty,activePage=="reports"?currentCompanyReport?.Subject??"Reports":title.Text,DateOnly.FromDateTime(DateTime.Today),DateTimeOffset.Now,Guid.NewGuid(),0,"Page export",[table],[]);
     }
     internal static ReportBundle PdfPageBands(ReportBundle report)
     {
@@ -45,7 +45,7 @@ public sealed partial class MainWindow
         foreach(var table in report.Tables)
         {
             if(table.Columns.Count<=8){tables.Add(table);continue;}
-            var repeated=table.Columns.Where(column=>column.Key is "F1" or "F3" or "F9").ToList();var remaining=table.Columns.Except(repeated).ToList();var band=0;
+            var repeated=table.Columns.Where(column=>column.Key is "F1" or "F3" or "F9" || (table.Name is "Account Details" or "Party Ledger" && column.Key=="B")).ToList();var remaining=table.Columns.Except(repeated).ToList();var band=0;
             foreach(var chunk in remaining.Chunk(7-repeated.Count))
             {
                 var columns=repeated.Concat(chunk).ToList();tables.Add(new(table.Name+" - Part "+(++band),columns,table.Rows.Select(row=>columns.ToDictionary(column=>column.Key,column=>row.GetValueOrDefault(column.Key,""))).ToList(),new()));
@@ -57,8 +57,8 @@ public sealed partial class MainWindow
     {
         try
         {
-            RequireSaved();var report=BuildPageExport();var page=PageName(activePage);var extension=pdf?"pdf":"xlsx";var folder=Path.Combine(AppContext.BaseDirectory,"Exports",page);Directory.CreateDirectory(folder);
-            var raw=page+" - "+(activePage=="form"?((partySelector.SelectedItem as WorksheetParty)?.Name??"All parties")+" - "+((agentSelector.SelectedItem as AgentMasterEntry)?.Name??"All agents"):"All records");
+            RequireSaved();var report=BuildPageExport();var page=activePage=="reports"?CurrentReportName:PageName(activePage);var extension=pdf?"pdf":"xlsx";var folder=Path.Combine(AppContext.BaseDirectory,"Exports",page);Directory.CreateDirectory(folder);
+            var raw=page+" - "+(activePage=="form"?((partySelector.SelectedItem as WorksheetParty)?.Name??"All parties")+" - "+((agentSelector.SelectedItem as AgentMasterEntry)?.Name??"All agents"):activePage=="reports"?currentCompanyReport?.Subject??"All records":"All records");
             var safe=new string(raw.Select(c=>Path.GetInvalidFileNameChars().Contains(c)?'_':c).ToArray());safe=safe[..Math.Min(145,safe.Length)];
             var picker=new SaveFileDialog{Filter=pdf?"PDF file (*.pdf)|*.pdf":"Excel workbook (*.xlsx)|*.xlsx",FileName=$"{safe} - {report.AsOf:yyyy-MM-dd}.{extension}",InitialDirectory=folder,AddExtension=true,DefaultExt=extension};
             if(picker.ShowDialog(this)!=true)return;

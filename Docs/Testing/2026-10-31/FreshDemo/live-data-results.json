@@ -1,0 +1,17 @@
+{
+  "demo_parties": 3,
+  "preserved_unmarked_parties": [
+    "Dhyan"
+  ],
+  "demo_agents": 3,
+  "invoices": 9,
+  "party_receipts": 4,
+  "agent_receipts": 3,
+  "unallocated_advance_usd": 2000.0,
+  "invoice_original_usd": 131000.0,
+  "party_receipts_usd": 62000,
+  "agent_remittances_usd": 50000,
+  "integrity": "ok",
+  "foreign_key_errors": 0,
+  "staging_folders_remaining": 0
+}

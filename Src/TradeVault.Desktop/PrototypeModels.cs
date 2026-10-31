@@ -4,11 +4,11 @@ using System.ComponentModel;
 
 namespace TradeVault.Desktop;
 
-public record Field(string Key, string Label, bool Calculated = false, int Width = 155, bool Locked = false)
+public record Field(string Key, string Label, bool Calculated = false, int Width = 155, bool Locked = false,string? DataType=null)
 {
     public bool IsReadOnly => Calculated || Locked;
-    public bool IsNumeric=>!IsDate&&new[]{"AMOUNT","PAYMENT","CHARGES","TERMS","DAYS","BALANCE","DEBIT","CREDIT","SR. NO.","INVOICES"}.Any(word=>Label.Contains(word,StringComparison.OrdinalIgnoreCase));
-    public bool IsDate => Label.Contains("DATE",StringComparison.OrdinalIgnoreCase)
+    public bool IsNumeric=>DataType!=null?DataType is "number" or "integer":!IsDate&&new[]{"AMOUNT","PAYMENT","CHARGES","TERMS","DAYS","BALANCE","DEBIT","CREDIT","SR. NO.","INVOICES"}.Any(word=>Label.Contains(word,StringComparison.OrdinalIgnoreCase));
+    public bool IsDate => DataType!=null?DataType=="date":Label.Contains("DATE",StringComparison.OrdinalIgnoreCase)
         && !Label.Contains("NO & DATE",StringComparison.OrdinalIgnoreCase)
         || Label.Equals("DUE",StringComparison.OrdinalIgnoreCase);
 }

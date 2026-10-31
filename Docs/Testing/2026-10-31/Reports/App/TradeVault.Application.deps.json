@@ -1,0 +1,39 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "TradeVault.Application/1.0.0": {
+        "dependencies": {
+          "TradeVault.Domain": "1.0.0"
+        },
+        "runtime": {
+          "TradeVault.Application.dll": {}
+        }
+      },
+      "TradeVault.Domain/1.0.0": {
+        "runtime": {
+          "TradeVault.Domain.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "TradeVault.Application/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "TradeVault.Domain/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

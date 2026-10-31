@@ -5,7 +5,7 @@ using System.Windows.Shell;
 namespace TradeVault.Desktop;
 internal static class Ui
 {
-    public const string BuildLabel="UI 2026.10.31.10";
+    public const string BuildLabel="UI 2026.10.31.20";
     internal static Size WorkspaceSize(Rect workArea)=>new(Math.Min(1440,workArea.Width),Math.Min(880,workArea.Height));
     public static void WindowFrame(Window window,UIElement body,string title,bool embeddedControls=false)
     {
@@ -69,3 +69,5 @@ internal static class Ui
     public static Border Card(UIElement child,Thickness? padding=null)=>new(){Background=Ui.Color("#FFFFFF"),BorderBrush=Color("#E2E8F0"),BorderThickness=new(1),CornerRadius=new(8),Padding=padding??new(0),Child=child};
     public static Border Badge(string text,string background="#EDF3FF",string foreground="#2458D3")=>new(){Background=Color(background),CornerRadius=new(4),Padding=new(8,4,8,4),Child=Text(text,11,foreground,true),VerticalAlignment=VerticalAlignment.Center};
 }
+
+
