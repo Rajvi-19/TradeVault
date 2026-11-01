@@ -33,7 +33,7 @@ internal static class AppTheme
     private static readonly Dictionary<string,(Entry Entry,SolidColorBrush Brush)> brushes=new(StringComparer.OrdinalIgnoreCase);
     private static string? settingsPath;
     private sealed record Preference(bool Dark);
-    internal static bool IsDark{get;private set;}
+    internal static bool IsDark{get;private set;}=true;
     internal static event Action? Changed;
     internal static Brush AccentFill{get;}=new SolidColorBrush(Parse("#2458D3"));
     internal static Brush DangerFill{get;}=new SolidColorBrush(Parse("#B42318"));
@@ -50,8 +50,8 @@ internal static class AppTheme
     }
     internal static void Initialize(string? path)
     {
-        settingsPath=path;var selected=false;
-        try{if(path!=null&&File.Exists(path)&&new FileInfo(path).Length<=2048)selected=JsonSerializer.Deserialize<Preference>(File.ReadAllText(path))?.Dark??false;}
+        settingsPath=path;var selected=true;
+        try{if(path!=null&&File.Exists(path)&&new FileInfo(path).Length<=2048)selected=JsonSerializer.Deserialize<Preference>(File.ReadAllText(path))?.Dark??true;}
         catch(Exception ex)when(ex is IOException or UnauthorizedAccessException or JsonException){/* An invalid preference never blocks company records. */}
         foreach(var color in dark.Keys)Brush(color);
         var resources=System.Windows.Application.Current.Resources;
@@ -74,3 +74,4 @@ internal static class AppTheme
         IsDark=value;foreach(var entry in brushes.Values)entry.Entry.Refresh();Changed?.Invoke();
     }
 }
+
