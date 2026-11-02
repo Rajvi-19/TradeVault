@@ -41,7 +41,7 @@ public sealed partial class WorkbookStore
     private void GuardFifoInvoices(Guid party,List<Dictionary<string,string>> rows,Dictionary<string,Dictionary<string,string>> previous)
     {
         var partyKeys=previous.Keys.ToHashSet();
-        var allocated=GetTransferReceipts(TransferReceiptKind.Party).Where(r=>r.MasterId==party.ToString()).Concat(GetTransferReceipts(TransferReceiptKind.Agent)).SelectMany(r=>r.Allocations??[]).Select(a=>a.InvoiceId).Where(partyKeys.Contains).Distinct();
+        var allocated=GetTransferReceipts(TransferReceiptKind.Party).Where(r=>r.MasterId==party.ToString()).Concat(GetTransferReceipts(TransferReceiptKind.Agent)).SelectMany(r=>r.Allocations??[]).Select(a=>a.InvoiceId).Concat(GetExpenseReceipts().Where(r=>r.PartyId==party).Select(r=>r.InvoiceId)).Where(partyKeys.Contains).Distinct();
         foreach(var id in allocated)
         {
             var next=rows.FirstOrDefault(r=>ReportWorkflow.InvoiceKey(party,r)==id)??throw new BusinessRuleException("An invoice with allocated receipts cannot be deleted or cut.");
@@ -50,3 +50,4 @@ public sealed partial class WorkbookStore
         }
     }
 }
+

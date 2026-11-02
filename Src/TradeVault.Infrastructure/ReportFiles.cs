@@ -28,10 +28,10 @@ public sealed partial class ReportWorkflow
 
     private static void WriteNew(string path,byte[] bytes)
     {var pending=path+".partial";using(var stream=new FileStream(pending,FileMode.CreateNew,FileAccess.Write,FileShare.None)){stream.Write(bytes);stream.Flush(true);}File.Move(pending,path);}
-    public static byte[] ExportPageWorkbook(ReportBundle report)
+    public static byte[] ExportPageWorkbook(ReportBundle report,IReadOnlyDictionary<string,string>? summary=null)
     {
         if(report.Tables.Count!=1)throw new BusinessRuleException("A page export must contain exactly one worksheet.");
-        return StylePageWorkbook(Workbook(report,report.Tables[0],false),report);
+        return StylePageWorkbook(Workbook(report,report.Tables[0],false),report,summary);
     }
     private static byte[] Workbook(ReportBundle report,ReportTable table,bool includeTotals=true)
     {
@@ -65,3 +65,4 @@ public sealed partial class ReportWorkflow
         foreach(var table in report.Tables){html.Append($"<section><h1>{E(report.PartyName)} — {E(table.Name)}</h1><p>USD · {report.AsOf:dd-MM-yyyy} · revision {report.Revision} · {E(report.Mode)}</p><table><thead><tr>");foreach(var c in table.Columns)html.Append("<th>"+E(c.Label)+"</th>");html.Append("</tr></thead><tbody>");foreach(var row in table.Rows){html.Append("<tr>");foreach(var c in table.Columns)html.Append("<td>"+E(row.GetValueOrDefault(c.Key,""))+"</td>");html.Append("</tr>");}html.Append("<tr>");for(int i=0;i<table.Columns.Count;i++){var c=table.Columns[i];html.Append("<td>"+(i==0?"TOTAL / CLOSING":table.Totals.TryGetValue(c.Key,out var value)?value.ToString("N2",CultureInfo.InvariantCulture):"")+"</td>");}html.Append("</tr></tbody></table>");foreach(var note in report.Notes)html.Append("<p>"+E(note)+"</p>");html.Append("</section>");}return html.ToString();
     }
 }
+

@@ -29,6 +29,7 @@ public sealed partial class WorkbookStore
             {
                 allParties=GetParties().Count(p=>!p.IsUnassigned);allAgents=GetAgents().Count;
                 allInvoices=GetParties().Sum(p=>Load("form",p.Id).Rows.Count(r=>!r.ContainsKey("_metadata")&&r.GetValueOrDefault("_blank")!="1"));
+                Execute("DELETE FROM workflow_audit");Execute("DELETE FROM audit_events");
                 Execute("DELETE FROM workflow_documents");Execute("DELETE FROM party_worksheets");Execute("DELETE FROM worksheets");
                 Execute("DELETE FROM worksheet_parties WHERE is_unassigned=0");Execute("DELETE FROM worksheet_agents");
             }
@@ -42,6 +43,16 @@ public sealed partial class WorkbookStore
             {
                 if(parties.Contains(doc.Id)){Execute("DELETE FROM workflow_documents WHERE kind=$k AND id=$id",("$k",doc.Kind),("$id",doc.Id));continue;}
                 var node=JsonNode.Parse(doc.Data)!.AsObject();
+                if(doc.Kind=="expense_receipts")
+                {
+                    var book=JsonSerializer.Deserialize<ExpenseReceiptBook>(doc.Data)!;
+                    var kept=book.Entries.Where(r=>!parties.Contains(r.PartyId.ToString())&&!DemoMarked(r.Description)).ToList();
+                    if(kept.Any(r=>removedIds.Contains(r.InvoiceId)))throw new BusinessRuleException("An unmarked expense refers to a test invoice. Nothing was reset; review that expense first.");
+                    foreach(var receipt in kept)agents.Remove(receipt.AgentId);
+                    if(kept.Count==0)Execute("DELETE FROM workflow_documents WHERE kind=$k AND id=$id",("$k",doc.Kind),("$id",doc.Id));
+                    else if(kept.Count!=book.Entries.Count)Execute("UPDATE workflow_documents SET data=$data,revision=revision+1 WHERE kind=$k AND id=$id",("$data",JsonSerializer.Serialize(new ExpenseReceiptBook(kept))),("$k",doc.Kind),("$id",doc.Id));
+                    continue;
+                }
                 if(doc.Kind is "party_transfer_receipts" or "agent_transfer_receipts" or "receipts")
                 {
                     var key=doc.Kind=="receipts"?"Receipts":"Entries";if(node[key] is not JsonArray entries)continue;var originalCount=entries.Count;
@@ -77,7 +88,7 @@ public sealed partial class WorkbookStore
                 if(old!=null){var book=JsonNode.Parse(old)!;foreach(var entry in JsonNode.Parse(doc.Data)!["Entries"]!.AsArray())book["Entries"]!.AsArray().Add(entry!.DeepClone());data=book.ToJsonString();}
                 Execute("INSERT INTO workflow_documents VALUES($k,$id,1,$data) ON CONFLICT(kind,id) DO UPDATE SET data=$data,revision=revision+1",("$k",doc.Kind),("$id",doc.Id),("$data",data));
             }
-            var info=JsonSerializer.Serialize(new{ReplaceAll=replaceAll,RemovedParties=parties.Count+allParties,RemovedAgents=agents.Count+allAgents,RemovedInvoices=removedInvoices+allInvoices,AddedInvoices=9,AddedPartyReceipts=4,AddedAgentReceipts=3});
+            var info=JsonSerializer.Serialize(new{ReplaceAll=replaceAll,RemovedParties=parties.Count+allParties,RemovedAgents=agents.Count+allAgents,RemovedInvoices=removedInvoices+allInvoices,AddedInvoices=9,AddedPartyReceipts=4,AddedAgentReceipts=3,AddedExpenseReceipts=4});
             Execute("INSERT INTO workflow_audit VALUES($id,'Local workspace','DemoDataRefreshed','demo-dataset',NULL,$info,$time)",("$id",Guid.NewGuid().ToString()),("$info",info),("$time",DateTimeOffset.UtcNow.ToString("O")));
             command.Parameters.Clear();command.CommandText="PRAGMA foreign_key_check";using(var reader=command.ExecuteReader())if(reader.Read())throw new BusinessRuleException("Relationship validation failed. No changes were committed.");transaction.Commit();return new(parties.Count+allParties,agents.Count+allAgents,removedInvoices+allInvoices);
         }
@@ -97,15 +108,26 @@ public sealed partial class WorkbookStore
             var number=$"DEMO-PI-{today.Year}-{++index:000}";var pi=today.AddDays(-piDays);var id=store.CreateRegisterInvoice(parties[p].Id,store.Load("form",parties[p].Id).Revision,new(p==2?"Bangladesh":"Pakistan",agents[a].Name,number,pi,agents[a].Id));
             var snapshot=store.Load("form",parties[p].Id);var row=snapshot.Rows.Single(r=>r.GetValueOrDefault("_id")==id);row["F5"]=original.ToString("0.00",CultureInfo.InvariantCulture);row["F6"]=contract.ToString("0.00",CultureInfo.InvariantCulture);row["F7"]=(contract-500).ToString("0.00",CultureInfo.InvariantCulture);row["F9"]=$"DEMO-EXP-{today.Year}-{index:000}";row["F10"]=pi.AddDays(10).ToString("yyyy-MM-dd");row["F11"]=$"DEMO-IND-CONT-{index:000}";row["F12"]=$"DEMO-IND-BL-{index:000}";row["F13"]=pi.AddDays(12).ToString("yyyy-MM-dd");row["F14"]=pi.AddDays(20).ToString("yyyy-MM-dd");row["F15"]=$"DEMO-MYS-CONT-{index:000}";row["F16"]=blDays==0?"":$"DEMO-MYS-BL-{index:000}";row["F17"]=blDays==0?"":today.AddDays(-blDays).ToString("yyyy-MM-dd");if(index==5)row["_dueOverride"]=today.AddDays(80).ToString("yyyy-MM-dd");store.Save("form",snapshot.Revision,snapshot.Rows,parties[p].Id);
         }
-        store.AddTransferReceipt(TransferReceiptKind.Party,parties[0].Id.ToString(),today.AddDays(-20),21000,"[DEMO] Bulk remittance: full first invoice, partial second",agents[0].Id,"Sample: 1 USD = 280 PKR");
+        store.AddTransferReceipt(TransferReceiptKind.Party,parties[0].Id.ToString(),today.AddDays(-20),21000,"[DEMO] Bulk remittance: full first invoice, partial second",agents[0].Id,"Sample: 1 USD = 280 PKR",bankTransferCharge:35);
         store.AddTransferReceipt(TransferReceiptKind.Party,parties[0].Id.ToString(),today.AddDays(-10),1000,"[DEMO] Separate payment through Straits",agents[1].Id,"Sample: 1 USD = 281 PKR");
-        store.AddTransferReceipt(TransferReceiptKind.Party,parties[1].Id.ToString(),today.AddDays(-5),5000,"[DEMO] Partial contract payment",agents[1].Id,"Sample: 1 USD = 280 PKR");
-        store.AddTransferReceipt(TransferReceiptKind.Party,parties[2].Id.ToString(),today.AddDays(-1),35000,"[DEMO] Three invoices settled with USD 2,000 advance",agents[2].Id,"Sample: 1 USD = 122 BDT");
+        store.AddTransferReceipt(TransferReceiptKind.Party,parties[1].Id.ToString(),today.AddDays(-5),5000,"[DEMO] Partial contract payment",agents[1].Id,"Sample: 1 USD = 280 PKR",bankTransferCharge:15);
+        store.AddTransferReceipt(TransferReceiptKind.Party,parties[2].Id.ToString(),today.AddDays(-1),35000,"[DEMO] Three invoices settled with USD 2,000 advance",agents[2].Id,"Sample: 1 USD = 122 BDT",bankTransferCharge:50);
         store.AddTransferReceipt(TransferReceiptKind.Agent,agents[0].Id,today.AddDays(-15),16000,"[DEMO] Meridian bank remittance to company",usdValue:"Sample: 1 USD = 4.20 MYR");store.AddTransferReceipt(TransferReceiptKind.Agent,agents[1].Id,today.AddDays(-2),4000,"[DEMO] Straits bank remittance to company",usdValue:"Sample: 1 USD = 4.22 MYR");store.AddTransferReceipt(TransferReceiptKind.Agent,agents[2].Id,today,30000,"[DEMO] Johor bank remittance to company",usdValue:"Sample: 1 USD = 4.21 MYR");
+        void Expense(int party,int number,int days,decimal amount,string description)
+        {
+            var invoice=store.GetExpenseInvoices(parties[party].Id).Single(i=>i.Number==$"DEMO-PI-{today.Year}-{number:000}");
+            store.AddExpenseReceipt(parties[party].Id,invoice.Id,today.AddDays(-days),amount,"[DEMO] "+description);
+        }
+        Expense(0,1,18,150,"Port documentation and handling");Expense(0,3,8,75,"Local delivery coordination");Expense(1,4,4,120,"Inspection and customs documentation");Expense(2,7,0,90,"Warehouse handling for completed shipment");
+        if(store.GetExpenseReceipts().Sum(r=>r.Amount)!=435||store.GetTransferReceipts(TransferReceiptKind.Party).Sum(r=>r.BankTransferCharge??0)!=100)throw new BusinessRuleException("Fresh receipt charges and expenses failed reconciliation.");
         if(store.GetPartyMaster().Sum(p=>p.Invoices)!=9||store.GetTransferReceipts(TransferReceiptKind.Party).Sum(r=>r.UnallocatedUsd)!=2000)throw new BusinessRuleException("Fresh demo data failed reconciliation.");
         foreach(var party in parties)new CompanyReports(store).Build(CompanyReportKind.AccountDetails,party.Id.ToString());
     }
 }
+
+
+
+
 
 
 

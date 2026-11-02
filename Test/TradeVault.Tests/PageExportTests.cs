@@ -28,4 +28,14 @@ public sealed class PageExportTests
         var fonts=styles.Descendants(ns+"font").ToList();Assert.NotNull(fonts[1].Element(ns+"b"));Assert.True(double.Parse(fonts[1].Element(ns+"sz")!.Attribute("val")!.Value)>double.Parse(fonts[0].Element(ns+"sz")!.Attribute("val")!.Value));
         Assert.Throws<BusinessRuleException>(()=>ReportWorkflow.ExportPageWorkbook(report with{Tables=[table,table]}));
     }
-}
+    [Fact]public void ReportSummaryExportsBelowTableWithNumericAmountsAndFilterExcludesIt()
+    {
+        var table=new ReportTable("Party Ledger",[new("B","Particulars"),new("C","Debit","number"),new("D","Credit","number")],[new(){{"B","Invoice"},{"C","1000"},{"D","0"}}],new());
+        var report=new ReportBundle(1,"Current page",Guid.NewGuid(),Guid.Empty,"Buyer",new(2026,11,2),DateTimeOffset.UtcNow,Guid.NewGuid(),0,"Page export",[table],[]);
+        var summary=new Dictionary<string,string>{{"Total invoice amount","USD 1000.00"},{"Amount still owed by party","USD -25.50"},{"Number of invoices","1"}};
+        using var zip=new ZipArchive(new MemoryStream(ReportWorkflow.ExportPageWorkbook(report,summary)));using var stream=zip.GetEntry("xl/worksheets/sheet1.xml")!.Open();var sheet=XDocument.Load(stream);XNamespace ns="http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        Assert.Equal("A1:C2",sheet.Descendants(ns+"autoFilter").Single().Attribute("ref")!.Value);Assert.Contains("Summary",sheet.ToString());Assert.Contains("Amount still owed by party",sheet.ToString());
+        Assert.Equal("1000.00",sheet.Descendants(ns+"c").Single(c=>c.Attribute("r")?.Value=="C6").Element(ns+"v")!.Value);Assert.Equal("-25.50",sheet.Descendants(ns+"c").Single(c=>c.Attribute("r")?.Value=="C7").Element(ns+"v")!.Value);Assert.Equal("1",sheet.Descendants(ns+"c").Single(c=>c.Attribute("r")?.Value=="C8").Element(ns+"v")!.Value);
+        Assert.All(sheet.Descendants(ns+"c").Where(c=>new[]{"C6","C7","C8"}.Contains(c.Attribute("r")?.Value)),c=>Assert.Null(c.Attribute("t")));Assert.Equal(4,sheet.Descendants(ns+"mergeCell").Count());
+    }}
+

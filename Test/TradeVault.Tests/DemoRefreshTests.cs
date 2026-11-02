@@ -13,6 +13,7 @@ public sealed class DemoRefreshTests
         var result=store.RefreshDemoData(new(2026,10,31),true);Assert.Equal(1,result.RemovedParties);Assert.Equal(1,result.RemovedAgents);Assert.Equal(1,result.RemovedInvoices);
         Assert.Equal(3,store.GetParties().Count(p=>!p.IsUnassigned));Assert.Equal(3,store.GetAgents().Count);Assert.DoesNotContain(store.GetParties(),p=>p.Id==party.Id);Assert.Equal(9,store.GetPartyMaster().Sum(p=>p.Invoices));Assert.Equal(4,store.GetTransferReceipts(TransferReceiptKind.Party).Count);Assert.Equal(3,store.GetTransferReceipts(TransferReceiptKind.Agent).Count);Assert.Equal(50000,store.GetTransferReceipts(TransferReceiptKind.Agent).Sum(r=>r.AllocatedUsd));
         Assert.Equal(50000,store.GetParties().Where(p=>!p.IsUnassigned).SelectMany(p=>new CompanyReports(store).Build(CompanyReportKind.AccountDetails,p.Id.ToString()).Table.Rows).Sum(r=>decimal.Parse(r["O"],System.Globalization.CultureInfo.InvariantCulture)));
+        Assert.Equal(4,store.GetExpenseReceipts().Count);Assert.Equal(435,store.GetExpenseReceipts().Sum(r=>r.Amount));Assert.Equal(100,store.GetTransferReceipts(TransferReceiptKind.Party).Sum(r=>r.BankTransferCharge??0));Assert.Equal(11465,store.GetAgents().Sum(a=>new CompanyReports(store).MasterAmounts(true,a.Id).Pending??0));
         store.RefreshDemoData(new(2026,10,31),true);Assert.Equal(9,store.GetPartyMaster().Sum(p=>p.Invoices));Assert.Empty(Directory.GetDirectories(db.Paths.Root,".demo-refresh-*"));
     }
     [Fact]public void AmbiguousFinancialLinksAbortEntireReset()
@@ -36,5 +37,6 @@ public sealed class DemoRefreshTests
         store.RefreshDemoData(new(2026,10,31));Assert.Equal(9,store.GetPartyMaster().Where(p=>p.Name.StartsWith("[DEMO]")).Sum(p=>p.Invoices));Assert.Equal(before,JsonSerializer.Serialize(store.Load("form",party.Id)));Assert.Empty(Directory.GetDirectories(db.Paths.Root,".demo-refresh-*"));
     }
 }
+
 
 

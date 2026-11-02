@@ -1,0 +1,17 @@
+TradeVault — USB edition
+
+Start the application by double-clicking TradeVault.Desktop.exe in this folder.
+For 64-bit Windows. No .NET installation or administrator rights are required by the app.
+
+Keep this entire folder together: the EXE, DLLs, language folders and Data folder.
+The included runtime files are required. Do not copy just the EXE.
+
+The database starts empty. Create parties and agents, then add invoices and receipts.
+Your database and theme settings are stored in Data beside the application.
+Exports default to the Exports folder beside the application. Choose a USB location when saving an export.
+
+Always close TradeVault before removing or ejecting the USB drive.
+Back up the Data folder while the app is closed before updating or replacing the app.
+Do not overwrite an existing Data folder during future updates.
+
+Build: UI 2026.11.02.3 — self-contained Windows x64 Release.

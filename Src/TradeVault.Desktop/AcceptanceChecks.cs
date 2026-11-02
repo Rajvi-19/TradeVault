@@ -131,7 +131,7 @@ internal static class AcceptanceChecks
                 Check("U22","Worksheet undo and redo preserve edits and stored records",main.CheckUndoRedoInteractions,"Keyboard undo/redo covers formulas, pasted dates, cell cuts, deletion, redo invalidation, unrelated drafts and reload scope.");
                 Check("U23","Cut and delete preserve reusable blank row positions",main.CheckBlankRowInteractions,"Delete/cut, undo/redo, reopening and re-entry preserve lower record positions; empty rows are excluded from reports.");
                 Check("U24","Square theme toggle updates existing worksheet without data changes",main.CheckThemeInteractions,"Two clicks switch dark/light in place; button follows Save; inputs/revision/undo history unchanged.");
-                Check("U25","Theme preference survives reload and invalid settings are harmless",ThemeChecks.Preference,"Preference stored only in isolated application-local test folder; dark/light reload and invalid-file fallback verified.");
+                Check("U25","Light default and saved light/dark choice survive restart",ThemeChecks.Preference,"Preference stored only in isolated application-local test folder; light default, persisted light/dark choices and invalid-file light fallback verified.");
                 Check("U26","Light and dark theme text contrast",ThemeChecks.Contrast,"Body, muted and accent text meet 4.5:1 against surfaces; white primary-button text also meets 4.5:1.");
                 Check("C06","Register difference is calculated and protected",()=>{
                     var party=store.CreateParty("[TEST] Calculated difference");var wf=new ReportWorkflow(store);
@@ -155,3 +155,5 @@ internal static class AcceptanceChecks
         Console.WriteLine($"Acceptance: {results.Count(r=>r.Status=="PASS")} passed; {results.Count(r=>r.Status=="FAIL")} failed.");return results.All(r=>r.Status=="PASS");
     }
 }
+
+

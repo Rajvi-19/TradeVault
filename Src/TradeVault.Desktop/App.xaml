@@ -3,10 +3,10 @@
   <ControlTemplate x:Key="DateCellTemplate" TargetType="DatePicker">
    <Grid Background="Transparent">
     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="26"/></Grid.ColumnDefinitions>
-    <DatePickerTextBox x:Name="PART_TextBox" Style="{x:Null}" MinHeight="0" Padding="6,0" BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center" FontSize="12">
+    <DatePickerTextBox x:Name="PART_TextBox" Style="{x:Null}" MinHeight="0" Padding="6,0" BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center" FontSize="14">
      <DatePickerTextBox.Template><ControlTemplate TargetType="DatePickerTextBox"><Border Background="Transparent"><ScrollViewer x:Name="PART_ContentHost" Margin="6,0" VerticalAlignment="Center"/></Border></ControlTemplate></DatePickerTextBox.Template>
     </DatePickerTextBox>
-    <Button x:Name="PART_Button" Grid.Column="1" MinHeight="0" Padding="0" Background="Transparent" BorderBrush="Transparent" ToolTip="Choose date" AutomationProperties.Name="Choose date"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE787;" FontSize="12"/></Button>
+    <Button x:Name="PART_Button" Grid.Column="1" MinHeight="0" Padding="0" Background="Transparent" BorderBrush="Transparent" ToolTip="Choose date" AutomationProperties.Name="Choose date"><TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE787;" FontSize="14"/></Button>
     <Popup x:Name="PART_Popup" Placement="Bottom" StaysOpen="False" AllowsTransparency="True"/>
    </Grid>
   </ControlTemplate>
@@ -30,7 +30,7 @@
    </ControlTemplate></Setter.Value></Setter>
   </Style>
       <Style x:Key="FilterSelectorStyle" TargetType="ComboBox" BasedOn="{StaticResource PartySelectorStyle}">
-      <Setter Property="MinHeight" Value="34"/><Setter Property="FontSize" Value="12"/><Setter Property="VerticalContentAlignment" Value="Center"/><Setter Property="Padding" Value="12,6,30,6"/>
+      <Setter Property="MinHeight" Value="34"/><Setter Property="FontSize" Value="14"/><Setter Property="VerticalContentAlignment" Value="Center"/><Setter Property="Padding" Value="12,6,30,6"/>
       <Setter Property="ItemContainerStyle"><Setter.Value><Style TargetType="ComboBoxItem">
         <Setter Property="Padding" Value="12,8"/><Setter Property="Margin" Value="3,2"/><Setter Property="Foreground" Value="{DynamicResource Theme18243B}"/>
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -40,7 +40,7 @@
         </ControlTemplate></Setter.Value></Setter>
       </Style></Setter.Value></Setter>
     </Style>
-<Style TargetType="Window"><Setter Property="FontFamily" Value="Segoe UI"/><Setter Property="FontSize" Value="13"/><Setter Property="Background" Value="{DynamicResource ThemeF4F6FA}"/><Setter Property="Foreground" Value="{DynamicResource Theme18243B}"/><Setter Property="UseLayoutRounding" Value="True"/></Style>
+<Style TargetType="Window"><Setter Property="FontFamily" Value="Segoe UI"/><Setter Property="FontSize" Value="14"/><Setter Property="Background" Value="{DynamicResource ThemeF4F6FA}"/><Setter Property="Foreground" Value="{DynamicResource Theme18243B}"/><Setter Property="UseLayoutRounding" Value="True"/></Style>
   <Style TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource Theme18243B}"/></Style>
   <Style TargetType="Button">
    <Setter Property="Background" Value="{DynamicResource ThemeFFFFFF}"/><Setter Property="Foreground" Value="{DynamicResource Theme18243B}"/><Setter Property="BorderBrush" Value="{DynamicResource ThemeE2E8F0}"/>
@@ -105,7 +105,7 @@
   <Style TargetType="TabItem"><Setter Property="Background" Value="{DynamicResource ThemeFFFFFF}"/><Setter Property="Foreground" Value="{DynamicResource Theme18243B}"/><Setter Property="BorderBrush" Value="{DynamicResource ThemeDCE3ED}"/></Style>
   <Style TargetType="CheckBox"><Setter Property="Background" Value="{DynamicResource ThemeFFFFFF}"/><Setter Property="Foreground" Value="{DynamicResource Theme18243B}"/><Setter Property="BorderBrush" Value="{DynamicResource ThemeDCE3ED}"/></Style>
   <Style x:Key="ThemeScrollStep" TargetType="RepeatButton">
-   <Setter Property="Focusable" Value="False"/><Setter Property="IsTabStop" Value="False"/><Setter Property="Background" Value="Transparent"/><Setter Property="Foreground" Value="{DynamicResource Theme52627A}"/><Setter Property="FontSize" Value="10"/>
+   <Setter Property="Focusable" Value="False"/><Setter Property="IsTabStop" Value="False"/><Setter Property="Background" Value="Transparent"/><Setter Property="Foreground" Value="{DynamicResource Theme52627A}"/><Setter Property="FontSize" Value="12"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RepeatButton"><Border Background="{TemplateBinding Background}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border></ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style TargetType="ScrollBar">
@@ -132,9 +132,9 @@
   </Style>
   <Style TargetType="DataGrid"><Setter Property="Foreground" Value="{DynamicResource Theme18243B}"/>
    <Setter Property="Background" Value="{DynamicResource ThemeFFFFFF}"/><Setter Property="RowBackground" Value="{DynamicResource ThemeFFFFFF}"/><Setter Property="AlternatingRowBackground" Value="{DynamicResource ThemeFAFBFD}"/>
-   <Setter Property="RowHeight" Value="30"/><Setter Property="ColumnHeaderHeight" Value="54"/><Setter Property="GridLinesVisibility" Value="All"/>
+   <Setter Property="RowHeight" Value="34"/><Setter Property="ColumnHeaderHeight" Value="62"/><Setter Property="GridLinesVisibility" Value="All"/>
    <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource ThemeEDF1F6}"/><Setter Property="VerticalGridLinesBrush" Value="{DynamicResource ThemeEDF1F6}"/>
-   <Setter Property="BorderThickness" Value="0"/><Setter Property="FontSize" Value="12"/><Setter Property="EnableRowVirtualization" Value="True"/><Setter Property="EnableColumnVirtualization" Value="True"/>
+   <Setter Property="BorderThickness" Value="0"/><Setter Property="FontSize" Value="14"/><Setter Property="EnableRowVirtualization" Value="True"/><Setter Property="EnableColumnVirtualization" Value="True"/>
   </Style>
   <Style TargetType="DataGridColumnHeader"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="VerticalContentAlignment" Value="Center"/><Setter Property="Background" Value="{DynamicResource ThemeF7F9FC}"/><Setter Property="Foreground" Value="{DynamicResource Theme52627A}"/><Setter Property="Padding" Value="8,6"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="BorderBrush" Value="{DynamicResource ThemeE2E8F0}"/><Setter Property="BorderThickness" Value="0,0,1,1"/><Setter Property="ContentTemplate"><Setter.Value><DataTemplate><TextBlock Text="{Binding}" TextAlignment="Center" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource Theme52627A}"/></DataTemplate></Setter.Value></Setter></Style>
   <Style TargetType="DataGridRowHeader"><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="DataGridRowHeader"><Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border></ControlTemplate></Setter.Value></Setter><Setter Property="VerticalContentAlignment" Value="Center"/><Setter Property="Background" Value="{DynamicResource ThemeF7F9FC}"/><Setter Property="Foreground" Value="{DynamicResource Theme718096}"/><Setter Property="HorizontalContentAlignment" Value="Center"/><Setter Property="BorderThickness" Value="0,0,1,1"/><Setter Property="BorderBrush" Value="{DynamicResource ThemeEDF1F6}"/></Style>
@@ -145,3 +145,4 @@
   </Style.Triggers></Style>
  </Application.Resources>
 </Application>
+

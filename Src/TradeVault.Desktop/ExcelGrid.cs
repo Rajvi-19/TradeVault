@@ -13,7 +13,7 @@ public sealed class ExcelGrid : UserControl
     private readonly TextBlock recordCount=Ui.Text("0 records",11,"#64748B");
     private readonly ObservableCollection<GridRow> rows;
     private readonly IReadOnlyList<Field> fields;
-    private readonly TextBlock feedback = new() { TextWrapping = TextWrapping.Wrap, Margin = new(8,3,8,3), FontSize=11, Foreground=Ui.Color("#B42318"),Visibility=Visibility.Collapsed };
+    private readonly TextBlock feedback = new() { TextWrapping = TextWrapping.Wrap, Margin = new(8,3,8,3), FontSize=13, Foreground=Ui.Color("#B42318"),Visibility=Visibility.Collapsed };
     private string Feedback{set{feedback.Text=value;feedback.Visibility=string.IsNullOrWhiteSpace(value)?Visibility.Collapsed:Visibility.Visible;}}
     private readonly CollectionViewSource source;
     private Func<GridRow,bool>? rowFilter;
@@ -21,6 +21,8 @@ public sealed class ExcelGrid : UserControl
     private readonly HashSet<GridRow> blanks=[];
     private readonly Action<GridRow>? promote;
     private System.Windows.Interop.HwndSource? wheelSource;
+    private TextBlock? readOnlyLegend;
+    internal void ShowNameEditingHint(bool editing=true){if(readOnlyLegend!=null)readOnlyLegend.Text=editing?"Edit names · Save to finish":"Read-only worksheet";}
     private bool numberingPending;
     private Point? panPosition;
     public event Action? Edited;
@@ -48,9 +50,9 @@ public sealed class ExcelGrid : UserControl
         System.Windows.Automation.AutomationProperties.SetName(search, "Filter rows");
         var tools=new DockPanel {Margin=new(8,4,8,4)};
         recordCount.Margin=new(12,0,0,0);DockPanel.SetDock(recordCount,Dock.Right);tools.Children.Add(recordCount);
-        if(readOnly){var legend=new TextBlock {Text="Read-only worksheet",FontSize=11,Foreground=Ui.Color("#64748B"),VerticalAlignment=VerticalAlignment.Center};DockPanel.SetDock(legend,Dock.Right);tools.Children.Add(legend);}
+        if(readOnly){var legend=new TextBlock {Text="Read-only worksheet",FontSize=13,Foreground=Ui.Color("#64748B"),VerticalAlignment=VerticalAlignment.Center};DockPanel.SetDock(legend,Dock.Right);tools.Children.Add(legend);readOnlyLegend=legend;}
         var filter=new StackPanel {Orientation=Orientation.Horizontal};
-        filter.Children.Add(new TextBlock {Text="Search records",VerticalAlignment=VerticalAlignment.Center,Margin=new(0,0,10,0),FontSize=12,Foreground=Ui.Color("#64748B")});filter.Children.Add(search);tools.Children.Add(filter);
+        filter.Children.Add(new TextBlock {Text="Search records",VerticalAlignment=VerticalAlignment.Center,Margin=new(0,0,10,0),FontSize=13,Foreground=Ui.Color("#64748B")});filter.Children.Add(search);tools.Children.Add(filter);
         DockPanel.SetDock(tools,Dock.Top);root.Children.Add(tools);
         DockPanel.SetDock(feedback,Dock.Top); root.Children.Add(feedback);
         source = new CollectionViewSource { Source = displayRows };
@@ -441,3 +443,6 @@ public static class PastePlan
         return result;
     }
 }
+
+
+

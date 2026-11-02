@@ -11,12 +11,12 @@ internal static class ThemeChecks
         var path=Path.Combine(AppContext.BaseDirectory,"TestData","Theme",Guid.NewGuid().ToString("N"),"ui-settings.json");
         try
         {
-            AppTheme.Initialize(path);if(!AppTheme.IsDark)throw new InvalidOperationException("Fresh workspace must default to dark.");AppTheme.Toggle();if(AppTheme.IsDark)throw new InvalidOperationException("First click must switch default dark to light.");AppTheme.Initialize(path);if(AppTheme.IsDark)throw new InvalidOperationException("Light choice must persist after default-dark toggle.");AppTheme.SetDark(true,true);AppTheme.SetDark(false);AppTheme.Initialize(path);
-            if(!AppTheme.IsDark)throw new InvalidOperationException("Dark preference was not restored.");
-            AppTheme.SetDark(false,true);AppTheme.SetDark(true);AppTheme.Initialize(path);
-            if(AppTheme.IsDark)throw new InvalidOperationException("Light preference was not restored.");
+            AppTheme.Initialize(path);if(AppTheme.IsDark)throw new InvalidOperationException("A fresh workspace must start light.");
+            AppTheme.Toggle();if(!AppTheme.IsDark)throw new InvalidOperationException("Theme action must switch to dark.");
+            AppTheme.Initialize(path);if(!AppTheme.IsDark)throw new InvalidOperationException("Saved dark choice must survive restart.");
+            AppTheme.Toggle();AppTheme.Initialize(path);if(AppTheme.IsDark)throw new InvalidOperationException("Saved light choice must survive restart.");
             File.WriteAllText(path,"invalid preference");AppTheme.Initialize(path);
-            if(!AppTheme.IsDark)throw new InvalidOperationException("Invalid preference did not fall back to dark.");
+            if(AppTheme.IsDark)throw new InvalidOperationException("Invalid settings must fall back to light.");
         }
         finally{AppTheme.Initialize(null);}
     }
@@ -45,4 +45,6 @@ internal static class ThemeChecks
         var x=L(a);var y=L(b);return (Math.Max(x,y)+0.05)/(Math.Min(x,y)+0.05);
     }
 }
+
+
 

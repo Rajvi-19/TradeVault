@@ -13,7 +13,7 @@ public sealed partial class MainWindow
     private readonly Button exportButton=new();
     private readonly ContextMenu exportMenu=new();
     private DockPanel? pageHeading;
-    private static string PageName(string name)=>name switch{"parties"=>"Party Master","agents"=>"Agent Master","form"=>"Invoice Register","partyReceipt"=>"Party Receipt","agentReceipt"=>"Agent Receipt","details"=>"Account Details","ledger"=>"Debit Credit",_=>"Reports"};
+    private static string PageName(string name)=>name switch{"parties"=>"Party Master","agents"=>"Agent Master","form"=>"Invoice Register","partyReceipt"=>"Party Receipt","agentReceipt"=>"Agent Receipt","expenseReceipt"=>"Expense Receipt","details"=>"Account Details","ledger"=>"Debit Credit",_=>"Reports"};
     private void SetupExport()
     {
         exportButton.SetResourceReference(StyleProperty,"SecondaryActionButton");exportButton.Content="Export  ▾";exportButton.Padding=new(12,4,12,4);exportButton.Margin=new(0,4,8,4);exportButton.MinHeight=30;
@@ -26,11 +26,11 @@ public sealed partial class MainWindow
     }
     private void RefreshPageHeading()
     {
-        if(sheetArea.Parent is Border frame){frame.BorderThickness=new Thickness(activePage=="reports"?0:1);frame.Background=Ui.Color(activePage=="reports"?"#F4F6FA":"#FFFFFF");}
-        pageTitle.Text=activePage=="reports"?"Reports / "+CurrentReportName:PageName(activePage);
+        if(sheetArea.Parent is Border frame){var separated=activePage is "reports" or "partyReceipt" or "agentReceipt" or "expenseReceipt";frame.BorderThickness=new Thickness(separated?0:1);frame.Background=Ui.Color(separated?"#F4F6FA":"#FFFFFF");}
+        pageTitle.Text=activePage=="reports"?"Reports / "+CurrentReportName:activePage is "partyReceipt" or "agentReceipt" or "expenseReceipt"?"Receipt / "+PageName(activePage):PageName(activePage);
         var party=(partySelector.SelectedItem as WorksheetParty)?.Name??"All parties";
         var agent=(agentSelector.SelectedItem as AgentMasterEntry)?.Name??"All agents";
-        title.FontSize=12;title.Text=activePage=="form"?$"Party: {party}  ·  Agent: {agent}":activePage=="parties"?"All parties":activePage=="agents"?"All agents":"";
+        title.FontSize=13;title.Text=activePage=="form"?$"Party: {party}  ·  Agent: {agent}":activePage=="parties"?"All parties":activePage=="agents"?"All agents":"";
         title.ToolTip=null;if(pageHeading!=null)pageHeading.Visibility=title.Text.Length==0?Visibility.Collapsed:Visibility.Visible;
         exportButton.IsEnabled=grid!=null;exportButton.ToolTip=grid==null?"This page has no entries to export yet.":"Export the visible entries from this page.";
     }
@@ -54,17 +54,17 @@ public sealed partial class MainWindow
             var picker=new SaveFileDialog{Filter=pdf?"PDF file (*.pdf)|*.pdf":"Excel workbook (*.xlsx)|*.xlsx",FileName=$"{safe} - {report.AsOf:yyyy-MM-dd}.{extension}",InitialDirectory=folder,AddExtension=true,DefaultExt=extension};
             if(picker.ShowDialog(this)!=true)return;
             busy=true;
-            if(pdf)ReportPdf.Save(PdfPageBands(report),picker.FileName);else SavePageExcel(report,picker.FileName);
+            if(pdf)ReportPdf.Save(PdfPageBands(report),picker.FileName);else SavePageExcel(report,picker.FileName,activePage=="reports"?currentCompanyReport?.Summary.ToDictionary(item=>CompanyReports.SummaryLabel(item.Key),item=>item.Value):null);
             status.Text=page+" exported";
             try{System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(picker.FileName){UseShellExecute=true});}catch(Exception){MessageBox.Show(this,"File saved successfully:\n"+picker.FileName,"Export saved");}
         }
         catch(Exception ex){Error(ex.Message);}
         finally{busy=false;}
     }
-    private static void SavePageExcel(ReportBundle report,string path)
+    private static void SavePageExcel(ReportBundle report,string path,IReadOnlyDictionary<string,string>? summary=null)
     {
         var pending=path+".partial";
-        try{using(var file=new FileStream(pending,FileMode.Create,FileAccess.Write,FileShare.None)){file.Write(ReportWorkflow.ExportPageWorkbook(report));file.Flush(true);}File.Move(pending,path,true);}
+        try{using(var file=new FileStream(pending,FileMode.Create,FileAccess.Write,FileShare.None)){file.Write(ReportWorkflow.ExportPageWorkbook(report,summary));file.Flush(true);}File.Move(pending,path,true);}
         finally{if(File.Exists(pending))File.Delete(pending);}
     }
     internal void CheckPageExport()
@@ -82,3 +82,8 @@ public sealed partial class MainWindow
         }
     }
 }
+
+
+
+
+

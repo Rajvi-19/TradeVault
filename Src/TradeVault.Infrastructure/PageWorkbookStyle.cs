@@ -6,7 +6,7 @@ namespace TradeVault.Infrastructure;
 
 public sealed partial class ReportWorkflow
 {
-    private static byte[] StylePageWorkbook(byte[] bytes,ReportBundle report)
+    private static byte[] StylePageWorkbook(byte[] bytes,ReportBundle report,IReadOnlyDictionary<string,string>? summary)
     {
         XNamespace ns="http://schemas.openxmlformats.org/spreadsheetml/2006/main";
         using var memory=new MemoryStream();memory.Write(bytes);
@@ -18,6 +18,7 @@ public sealed partial class ReportWorkflow
             var fonts=styles.Root!.Element(ns+"fonts")!;
             fonts.Elements().ElementAt(1).Element(ns+"color")!.SetAttributeValue("rgb","FF000000");
             fonts.Elements().ElementAt(1).Element(ns+"sz")!.SetAttributeValue("val",12);
+            fonts.Elements().ElementAt(0).Element(ns+"sz")!.SetAttributeValue("val",11);
             var borders=styles.Root.Element(ns+"borders")!;
             borders.RemoveNodes();
             borders.Add(new XElement(ns+"border"),new XElement(ns+"border",
@@ -41,9 +42,28 @@ public sealed partial class ReportWorkflow
                 var column=table.Columns[i];var length=table.Rows.Select(r=>r.GetValueOrDefault(column.Key,"").Length).DefaultIfEmpty(10).Max();var width=column.Type=="date"?15:column.Type is "number" or "integer"?19:Math.Clamp(length+2,18,42);
                 cols.Add(new XElement(ns+"col",new XAttribute("min",i+1),new XAttribute("max",i+1),new XAttribute("width",width),new XAttribute("customWidth",1)));
             }
+            if(summary?.Count>0)
+            {
+                var next=table.Rows.Count+4;
+                XElement TextCell(string address,string text,int style=0)=>new(ns+"c",new XAttribute("r",address),new XAttribute("s",style),new XAttribute("t","inlineStr"),new XElement(ns+"is",new XElement(ns+"t",text)));
+                data.Add(new XElement(ns+"row",new XAttribute("r",next),new XAttribute("ht",28),new XAttribute("customHeight",1),TextCell("A"+next,"Summary — full account, amounts in USD",3)));next++;
+                foreach(var item in summary)
+                {
+                    var raw=item.Value.StartsWith("USD ",StringComparison.Ordinal)?item.Value[4..]:item.Value;
+                    var numeric=decimal.TryParse(raw,System.Globalization.NumberStyles.Number,System.Globalization.CultureInfo.InvariantCulture,out var value);
+                    var cell=numeric?new XElement(ns+"c",new XAttribute("r","C"+next),new XAttribute("s",item.Value.StartsWith("USD ",StringComparison.Ordinal)?1:0),new XElement(ns+"v",value.ToString(System.Globalization.CultureInfo.InvariantCulture))):TextCell("C"+next,item.Value);
+                    data.Add(new XElement(ns+"row",new XAttribute("r",next),new XAttribute("ht",28),new XAttribute("customHeight",1),TextCell("A"+next,item.Key),cell));next++;
+                }
+                // Keep summary labels readable without widening financial table columns.
+                var merges=new XElement(ns+"mergeCells");for(var row=table.Rows.Count+4;row<next;row++)merges.Add(new XElement(ns+"mergeCell",new XAttribute("ref",$"A{row}:B{row}")));
+                sheet.Root!.Element(ns+"autoFilter")!.AddAfterSelf(merges);
+            }
             Save("xl/worksheets/sheet1.xml",sheet);
             var book=Read("xl/workbook.xml");book.Descendants(ns+"definedName").Single().Value=$"'{table.Name.Replace("'","''")}'!$1:$1";Save("xl/workbook.xml",book);
         }
         return memory.ToArray();
     }
 }
+
+
+

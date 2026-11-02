@@ -27,7 +27,8 @@ public sealed partial class MainWindow
             var export=BuildPageExport();Check(export.Tables[0].Name==currentCompanyReport!.Table.Name&&export.PartyName==currentCompanyReport.Subject,"Report exports must retain report and account identity.");
             if(kind==CompanyReportKind.AccountDetails)
             {
-                var row=(GridRow)grid!.Table.Items[0];Check(row["O"]=="5000.00"&&row["E"]=="8000.00"&&row["F"]=="3000.00"&&row["J"]=="1000.00"&&row["H"]==""&&row["K"]=="","FIFO results and unavailable shipping inputs must remain distinct.");
+                Check(!export.Tables[0].Columns.Any(c=>new[]{"I","J","K"}.Contains(c.Key)),"Removed Account Details columns must not appear in exports.");
+                var row=(GridRow)grid!.Table.Items[0];Check(row["O"]=="5000.00"&&row["E"]=="8000.00"&&row["F"]=="3000.00"&&row["J"]=="1000.00"&&row["H"]=="0.00"&&row["K"]=="","FIFO results and unavailable shipping inputs must remain distinct.");
                 Check(export.Tables[0].Columns.Single(c=>c.Key=="B").Type=="text"&&export.Tables[0].Columns.Single(c=>c.Key=="N").Type=="date","Invoice labels must not be exported as dates.");
                 Check(PdfPageBands(export).Tables.All(t=>t.Columns.Any(c=>c.Key=="B")),"PDF bands must repeat invoice identity.");
             }
@@ -71,10 +72,10 @@ public sealed partial class MainWindow
         {
             currentCompanyReport=new CompanyReports(store).Build(reportKind,selected.Id);
             var report=currentCompanyReport;
-            if(reportKind!=CompanyReportKind.AccountDetails)
+            if(report.Summary.Count>0)
             {
                 var footer=new WrapPanel{Margin=new(12,8,12,10)};
-                foreach(var item in report.Summary){var panel=new StackPanel{Margin=new(0,0,32,4)};panel.Children.Add(Ui.Text(item.Key,11,"#64748B"));panel.Children.Add(Ui.Text(item.Value,14,"#18243B",true));footer.Children.Add(panel);}
+                foreach(var item in report.Summary){var panel=new StackPanel{Margin=new(0,0,32,4)};panel.Children.Add(Ui.Text(CompanyReports.SummaryLabel(item.Key),13,"#64748B"));panel.Children.Add(Ui.Text(item.Value,14,"#18243B",true));footer.Children.Add(panel);}
                 DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
             }
             var rows=new ObservableCollection<GridRow>(report.Table.Rows.Select(data=>{var row=new GridRow();foreach(var cell in data)row[cell.Key]=cell.Value;return row;}));
@@ -85,5 +86,8 @@ public sealed partial class MainWindow
         RefreshPageHeading();
     }
 }
+
+
+
 
 

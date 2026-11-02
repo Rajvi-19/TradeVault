@@ -108,10 +108,11 @@ internal static class LiveChecks
                 draft["F17"]=DateCellConverter.Normalize("17/6/2026");sheet.Save();
                 Require(draft["F19"]=="2026-09-15","Derived due remains calculated");
                 Require(store.Load("form").Rows.Count==3,"Only two entered rows and metadata persisted");
-                var window=new MainWindow(store,db.Paths.Database);window.Measure(new System.Windows.Size(1440,880));window.Arrange(new System.Windows.Rect(0,0,1440,880));window.UpdateLayout();window.CheckMasterPages();window.CheckTransferReceiptPages();window.CheckCompanyReportPages();window.CheckInvoiceFilters();window.CheckInteractions();window.CheckPartyInteractions();window.CheckWorkflowInteractions();window.CheckShortcutInteractions();window.CheckUndoRedoInteractions();window.CheckBlankRowInteractions();window.CheckThemeInteractions();window.CheckWindowViewport();window.Close();AgentWorkflowSeeder.Check(store,db);
+                var window=new MainWindow(store,db.Paths.Database);window.Measure(new System.Windows.Size(1440,880));window.Arrange(new System.Windows.Rect(0,0,1440,880));window.UpdateLayout();window.CheckMasterPages();window.CheckTransferReceiptPages();window.CheckCompanyReportPages();window.CheckInvoiceFilters();window.CheckInteractions();window.CheckPartyInteractions();window.CheckWorkflowInteractions();window.CheckShortcutInteractions();window.CheckUndoRedoInteractions();window.CheckBlankRowInteractions();window.CheckThemeInteractions();window.CheckWindowViewport();window.CheckMasterRenamePages();window.Close();AgentWorkflowSeeder.Check(store,db);
             }
             using var reopened=new PortableDatabase(new(root));var s=new WorkbookStore(reopened);Require(s.Load("details").Rows.Count==2,"Persistence after reopen");
         }
         finally{System.IO.Directory.Delete(root,true);}
     }
 }
+

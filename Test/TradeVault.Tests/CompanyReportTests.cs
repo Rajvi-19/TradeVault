@@ -19,20 +19,20 @@ public sealed class CompanyReportTests:IDisposable
     {
         var (store,party,agent)=Fixture();store.AddTransferReceipt(TransferReceiptKind.Party,party.ToString(),new(2026,7,1),5000,"Transfer to agent",agent);
         var snapshot=store.Load("form",party);var report=new CompanyReports(store).Build(CompanyReportKind.AccountDetails,party.ToString());var row=Assert.Single(report.Table.Rows);
-        Assert.Equal(13,report.Table.Columns.Count);Assert.Equal("18000.00",row["C"]);Assert.Equal("12000.00",row["D"]);Assert.DoesNotContain(report.Table.Columns,c=>c.Key=="G");Assert.True(report.Table.Columns.FindIndex(c=>c.Key=="E")<report.Table.Columns.FindIndex(c=>c.Key=="O"));Assert.Equal("2026-09-18",row["N"]);Assert.Equal("90",row["M"]);
-        Assert.Equal("5000.00",row["E"]);Assert.Equal("5000.00",row["F"]);Assert.Equal("0.00",row["J"]);foreach(var key in new[]{"H","I","K"})Assert.Equal("",row[key]);Assert.Contains("0.00",report.Summary["Unallocated receipts / advance"]);Assert.Equal(snapshot.Revision,store.Load("form",party).Revision);
+        Assert.Equal(10,report.Table.Columns.Count);Assert.Equal("H",report.Table.Columns[6].Key);Assert.Equal("F",report.Table.Columns[7].Key);Assert.DoesNotContain(report.Table.Columns,c=>new[]{"I","J","K"}.Contains(c.Key));Assert.Equal("18000.00",row["C"]);Assert.Equal("12000.00",row["D"]);Assert.DoesNotContain(report.Table.Columns,c=>c.Key=="G");Assert.True(report.Table.Columns.FindIndex(c=>c.Key=="E")<report.Table.Columns.FindIndex(c=>c.Key=="O"));Assert.Equal("2026-09-18",row["N"]);Assert.Equal("90",row["M"]);
+        Assert.Equal("5000.00",row["E"]);Assert.Equal("5000.00",row["F"]);Assert.Equal("0.00",row["J"]);Assert.Equal("0.00",row["H"]);foreach(var key in new[]{"I","K"})Assert.Equal("",row[key]);Assert.Equal("USD 5000.00",report.Summary["Paid by party"]);Assert.Equal(snapshot.Revision,store.Load("form",party).Revision);
     }
     [Fact]public void PartyLedgerDebitsInvoicesAndCreditsOnlyThatPartysPaymentBook()
     {
         var (store,party,agent)=Fixture();var other=store.CreateParty("Other buyer");store.AddTransferReceipt(TransferReceiptKind.Party,other.Id.ToString(),new(2026,6,2),999,"Other party",agent);
         store.AddTransferReceipt(TransferReceiptKind.Agent,agent,new(2026,7,3),4000,"Onward transfer");store.AddTransferReceipt(TransferReceiptKind.Party,party.ToString(),new(2026,7,1),5000,"First receipt",agent);store.AddTransferReceipt(TransferReceiptKind.Party,party.ToString(),new(2026,7,2),1000,"Second receipt",agent);
-        var report=new CompanyReports(store).Build(CompanyReportKind.PartyLedger,party.ToString());Assert.Equal(8,report.Table.Columns.Count);Assert.Equal(3,report.Table.Rows.Count);Assert.Equal(new[]{"18000.00","13000.00","12000.00"},report.Table.Rows.Select(r=>r["E"]));Assert.Equal("USD 12000.00",report.Summary["Net recorded balance"]);
+        var report=new CompanyReports(store).Build(CompanyReportKind.PartyLedger,party.ToString());Assert.Equal(6,report.Table.Columns.Count);Assert.DoesNotContain(report.Table.Columns,c=>c.Key is "H" or "E");Assert.Equal(3,report.Table.Rows.Count);Assert.Equal(new[]{"18000.00","13000.00","12000.00"},report.Table.Rows.Select(r=>r["E"]));Assert.Equal("USD 12000.00",report.Summary["Net recorded balance"]);
     }
     [Fact]public void AgentLedgerDoesNotGuessReceivingAgentOrZeroMissingCharges()
     {
         var (store,party,agent)=Fixture();var other=store.CreateAgent("Other agent");store.AddTransferReceipt(TransferReceiptKind.Party,party.ToString(),new(2026,7,1),5000,"Receiving agent",agent);
         store.AddTransferReceipt(TransferReceiptKind.Agent,agent,new(2026,7,3),4000,"Onward transfer");store.AddTransferReceipt(TransferReceiptKind.Agent,other.Id,new(2026,7,4),999,"Other agent");
-        var report=new CompanyReports(store).Build(CompanyReportKind.AgentLedger,agent);Assert.Equal(7,report.Table.Columns.Count);Assert.Equal(2,report.Table.Rows.Count);Assert.Equal("5000.00",report.Table.Rows[0]["D"]);Assert.Equal("4000.00",report.Table.Rows[1]["G"]);foreach(var row in report.Table.Rows)foreach(var key in new[]{"E","F"})Assert.Equal("",row[key]);Assert.Equal("USD 1000.00",report.Summary["Pending with agent"]);Assert.Equal(new[]{"5000.00","1000.00"},report.Table.Rows.Select(r=>r["H"]));
+        var report=new CompanyReports(store).Build(CompanyReportKind.AgentLedger,agent);Assert.Equal(7,report.Table.Columns.Count);Assert.Equal(2,report.Table.Rows.Count);Assert.Equal("5000.00",report.Table.Rows[0]["D"]);Assert.Equal("4000.00",report.Table.Rows[1]["G"]);Assert.Equal("0.00",report.Table.Rows[0]["E"]);Assert.Equal("5000.00",report.Table.Rows[0]["F"]);Assert.Equal("",report.Table.Rows[1]["E"]);Assert.Equal("",report.Table.Rows[1]["F"]);Assert.Equal("USD 1000.00",report.Summary["Pending with agent"]);Assert.Equal(new[]{"5000.00","1000.00"},report.Table.Rows.Select(r=>r["H"]));
         store.AddTransferReceipt(TransferReceiptKind.Agent,agent,new(2026,7,5),2000,"Further remittance");var updated=new CompanyReports(store).Build(CompanyReportKind.AgentLedger,agent);Assert.Equal("USD -1000.00",updated.Summary["Pending with agent"]);Assert.Equal("-1000.00",updated.Table.Rows.Last()["H"]);
         Assert.Throws<BusinessRuleException>(()=>new CompanyReports(store).Build(CompanyReportKind.AgentLedger,"unknown"));
     }
@@ -47,12 +47,27 @@ public sealed class CompanyReportTests:IDisposable
         Assert.Null(reports.MasterAmounts(false,party.ToString()).Pending);Assert.Null(reports.MasterAmounts(false,party.ToString()).OriginalOrPartyReceipts);Assert.Equal(20000,reports.MasterAmounts(false,party.ToString()).Received);
         var empty=store.CreateParty("Empty buyer");Assert.Equal(new MasterLedgerAmounts(0,0,0),reports.MasterAmounts(false,empty.Id.ToString()));
     }
+    [Fact]public void AccountSummaryHasSixOrderedAmountsIncludingAdvancesChargesAndExpenses()
+    {
+        var (store,party,agent)=Fixture();store.AddTransferReceipt(TransferReceiptKind.Party,party.ToString(),new(2026,7,1),20000,"Paid plus advance",agent,bankTransferCharge:100);
+        var invoice=Assert.Single(store.GetExpenseInvoices(party));store.AddExpenseReceipt(party,invoice.Id,new(2026,7,2),50,"Handling");store.AddTransferReceipt(TransferReceiptKind.Agent,agent,new(2026,7,3),10000,"Company payment");
+        var report=new CompanyReports(store).Build(CompanyReportKind.AccountDetails,party.ToString());
+        Assert.Equal(new[]{"Invoices","Paid by party","Expenses","Agent received","Sent to company","Pending with agent"},report.Summary.Keys);
+        Assert.Equal(new[]{"1","USD 20000.00","USD 150.00","USD 19850.00","USD 10000.00","USD 9850.00"},report.Summary.Values);
+        Assert.Equal("Agent received after expenses",CompanyReports.SummaryLabel("Agent received"));
+    }
     [Fact]public void MissingInvoiceAmountMakesRunningBalanceUnavailable()
     {
         var (store,party,agent)=Fixture();store.CreateRegisterInvoice(party,store.Load("form",party).Revision,new("Pakistan","Synthetic intermediary","PI-DRAFT",new(2026,7,1),agent));
         var report=new CompanyReports(store).Build(CompanyReportKind.PartyLedger,party.ToString());Assert.Equal("",report.Table.Rows.Last()["E"]);Assert.Equal("Unavailable",report.Summary["Net recorded balance"]);
     }
 }
+
+
+
+
+
+
 
 
 

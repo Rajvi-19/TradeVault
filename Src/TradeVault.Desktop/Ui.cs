@@ -5,7 +5,7 @@ using System.Windows.Shell;
 namespace TradeVault.Desktop;
 internal static class Ui
 {
-    public const string BuildLabel="UI 2026.11.01.1";
+    public const string BuildLabel="UI 2026.11.02.3";
     internal static Size WorkspaceSize(Rect workArea)=>new(Math.Min(1440,workArea.Width),Math.Min(880,workArea.Height));
     public static void WindowFrame(Window window,UIElement body,string title,bool embeddedControls=false)
     {
@@ -22,7 +22,7 @@ internal static class Ui
         var caption=new DockPanel{Height=36,LastChildFill=true};
         var controls=WindowControls(window);
         DockPanel.SetDock(controls,Dock.Right);caption.Children.Add(controls);
-        caption.Children.Add(new TextBlock{Text=title,Foreground=Color("#D9E4F4"),FontSize=11,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(14,0,0,0)});
+        caption.Children.Add(new TextBlock{Text=title,Foreground=Color("#D9E4F4"),FontSize=13,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(14,0,0,0)});
         DockPanel.SetDock(caption,Dock.Top);frame.Children.Add(caption);frame.Children.Add(new Border{Background=Color("#F4F6FA"),Child=body});window.Content=frame;
     }
     public static Brush Color(string hex)=>AppTheme.Brush(hex);
@@ -46,7 +46,7 @@ internal static class Ui
         }
         return panel;
     }
-    public static TextBlock Text(string text,double size=13,string color="#18243B",bool bold=false)=>new(){Text=text,FontSize=size,Foreground=color.Equals("#FFFFFF",StringComparison.OrdinalIgnoreCase)?Brushes.White:Color(color),FontWeight=bold?FontWeights.SemiBold:FontWeights.Normal,TextWrapping=TextWrapping.Wrap,VerticalAlignment=VerticalAlignment.Center};
+    public static TextBlock Text(string text,double size=14,string color="#18243B",bool bold=false)=>new(){Text=text,FontSize=Math.Max(13,size),Foreground=color.Equals("#FFFFFF",StringComparison.OrdinalIgnoreCase)?Brushes.White:Color(color),FontWeight=bold?FontWeights.SemiBold:FontWeights.Normal,TextWrapping=TextWrapping.Wrap,VerticalAlignment=VerticalAlignment.Center};
     public static TextBlock Icon(string glyph,string color="#64748B",double size=17)=>new(){Text=glyph,FontFamily=new("Segoe MDL2 Assets"),Foreground=color.Equals("#FFFFFF",StringComparison.OrdinalIgnoreCase)?Brushes.White:Color(color),FontSize=size,VerticalAlignment=VerticalAlignment.Center};
     public static Button Button(string label,Action action,string? style=null,string? glyph=null)
     {
@@ -59,7 +59,7 @@ internal static class Ui
     }
     public static Button LineIconButton(string label,Action action,string icon,string style="QuietButton")
     {
-        var button=Button(label,action,style);button.FontFamily=new("Segoe UI Variable Text, Segoe UI");button.FontSize=12;button.FontWeight=FontWeights.SemiBold;
+        var button=Button(label,action,style);button.FontFamily=new("Segoe UI Variable Text, Segoe UI");button.FontSize=14;button.FontWeight=FontWeights.SemiBold;
         var geometry=icon switch{
             "partyMaster"=>"M2,3 H9 V15 H2 Z M9,7 H14 V15 H9 M4,6 H6 M4,9 H6 M4,12 H6 M11,10 H12 M11,13 H12",
             "agentMaster"=>"M2,3 H14 V13 H2 Z M6,3 V1 H10 V3 M2,7 H14 M7,7 V9 H9 V7",
@@ -76,6 +76,18 @@ internal static class Ui
     public static Border Card(UIElement child,Thickness? padding=null)=>new(){Background=Ui.Color("#FFFFFF"),BorderBrush=Color("#E2E8F0"),BorderThickness=new(1),CornerRadius=new(8),Padding=padding??new(0),Child=child};
     public static Border Badge(string text,string background="#EDF3FF",string foreground="#2458D3")=>new(){Background=Color(background),CornerRadius=new(4),Padding=new(8,4,8,4),Child=Text(text,11,foreground,true),VerticalAlignment=VerticalAlignment.Center};
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

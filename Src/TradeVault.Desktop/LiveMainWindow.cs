@@ -69,7 +69,7 @@ public sealed partial class MainWindow : Window
         SetupExport();var saveActions=new StackPanel{Orientation=Orientation.Horizontal};saveActions.Children.Add(exportButton);saveActions.Children.Add(saveButton);saveActions.Children.Add(themeButton);DockPanel.SetDock(saveActions,Dock.Right);tabs.Children.Add(saveActions);
         AppTheme.Changed+=RefreshThemeButton;Closed+=(_,_)=>AppTheme.Changed-=RefreshThemeButton;RefreshThemeButton();
         var navigation=new StackPanel{Orientation=Orientation.Horizontal,Margin=new(6,0,0,0)};
-        foreach(var (name,label,icon) in new[]{("parties","Party Master","partyMaster"),("agents","Agent Master","agentMaster"),("form","Invoice Register","invoice"),("partyReceipt","Party Receipt","partyReceipt"),("agentReceipt","Agent Receipt","agentReceipt"),("reports","Reports","reports")})
+        foreach(var (name,label,icon) in new[]{("parties","Party Master","partyMaster"),("agents","Agent Master","agentMaster"),("form","Invoice Register","invoice"),("receipts","Receipt","partyReceipt"),("reports","Reports","reports")})
         {
             var b=Ui.LineIconButton(label,()=>Run(()=>Navigate(name)),icon);b.Padding=new(8,5,8,5);ToolTipService.SetIsEnabled(b,false);b.MinHeight=32;b.Margin=new(2,3,2,3);nav.Add(name,b);navigation.Children.Add(b);
         }
@@ -99,7 +99,7 @@ public sealed partial class MainWindow : Window
         newInvoiceButton=CompactButton("New Invoice",()=>Run(CreateInvoice),"\uE710");newInvoiceButton.ToolTip="Create invoice (Ctrl+N)";workflows.Children.Add(newInvoiceButton);
         workflows.Children.Add(CompactButton("Reminders",()=>Run(ShowFilteredReminders),"\uE787"));
         toolbar.Children.Add(workflows);
-        masterActions.Children.Add(CompactButton("Add New Receipt",()=>Run(CreateTransferReceipt),"\uE710"));masterActions.Children.Add(CompactButton("New Party",()=>Run(CreateParty),"\uE710"));masterActions.Children.Add(CompactButton("New Agent",()=>Run(CreateAgent),"\uE710"));toolbar.Children.Add(masterActions);masterActions.Visibility=Visibility.Collapsed;
+        masterActions.Children.Add(CompactButton("Add New Receipt",()=>Run(CreateTransferReceipt),"\uE710"));masterActions.Children.Add(CompactButton("New Party",()=>Run(CreateParty),"\uE710"));masterActions.Children.Add(CompactButton("New Agent",()=>Run(CreateAgent),"\uE710"));masterActions.Children.Add(CompactButton("Edit Party",()=>Run(EnableMasterNameEditing),"\uE70F"));masterActions.Children.Add(CompactButton("Edit Agent",()=>Run(EnableMasterNameEditing),"\uE70F"));toolbar.Children.Add(masterActions);masterActions.Visibility=Visibility.Collapsed;
         notification=new Border{Background=Ui.Color("#FFF2F0"),BorderBrush=Ui.Color("#F3C8C3"),BorderThickness=new(1),Padding=new(10,6,10,6),Margin=new(10,0,10,4),Child=message,Visibility=Visibility.Collapsed};DockPanel.SetDock(notification,Dock.Top);root.Children.Add(notification);
         var sheet=new Border{Background=Ui.Color("#FFFFFF"),BorderBrush=Ui.Color("#DCE3ED"),BorderThickness=new(1),Margin=new(10,0,10,4),Child=sheetArea};root.Children.Add(sheet);
         opening.TextChanged+=(_,_)=>{if(!refreshing&&!generatedView)MarkDirty();};terms.TextChanged+=(_,_)=>{if(!refreshing&&!generatedView)MarkDirty();};
@@ -117,7 +117,7 @@ public sealed partial class MainWindow : Window
     internal void CheckMasterPages()
     {
         void Check(bool value,string text){if(!value)throw new InvalidOperationException(text);}
-        Check(nav.Keys.SequenceEqual(new[]{"parties","agents","form","partyReceipt","agentReceipt","reports"}),"Six workspace tabs must appear in order.");
+        Check(nav.Keys.SequenceEqual(new[]{"parties","agents","form","receipts","reports"}),"Five workspace tabs must appear in order with one Receipt tab.");
         Open("form");Check(title.ToolTip==null&&!ToolTipService.GetIsEnabled(nav["form"]),"Invoice Register must not display a hover tooltip.");
         Check(masterActions.Visibility==Visibility.Collapsed&&!partyTools.Children.OfType<Button>().Any(),"Invoice Register must not offer party or agent creation.");
         foreach(var name in new[]{"parties","agents"})
@@ -130,7 +130,7 @@ public sealed partial class MainWindow : Window
         }
         foreach(var name in new[]{"partyReceipt","agentReceipt"})
         {
-            Navigate(name);Check(grid!=null&&grid.Table.IsReadOnly&&grid.Table.Columns.Count==(name=="partyReceipt"?6:5)&&optionBar.Visibility==Visibility.Visible,"Receipt pages require saved read-only tables.");
+            Navigate(name);Check(grid!=null&&grid.Table.IsReadOnly&&grid.Table.Columns.Count==(name=="partyReceipt"?7:5)&&optionBar.Visibility==Visibility.Collapsed,"Receipt pages require saved read-only tables and no separate action row.");
         }
         Navigate("reports");Check(sheetArea.Children.Count>0&&optionBar.Visibility==Visibility.Collapsed,"Reports must show its three report options.");
         Navigate("form");CheckNavigationLayout();
@@ -171,19 +171,19 @@ public sealed partial class MainWindow : Window
     internal void CheckNavigationLayout()
     {
         var content=(FrameworkElement)Content;content.Measure(new(1366,728));content.Arrange(new(0,0,1366,728));content.UpdateLayout();
-        foreach(var name in new[]{"parties","agents","form","partyReceipt","agentReceipt","reports"})
+        foreach(var name in new[]{"parties","agents","form","receipts","reports"})
         {
             var button=nav[name];var point=button.TranslatePoint(new(0,0),content);
             if(button.ActualWidth<=0||point.Y<0||point.Y+button.ActualHeight>728||point.X<0||point.X+button.ActualWidth>1366)throw new InvalidOperationException("Worksheet navigation is outside the visible workspace: "+name);
         }
     }
-    private static Button CompactButton(string text,Action action,string glyph){var b=Ui.Button(text,action,"QuietButton",glyph);b.FontFamily=new("Segoe UI Variable Text, Segoe UI");b.FontSize=12;b.FontWeight=FontWeights.Medium;b.MinHeight=30;b.Padding=new(9,4,9,4);b.Margin=new(4,0,0,0);b.ToolTip=text switch{"Export Excel"=>"Export Excel reports (Ctrl+E)","Preview / Print"=>"Preview or print reports (Ctrl+P)","Receipts"=>"Customer payments (Ctrl+Shift+R)",_=>text};return b;}
+    private static Button CompactButton(string text,Action action,string glyph){var b=Ui.Button(text,action,"QuietButton",glyph);b.FontFamily=new("Segoe UI Variable Text, Segoe UI");b.FontSize=13;b.FontWeight=FontWeights.Medium;b.MinHeight=30;b.Padding=new(9,4,9,4);b.Margin=new(4,0,0,0);b.ToolTip=text switch{"Export Excel"=>"Export Excel reports (Ctrl+E)","Preview / Print"=>"Preview or print reports (Ctrl+P)","Receipts"=>"Customer payments (Ctrl+Shift+R)",_=>text};return b;}
     private void ReloadSaved(){if(activePage!="form"){Navigate(activePage);return;}if(allPartiesView){OpenAllInvoices();return;}if(Discard())Open(controller.Name);}
     private void RegisterShortcuts()
     {
         void AddKey(Key key,ModifierKeys modifiers,string gesture,string description,Action action)=>shortcuts.Add((key,modifiers,gesture,description,action));
-        AddKey(Key.S,ModifierKeys.Control,"Ctrl+S","Save changes",()=>{if(grid!=null&&(!grid.Table.CommitEdit()||!grid.Table.CommitEdit(DataGridEditingUnit.Row,true)))throw new ArgumentException("Correct invalid cells before saving.");if(dirty)Save();});
-        AddKey(Key.N,ModifierKeys.Control,"Ctrl+N","New invoice / receipt",()=>{if(activePage is "partyReceipt" or "agentReceipt")CreateTransferReceipt();else Add();});
+        AddKey(Key.S,ModifierKeys.Control,"Ctrl+S","Save changes",()=>{if(grid!=null&&(!grid.Table.CommitEdit()||!grid.Table.CommitEdit(DataGridEditingUnit.Row,true)))throw new ArgumentException("Correct invalid cells before saving.");if(dirty||MasterNameEditing)Save();});
+        AddKey(Key.N,ModifierKeys.Control,"Ctrl+N","New invoice / receipt",()=>{if(activePage is "partyReceipt" or "agentReceipt" or "expenseReceipt")CreateTransferReceipt();else Add();});
         AddKey(Key.N,ModifierKeys.Control|ModifierKeys.Shift,"Ctrl+Shift+N","Create a party",CreateParty);
         AddKey(Key.Delete,ModifierKeys.None,"Delete","Clear cells / delete whole row with confirmation",Delete);
         AddKey(Key.X,ModifierKeys.Control,"Ctrl+X","Cut selected cells / whole record without confirmation",CutSelection);
@@ -220,9 +220,10 @@ public sealed partial class MainWindow : Window
     private void RequireSaved(){if(dirty)throw new ArgumentException("Save or reload your current changes first.");}
     private void Navigate(string name)
     {
+        if(name=="receipts")name=lastReceiptPage;
         if(grid!=null&&(!grid.Table.CommitEdit()||!grid.Table.CommitEdit(DataGridEditingUnit.Row,true)))throw new ArgumentException("Correct the highlighted invoice cells before opening another tab.");
         if(dirty)Save();
-        if(name is "parties" or "agents" or "partyReceipt" or "agentReceipt" or "reports")OpenPage(name);else Open(name,(partySelector.SelectedItem as WorksheetParty)?.Id);
+        if(name is "parties" or "agents" or "partyReceipt" or "agentReceipt" or "expenseReceipt" or "reports")OpenPage(name);else Open(name,(partySelector.SelectedItem as WorksheetParty)?.Id);
     }
     private void ShowOpeningReminders()
     {
@@ -278,7 +279,7 @@ public sealed partial class MainWindow : Window
         title.Text=(name switch{"form"=>"Invoice register","details"=>"Account details",_=>"Debit & credit"})+" · "+controller.PartyName;
         title.ToolTip=null;
         partySelector.ToolTip=controller.PartyName;
-        foreach(var item in nav){item.Value.Background=Ui.Color(item.Key==name?"#E8EFFD":"#FFFFFF");item.Value.Foreground=Ui.Color(item.Key==name?"#2458D3":"#52627A");}
+        foreach(var item in nav){item.Value.Background=Ui.Color((item.Key==name||item.Key=="receipts"&&name is "partyReceipt" or "agentReceipt" or "expenseReceipt")?"#E8EFFD":"#FFFFFF");item.Value.Foreground=Ui.Color((item.Key==name||item.Key=="receipts"&&name is "partyReceipt" or "agentReceipt" or "expenseReceipt")?"#2458D3":"#52627A");}
         openingGroup.Visibility=Visibility.Collapsed;termsGroup.Visibility=Visibility.Collapsed;newInvoiceButton.Visibility=name=="form"?Visibility.Visible:Visibility.Collapsed;
         generatedView=nextGenerated;
         if(generatedView){grid=WorkflowWindows.ReportGrid(nextReport!.Tables[name=="details"?0:1]);title.Text+=" · generated";}
@@ -289,7 +290,7 @@ public sealed partial class MainWindow : Window
             foreach(var column in grid.Table.Columns.Take(3))column.CanUserReorder=false;
             grid.Table.BeginningEdit+=(_,e)=>{if(e.Row.Item is GridRow row&&row["_blank"]=="1")e.Cancel=true;};
         }
-        grid.Table.RowHeight=28;grid.BeforeChange+=CaptureHistory;grid.Edited+=Calculate;
+        grid.Table.RowHeight=34;grid.BeforeChange+=CaptureHistory;grid.Edited+=Calculate;
         if(name=="form"){RefreshAgents();ApplyAgentFilter();}
         grid.Table.SelectedCellsChanged+=(_,_)=>UpdateRecords();
         sheetArea.Children.Clear();sheetArea.Children.Add(grid);UpdateRecords();notification.Visibility=Visibility.Collapsed;dirty=false;SetSaveState(false);openingGroup.IsEnabled=!generatedView;
@@ -360,6 +361,7 @@ public sealed partial class MainWindow : Window
     private void Calculate(){if(grid==null)return;try{Options();if(generatedView){var report=workflow.BuildCurrent(controller.PartyId);grid=WorkflowWindows.ReportGrid(report.Tables[controller.Name=="details"?0:1]);sheetArea.Children.Clear();sheetArea.Children.Add(grid);status.Text="Generated report refreshed · "+controller.AsOf.ToString("dd-MM-yyyy");return;}refreshing=true;controller.Calculate();controller.Validate(false);notification.Visibility=Visibility.Collapsed;status.Text=dirty?"● Unsaved changes":"All changes saved";status.Foreground=Ui.Color(dirty?"#9A6700":"#64748B");}catch(Exception ex){Error(ex.Message);}finally{refreshing=false;CaptureHistory();}}
     private void Save()
     {
+        if(MasterNameEditing){FinishMasterNameEditing();return;}
         if(grid==null||generatedView)return;
         if(!grid.Table.CommitEdit()||!grid.Table.CommitEdit(DataGridEditingUnit.Row,true))throw new ArgumentException("Correct invalid cells before saving.");
         Options();CaptureHistory();refreshing=true;
@@ -370,7 +372,7 @@ public sealed partial class MainWindow : Window
         }
         finally{refreshing=false;}
     }
-    internal void PreviewSheet(string name){if(name is "parties" or "agents" or "partyReceipt" or "agentReceipt" or "reports")OpenPage(name);else Open(name);}
+    internal void PreviewSheet(string name){if(name is "parties" or "agents" or "partyReceipt" or "agentReceipt" or "expenseReceipt" or "reports")OpenPage(name);else Open(name);}
     internal void PreviewParty(string name,Guid party){RefreshParties(party);Open(name,party);}
     internal void CheckWorkflowInteractions()
     {
@@ -440,7 +442,7 @@ public sealed partial class MainWindow : Window
         partyTools.Visibility=Visibility.Visible;agentFilterGroup.Visibility=Visibility.Visible;optionBar.Visibility=Visibility.Visible;workflows.Visibility=Visibility.Visible;workflows.IsEnabled=true;foreach(UIElement action in workflows.Children)action.IsEnabled=true;options.Visibility=Visibility.Collapsed;masterActions.Visibility=Visibility.Collapsed;
         title.Text="Invoice register · All parties";title.ToolTip=null;partySelector.ToolTip=null;
         foreach(var item in nav){item.Value.Background=Ui.Color(item.Key=="form"?"#E8EFFD":"#FFFFFF");item.Value.Foreground=Ui.Color(item.Key=="form"?"#2458D3":"#52627A");}
-        grid=new ExcelGrid(ExcelFields.For("form").ToArray(),rows,true,frozenColumns:3);grid.Table.RowHeight=28;foreach(var column in grid.Table.Columns.Take(3))column.CanUserReorder=false;
+        grid=new ExcelGrid(ExcelFields.For("form").ToArray(),rows,true,frozenColumns:3);grid.Table.RowHeight=34;foreach(var column in grid.Table.Columns.Take(3))column.CanUserReorder=false;
         sheetArea.Children.Clear();sheetArea.Children.Add(grid);RefreshAgents();ApplyAgentFilter();notification.Visibility=Visibility.Collapsed;SetSaveState(false);status.Text="All parties · select a specific party to edit invoices or use invoice actions";revision.Text="Local storage";RefreshPageHeading();
     }
     private void CreateParty()
@@ -458,19 +460,19 @@ public sealed partial class MainWindow : Window
     }
     private void OpenPage(string name)
     {
-        activePage=name;generatedView=true;dirty=false;grid=null;
+        activePage=name;if(name is "partyReceipt" or "agentReceipt" or "expenseReceipt")lastReceiptPage=name;generatedView=true;dirty=false;grid=null;
         partyTools.Visibility=Visibility.Collapsed;workflows.Visibility=Visibility.Collapsed;options.Visibility=Visibility.Collapsed;
-        var master=name is "parties" or "agents";var receipt=name is "partyReceipt" or "agentReceipt";optionBar.Visibility=master||receipt?Visibility.Visible:Visibility.Collapsed;masterActions.Visibility=master||receipt?Visibility.Visible:Visibility.Collapsed;
-        masterActions.Children[0].Visibility=receipt?Visibility.Visible:Visibility.Collapsed;masterActions.Children[1].Visibility=name=="parties"?Visibility.Visible:Visibility.Collapsed;masterActions.Children[2].Visibility=name=="agents"?Visibility.Visible:Visibility.Collapsed;
+        var master=name is "parties" or "agents";var receipt=name is "partyReceipt" or "agentReceipt" or "expenseReceipt";optionBar.Visibility=master?Visibility.Visible:Visibility.Collapsed;masterActions.Visibility=master?Visibility.Visible:Visibility.Collapsed;
+        masterActions.Children[0].Visibility=receipt?Visibility.Visible:Visibility.Collapsed;masterActions.Children[1].Visibility=name=="parties"?Visibility.Visible:Visibility.Collapsed;masterActions.Children[2].Visibility=name=="agents"?Visibility.Visible:Visibility.Collapsed;masterActions.Children[3].Visibility=name=="parties"?Visibility.Visible:Visibility.Collapsed;masterActions.Children[4].Visibility=name=="agents"?Visibility.Visible:Visibility.Collapsed;
         title.Text=name switch{"parties"=>"Party Master","agents"=>"Agent Master","partyReceipt"=>"Party Receipt","agentReceipt"=>"Agent Receipt",_=>"Reports"};title.ToolTip=null;
-        foreach(var item in nav){item.Value.Background=Ui.Color(item.Key==name?"#E8EFFD":"#FFFFFF");item.Value.Foreground=Ui.Color(item.Key==name?"#2458D3":"#52627A");}
+        foreach(var item in nav){item.Value.Background=Ui.Color((item.Key==name||item.Key=="receipts"&&name is "partyReceipt" or "agentReceipt" or "expenseReceipt")?"#E8EFFD":"#FFFFFF");item.Value.Foreground=Ui.Color((item.Key==name||item.Key=="receipts"&&name is "partyReceipt" or "agentReceipt" or "expenseReceipt")?"#2458D3":"#52627A");}
         sheetArea.Children.Clear();notification.Visibility=Visibility.Collapsed;
         if(master)
         {
             var rows=new System.Collections.ObjectModel.ObservableCollection<GridRow>();
-            if(name=="parties")foreach(var entry in store.GetPartyMaster()){var row=new GridRow();row["A"]=entry.Name;row["B"]=entry.Invoices.ToString(CultureInfo.InvariantCulture);var amounts=new CompanyReports(store).MasterAmounts(name=="agents",entry.Id.ToString());row["E"]=amounts.OriginalOrPartyReceipts?.ToString("0.00",CultureInfo.InvariantCulture)??"";row["C"]=amounts.Received.ToString("0.00",CultureInfo.InvariantCulture);row["D"]=amounts.Pending?.ToString("0.00",CultureInfo.InvariantCulture)??"";rows.Add(row);}
-            else foreach(var entry in store.GetAgents()){var row=new GridRow();row["A"]=entry.Name;row["B"]=entry.Invoices.ToString(CultureInfo.InvariantCulture);var amounts=new CompanyReports(store).MasterAmounts(name=="agents",entry.Id.ToString());row["E"]=amounts.OriginalOrPartyReceipts?.ToString("0.00",CultureInfo.InvariantCulture)??"";row["C"]=amounts.Received.ToString("0.00",CultureInfo.InvariantCulture);row["D"]=amounts.Pending?.ToString("0.00",CultureInfo.InvariantCulture)??"";rows.Add(row);}
-            grid=new ExcelGrid([new("A",name=="parties"?"Party Name":"Agent Name",Width:310),new("B","Invoices",Width:90),new("E",name=="parties"?"Original invoice total / USD":"Received from parties / USD",Width:230,DataType:"number"),new("C",name=="parties"?"Paid by party to agent / USD":"Sent to company / USD",Width:230,DataType:"number"),new("D",name=="parties"?"Party still owes agent / USD":"Agent still owes company / USD",Width:230,DataType:"number")],rows,true);grid.Table.Columns[^1].Width=new DataGridLength(1,DataGridLengthUnitType.Star);grid.Table.Columns[^1].MinWidth=230;sheetArea.Children.Add(grid);
+            if(name=="parties")foreach(var entry in store.GetPartyMaster()){var row=new GridRow();row["_id"]=entry.Id.ToString();row["A"]=entry.Name;row["B"]=entry.Invoices.ToString(CultureInfo.InvariantCulture);var amounts=new CompanyReports(store).MasterAmounts(name=="agents",entry.Id.ToString());row["E"]=amounts.OriginalOrPartyReceipts?.ToString("0.00",CultureInfo.InvariantCulture)??"";row["C"]=amounts.Received.ToString("0.00",CultureInfo.InvariantCulture);row["D"]=amounts.Pending?.ToString("0.00",CultureInfo.InvariantCulture)??"";rows.Add(row);}
+            else foreach(var entry in store.GetAgents()){var row=new GridRow();row["_id"]=entry.Id.ToString();row["A"]=entry.Name;row["B"]=entry.Invoices.ToString(CultureInfo.InvariantCulture);var amounts=new CompanyReports(store).MasterAmounts(name=="agents",entry.Id.ToString());row["E"]=amounts.OriginalOrPartyReceipts?.ToString("0.00",CultureInfo.InvariantCulture)??"";row["C"]=amounts.Received.ToString("0.00",CultureInfo.InvariantCulture);row["D"]=amounts.Pending?.ToString("0.00",CultureInfo.InvariantCulture)??"";rows.Add(row);}
+            grid=new ExcelGrid([new("A",name=="parties"?"Party Name":"Agent Name",Width:310),new("B","Invoices",Width:90),new("E",name=="parties"?"Original invoice total / USD":"Net received from parties / USD",Width:230,DataType:"number"),new("C",name=="parties"?"Paid by party to agent / USD":"Sent to company / USD",Width:230,DataType:"number"),new("D",name=="parties"?"Party still owes agent / USD":"Agent still owes company / USD",Width:230,DataType:"number")],rows,true);grid.Table.Columns[^1].Width=new DataGridLength(1,DataGridLengthUnitType.Star);grid.Table.Columns[^1].MinWidth=230;sheetArea.Children.Add(grid);ConfigureMasterNameEditing();
         }
         if(receipt)LoadTransferReceiptPage(name);
         if(name=="reports")LoadCompanyReportPage();
@@ -615,5 +617,15 @@ public sealed partial class MainWindow : Window
     }
     private sealed class ActionCommand(Action execute):ICommand{public event EventHandler? CanExecuteChanged{add{}remove{}}public bool CanExecute(object? parameter)=>true;public void Execute(object? parameter)=>execute();}
 }
+
+
+
+
+
+
+
+
+
+
 
 
