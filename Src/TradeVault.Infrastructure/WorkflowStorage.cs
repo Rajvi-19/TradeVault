@@ -21,7 +21,7 @@ public sealed partial class WorkbookStore
         {
             if(savedRows.TryGetValue(ReportWorkflow.InvoiceKey(party,row),out var saved))
                 foreach(var key in RegisterInvoiceSchema.IdentityKeys)
-                    if(row.GetValueOrDefault(key,"")!=saved.GetValueOrDefault(key,""))throw new BusinessRuleException("Country, agent and proforma invoice details cannot be changed after creation.");
+                    if(row.GetValueOrDefault(key,"")!=saved.GetValueOrDefault(key,""))throw new BusinessRuleException("Party and agent cannot be changed after creation.");
             if(row.GetValueOrDefault("_newInvoice")=="1")
             {
                 RegisterInvoiceSchema.Required(row.GetValueOrDefault("F2", ""),"Country name",200);

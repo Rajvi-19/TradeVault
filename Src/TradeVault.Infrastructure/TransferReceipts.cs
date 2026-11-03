@@ -55,13 +55,13 @@ public sealed partial class WorkbookStore
             throw new BusinessRuleException("Enter a positive USD amount with at most two decimal places (maximum 1 trillion).");
         if(bankTransferCharge<0||bankTransferCharge>1_000_000_000_000m||decimal.Round(bankTransferCharge,2)!=bankTransferCharge)throw new BusinessRuleException("Bank transfer charge must be zero or positive with at most two decimal places.");
         if(bankTransferCharge>usd)throw new BusinessRuleException("Bank transfer charge cannot exceed the receipt amount.");
-        if(kind!=TransferReceiptKind.Party&&bankTransferCharge!=0)throw new BusinessRuleException("Bank transfer charges are entered on Party Receipts.");
+
         description=(description??"").Trim();
         if(description.Length>500)throw new BusinessRuleException("Reference / description must be 500 characters or fewer.");
         if(kind==TransferReceiptKind.Party&&!GetAgents().Any(a=>a.Id==receivingAgentId))throw new BusinessRuleException("Select the receiving agent from Agent Master.");
         usdValue=usdValue?.Trim();
         if(usdValue?.Length>100)throw new BusinessRuleException("USD rate must be 100 characters or fewer.");
-        var receipt=new TransferReceipt(Guid.NewGuid(),masterId,name,date,usd,description,DateTimeOffset.UtcNow,kind==TransferReceiptKind.Party?receivingAgentId:null,UsdValue:usdValue,BankTransferCharge:kind==TransferReceiptKind.Party?bankTransferCharge:null);
+        var receipt=new TransferReceipt(Guid.NewGuid(),masterId,name,date,usd,description,DateTimeOffset.UtcNow,kind==TransferReceiptKind.Party?receivingAgentId:null,UsdValue:usdValue,BankTransferCharge:bankTransferCharge);
         Mutate<TransferReceiptBook>(documentKind,"all",book=>
         {
             if(kind==TransferReceiptKind.Party)receipt=receipt with{Allocations=AllocatePartyReceipt(receipt,book?.Entries??[])};

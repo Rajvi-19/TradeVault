@@ -16,7 +16,7 @@ public sealed partial class MainWindow
         {
             var row=new GridRow();row["_id"]=entry.Id.ToString();row["A"]=entry.Name;row["B"]=entry.PaymentDate.ToString("yyyy-MM-dd");row["C"]=entry.UsdAmount.ToString("0.00",CultureInfo.InvariantCulture);row["D"]=entry.Description;row["E"]=store.GetAgents().FirstOrDefault(a=>a.Id==entry.ReceivingAgentId)?.Name??"Select receiving agent";row["R"]=entry.UsdValueDisplay;row["T"]=entry.BankTransferCharge?.ToString("0.00",CultureInfo.InvariantCulture)??"";rows.Add(row);
         }
-        Field[] fields=party?[new("A","Party name",Width:230),new("E","Receiving agent",Width:230),new("B","Payment date",Width:140),new("C","Receipt amount / USD",Width:170),new("T","Bank transfer charge / USD",Width:190,DataType:"number"),new("R","USD rate",Width:230,DataType:"text"),new("D","Reference / description",Width:340)]:[new("A","Agent name",Width:250),new("B","Payment date",Width:160),new("C","Receipt amount (USD)",Width:200),new("R","USD rate",Width:230,DataType:"text"),new("D","Reference / description",Width:440)];
+        Field[] fields=party?[new("A","Party name",Width:230),new("E","Receiving agent",Width:230),new("B","Payment date",Width:140),new("C","Receipt amount / USD",Width:170),new("R","USD rate",Width:230,DataType:"text"),new("D","Reference / description",Width:340)]:[new("A","Agent name",Width:250),new("B","Payment date",Width:160),new("C","Receipt amount (USD)",Width:200),new("T","Bank transfer charge / USD",Width:190,DataType:"number"),new("R","USD rate",Width:230,DataType:"text"),new("D","Reference / description",Width:440)];
         if(page=="expenseReceipt")
         {
             var parties=store.GetParties().ToDictionary(p=>p.Id,p=>p.Name);var agents=store.GetAgents().ToDictionary(a=>a.Id,a=>a.Name);
@@ -69,7 +69,7 @@ public sealed partial class MainWindow
                     dialog.FillForCheck("unknown","2026-10-15","1250.50","Wire transfer");dialog.SubmitForCheck();Check(dialog.HasError&&dialog.Result==null,"Unknown receipt master must be rejected.");
                     dialog.FillForCheck(id,"54-04-2026","1250.50","Wire transfer");dialog.SubmitForCheck();Check(dialog.HasError&&dialog.Result==null,"Invalid calendar dates must be rejected.");
                     dialog.FillForCheck(id,"2026-10-15","-1","Wire transfer");dialog.SubmitForCheck();Check(dialog.HasError&&dialog.Result==null,"Negative amounts must be rejected.");
-                    dialog.FillForCheck(id,"2026-10-15","1250.50","Wire transfer",agent.Id,"280 PKR",kind==TransferReceiptKind.Party?"10.00":"0.00");Check(dialog.SelectedNameForCheck()==(kind==TransferReceiptKind.Party?party.Name:agent.Name),"Receipt dropdown must render only the master name.");dialog.SubmitForCheck();
+                    dialog.FillForCheck(id,"2026-10-15","1250.50","Wire transfer",agent.Id,"280 PKR",kind==TransferReceiptKind.Agent?"10.00":"0.00");Check(dialog.SelectedNameForCheck()==(kind==TransferReceiptKind.Party?party.Name:agent.Name),"Receipt dropdown must render only the master name.");dialog.SubmitForCheck();
                 }
                 catch(Exception ex){failure=ex;dialog.Close();}
             };
@@ -82,17 +82,17 @@ public sealed partial class MainWindow
             Check(dialog.Result!.UsdValue=="280 PKR"&&grid.Table.Items.Cast<GridRow>().Any(r=>r["R"]=="280 PKR")&&BuildPageExport().Tables[0].Columns.Single(c=>c.Key=="R").Type=="text","Both receipt pages must retain USD rate as text after save/reload and in exports.");
             Check(grid.Table.Columns.Count(c=>c.Header?.ToString()=="USD rate")==1,"Each receipt table must show exactly one separate USD rate column.");
             if(kind==TransferReceiptKind.Party)Check(!grid.Table.Columns.Any(c=>c.Header?.ToString()?.Contains("Allocated",StringComparison.OrdinalIgnoreCase)==true||c.Header?.ToString()?.Contains("Unallocated",StringComparison.OrdinalIgnoreCase)==true),"Party receipt must show stored USD rate instead of allocation columns.");
-            if(kind==TransferReceiptKind.Party)Check(dialog.Result!.BankTransferCharge==10&&grid.Table.Items.Cast<GridRow>().Any(r=>r["T"]=="10.00")&&BuildPageExport().Tables[0].Columns.Single(c=>c.Key=="T").Type=="number","Party bank charge must persist and export numerically.");
+            if(kind==TransferReceiptKind.Agent)Check(dialog.Result!.BankTransferCharge==10&&grid.Table.Items.Cast<GridRow>().Any(r=>r["T"]=="10.00")&&BuildPageExport().Tables[0].Columns.Single(c=>c.Key=="T").Type=="number","Agent bank charge must persist and export numerically.");
             var export=BuildPageExport();Check(export.Tables.Single().Rows.Count==count+1&&export.Tables[0].Columns.Single(c=>c.Key=="C").Type=="number","Receipt export must retain numeric USD rates.");
         }
         Navigate("agentReceipt");Navigate("parties");Navigate("receipts");
         Check(activePage=="agentReceipt","Receipt tab must remember the selected sub-tab.");
         var host=(System.Windows.Controls.DockPanel)sheetArea.Children[0];var subtabs=(System.Windows.Controls.StackPanel)((System.Windows.Controls.Grid)((System.Windows.Controls.Border)host.Children[0]).Child).Children[0];
         ((System.Windows.Controls.Button)subtabs.Children[0]).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
-        Check(activePage=="partyReceipt"&&grid!.Table.Columns.Count==7,"Party Receipt sub-tab must open the party table.");
+        Check(activePage=="partyReceipt"&&grid!.Table.Columns.Count==6,"Party Receipt sub-tab must open the party table.");
         host=(System.Windows.Controls.DockPanel)sheetArea.Children[0];subtabs=(System.Windows.Controls.StackPanel)((System.Windows.Controls.Grid)((System.Windows.Controls.Border)host.Children[0]).Child).Children[0];
         ((System.Windows.Controls.Button)subtabs.Children[1]).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
-        Check(activePage=="agentReceipt"&&grid!.Table.Columns.Count==5,"Agent Receipt sub-tab must open the agent table.");
+        Check(activePage=="agentReceipt"&&grid!.Table.Columns.Count==6,"Agent Receipt sub-tab must open the agent table.");
         store.CreateRegisterInvoice(party.Id,store.Load("form",party.Id).Revision,new("Pakistan",agent.Name,"SYNTHETIC-EXPENSE-PI",new(2026,1,1),agent.Id));
         var expenseInvoice=store.GetExpenseInvoices(party.Id).Single();
         var expenseDialog=new ExpenseReceiptDialog(store){WindowStartupLocation=WindowStartupLocation.Manual,Left=-20000,Top=-20000,ShowInTaskbar=false,ShowActivated=false};

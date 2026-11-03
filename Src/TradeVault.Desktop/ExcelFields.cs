@@ -6,9 +6,9 @@ public static class ExcelFields
  "form" => [
 new("F1","Party name",false,150,Locked:true),
 new("F27","Agent name",false,155,Locked:true),
-new("F3","Proforma Invoice Number",false,155,Locked:true),
-new("F4","Proforma Invoice Date",false,135,Locked:true),
-new("F2","Country name",false,115,Locked:true),
+new("F3","Proforma Invoice Number",false,155,IdentityTint:true),
+new("F4","Proforma Invoice Date",false,135),
+new("F2","Country name",false,115),
 new("F5","Original amount ($)",false,240),
 new("F6","Our customs invoice amount ($)",false,240),
 new("F7","Pakistan customs invoice amount ($)",false,240),

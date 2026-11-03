@@ -84,7 +84,7 @@ public sealed class ExcelGrid : UserControl
             var invalid=new DataTrigger{Binding=new Binding(nameof(GridRow.Errors)){Converter=new FieldErrorConverter(),ConverterParameter=field.Key+"?"},Value=true};
             invalid.Setters.Add(new Setter(Border.BorderBrushProperty,Ui.Color("#C2413C")));cellStyle.Triggers.Add(invalid);
             Style? lockedHeader=null;
-            if(field.Locked)
+            if(field.Locked||field.IdentityTint)
             {
                 cellStyle.Setters.Add(new Setter(BackgroundProperty,Ui.Color("#EDF1F6")));cellStyle.Setters.Add(new Setter(ForegroundProperty,Ui.Color("#52627A")));
                 var selected=new Trigger{Property=DataGridCell.IsSelectedProperty,Value=true};selected.Setters.Add(new Setter(BackgroundProperty,Ui.Color("#E7EFFF")));selected.Setters.Add(new Setter(ForegroundProperty,Ui.Color("#18243B")));cellStyle.Triggers.Add(selected);

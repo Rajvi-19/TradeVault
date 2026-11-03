@@ -968,3 +968,15 @@ Prepared START HERE.txt usage instructions and SHA256SUMS.txt immutable-file man
 Verification: Release publish succeeded. Initial sandbox restore failed vulnerability-source network access; approved publish restored packages successfully. Native local EXE --initialize-db exited 0, bundled coreclr.dll and e_sqlite3.dll present, all company/domain/worksheet/receipt/audit tables empty and SQLite integrity ok. After approved external-drive write, copied and SHA256-verified all 414 files on E:. Native E:\TradeVault\TradeVault.Desktop.exe --initialize-db run from workspace working directory exited 0, proving database path follows USB executable directory rather than current working directory. USB Data/tradevault.db independently verified empty and healthy. USB write speed was slow but copy/verification completed. No dummy seeding or changes to Debug company database.
 
 Files: new publish profile, Docs/USB-Deployment-2026-11-02.md, local Release folder/instructions/hash manifest, E:\TradeVault folder and this README. Limitations: current package targets 64-bit Windows; running on a second Windows machine without .NET, physical unplug/recovery, OS policy and printer scenarios have not been independently tested. App remains unsigned. Next: user opens E:\TradeVault\TradeVault.Desktop.exe; keep complete folder together and close app before ejecting USB.
+
+### 2026-11-03 — Small local demo dataset
+
+Added one fictional party, one agent, one USD 12,000 invoice, one party receipt, one agent receipt and one expense receipt to the local Debug database using the application store APIs. Verified Account Details reports USD 6,000 paid, USD 100 expenses, USD 4,000 sent to the company and USD 1,900 pending with the agent. The USB copy was disconnected. Reopen the local app to refresh the views.
+
+### 2026-11-03 — Editable proforma and country fields
+
+Unlocked Proforma Invoice Number, Proforma Invoice Date and Country name in the party-specific Invoice Register and permitted saving changes to those fields. Editable cells use standard grid colors. Renamed the Account Details header to Our custom invoice amount ($). Rebuilt the local app and passed live worksheet checks.
+
+### 2026-11-03 — Proforma tint and agent bank charges
+
+Matched the editable proforma number cell and header tint to Party name. Moved bank charge entry and display to Agent Receipt. Agent charges are separate remittance expenses in Agent Ledger and are apportioned to allocated invoices in Account Details. Historical party charges retain their accounting treatment. Rebuilt the local app and passed live worksheet checks.

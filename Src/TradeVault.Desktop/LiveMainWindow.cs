@@ -130,7 +130,7 @@ public sealed partial class MainWindow : Window
         }
         foreach(var name in new[]{"partyReceipt","agentReceipt"})
         {
-            Navigate(name);Check(grid!=null&&grid.Table.IsReadOnly&&grid.Table.Columns.Count==(name=="partyReceipt"?7:5)&&optionBar.Visibility==Visibility.Collapsed,"Receipt pages require saved read-only tables and no separate action row.");
+            Navigate(name);Check(grid!=null&&grid.Table.IsReadOnly&&grid.Table.Columns.Count==6&&optionBar.Visibility==Visibility.Collapsed,"Receipt pages require saved read-only tables and no separate action row.");
         }
         Navigate("reports");Check(sheetArea.Children.Count>0&&optionBar.Visibility==Visibility.Collapsed,"Reports must show its three report options.");
         Navigate("form");CheckNavigationLayout();

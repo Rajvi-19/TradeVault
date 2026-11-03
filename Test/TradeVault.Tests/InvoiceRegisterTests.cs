@@ -22,6 +22,7 @@ public sealed class InvoiceRegisterTests:IDisposable
             var attempt=store.Load("form",party);attempt.Rows[0][key]=key=="F4"?"2026-05-02":"Changed";
             Assert.Throws<BusinessRuleException>(()=>store.Save("form",attempt.Revision,attempt.Rows,party));
         }
+        row["F2"]="Pakistan";row["F3"]="PI-002";row["F4"]="2026-05-02";
         row["F9"]="INV-001";row["F10"]="2026-06-01";row["F5"]="15000";row["F6"]="10000";row["F7"]="9000";row["F17"]="2026-06-17";
         store.Save("form",saved.Revision,saved.Rows,party);
         Assert.Equal("2026-09-15",Assert.Single(new ReportWorkflow(store).BuildCurrent(party).Tables[0].Rows)["N"]);
